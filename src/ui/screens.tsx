@@ -2840,8 +2840,9 @@ function RiftLobby() {
     <UiEntity
       uiTransform={{ width: '100%', height: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}
     >
-      <UiEntity uiTransform={{ width: 120, height: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+      <UiEntity uiTransform={{ width: 140, height: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
         <Img k="rift-title" w={104} tint={Color4.White()} margin={0} />
+        <Img k="multiplayer-raid" w={16} tint={gold} margin={4} />
       </UiEntity>
       <UiEntity uiTransform={{ width: 48, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
         <Img k="rift-ribbon" w={40} tint={Color4.White()} margin={0} />

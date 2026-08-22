@@ -1,0 +1,37 @@
+{
+  "ecs7": true,
+  "runtimeVersion": "7",
+  "display": {
+    "title": "Heroes of Genesis",
+    "description": "Recruit heroes, party up, and walk the Roads. Everyone can win a collectible.",
+    "navmapThumbnail": "images/scene-thumbnail-b.jpg",
+    "favicon": "favicon_asset"
+  },
+  "owner": "",
+  "contact": {
+    "name": "",
+    "email": ""
+  },
+  "main": "bin/index.js",
+  "tags": ["game", "rpg"],
+  "scene": {
+    "parcels": ["0,0", "1,0", "0,1", "1,1"],
+    "base": "0,0"
+  },
+  "spawnPoints": [
+    {
+      "name": "spawn1",
+      "default": true,
+      "position": { "x": 8, "y": 0, "z": 6 },
+      "cameraTarget": { "x": 16, "y": 1.4, "z": 16 }
+    }
+  ],
+  "featureToggles": {
+    "voiceChat": "enabled",
+    "portableExperiences": "enabled"
+  },
+  "authoritativeMultiplayer": true,
+  "worldConfiguration": {
+    "name": "KoA.dcl.eth"
+  }
+}

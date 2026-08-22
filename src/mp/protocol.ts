@@ -1,0 +1,130 @@
+import type { BattleState, OwnedFamiliar } from '../game/types'
+
+// Typed payloads carried as JSON strings inside the transport messages, so the
+// registered schemas stay tiny and stable (same pattern as DecentraCraft).
+
+export const MP_VERSION = 1
+
+/** Everything a wallet owns; the server persists this per player. */
+export type PlayerSave = {
+  v: number
+  collection: OwnedFamiliar[]
+  party: string[]
+  heroUid: string
+  coins: number
+  energy: number
+  cleared: number
+  floorAt: Record<string, number>
+  /** Ascension tier per road (1..MAX_STARS); missing road = tier 1. */
+  roadStar?: Record<string, number>
+  soundOn: boolean
+  musicOn: boolean
+  /** UTC day index of the last daily gift sent (0 = never). */
+  giftDay: number
+}
+
+export function emptySave(): PlayerSave {
+  return { v: MP_VERSION, collection: [], party: ['', '', '', ''], heroUid: '', coins: 0, energy: 0, cleared: 0, floorAt: {}, roadStar: {}, soundOn: true, musicOn: true, giftDay: 0 }
+}
+
+// --- Trading -------------------------------------------------------------------
+
+export type TradeMsg =
+  | { type: 'invite'; to: string }
+  | { type: 'accept'; from: string }
+  | { type: 'decline'; from: string }
+  | { type: 'offer'; uid: string }
+  | { type: 'lock'; locked: boolean }
+  | { type: 'cancel' }
+
+/** Live table state the server pushes to both parties. */
+export type TradeTable = {
+  a: string
+  b: string
+  nameA: string
+  nameB: string
+  offerA?: OwnedFamiliar
+  offerB?: OwnedFamiliar
+  lockA: boolean
+  lockB: boolean
+}
+
+export type TradeUpdate =
+  | { type: 'invite'; from: string; name: string }
+  | { type: 'state'; table: TradeTable }
+  | { type: 'done'; receivedUid: string }
+  | { type: 'closed'; reason: 'declined' | 'cancelled' | 'left' | 'failed' }
+
+// --- The Rift ------------------------------------------------------------------
+
+export const RIFT_FLOORS = 6 // 5 floors + the boss
+export const RIFT_SEATS = 4
+export const RIFT_ENERGY_COST = 5
+
+export type RiftMsg =
+  | { type: 'sit'; heroUid: string }
+  | { type: 'leave' }
+  | { type: 'ready'; ready: boolean }
+
+export type RiftSeat = {
+  address: string
+  name: string
+  uid: string
+  defId: string
+  stars: number
+  level: number
+  ready: boolean
+}
+
+export type RiftReward = { address: string; coins: number; xp: number; dropDefId?: string; dropUid?: string }
+
+/** The whole rift room as one synced JSON snapshot. */
+export type RiftPub = {
+  phase: 'lobby' | 'battle' | 'won' | 'lost'
+  seats: RiftSeat[]
+  floor: number
+  battle?: BattleState
+  rewards?: RiftReward[]
+}
+
+export function emptyRift(): RiftPub {
+  return { phase: 'lobby', seats: [], floor: 1 }
+}
+
+// --- Festival ------------------------------------------------------------------
+
+export const FEST_TARGET = 200 // rift floors the realm must clear this window
+export const FEST_GIFT_COINS = 120
+export const FEST_BLESS_COINS = 40
+/** Some days the gift chest also holds a hero card (ember-tier roll). */
+export const FEST_GIFT_CARD_CHANCE = 0.2
+export const DAY_MS = 24 * 60 * 60 * 1000
+
+/** The festival ends Sep 3, 2026 at midnight Eastern (end of day; EDT = UTC-4). */
+export const FEST_END_MS = Date.UTC(2026, 8, 4, 4, 0, 0)
+/** Window id stamped on the stored state and reward claims. */
+export const FEST_WINDOW_ID = 20260903
+
+export function giftDayOf(now: number): number {
+  return Math.floor(now / DAY_MS)
+}
+
+/** The public festival state everyone sees. */
+export type FestPub = {
+  week: number
+  count: number
+  target: number
+  endsAt: number
+  done: boolean
+}
+
+export function emptyFest(): FestPub {
+  return { week: FEST_WINDOW_ID, count: 0, target: FEST_TARGET, endsAt: FEST_END_MS, done: false }
+}
+
+export type GiftMsg = { type: 'send'; to: string }
+
+export type GiftUpdate =
+  | { type: 'received'; name: string; coins: number; dropDefId?: string; dropUid?: string }
+  | { type: 'sent'; coins: number }
+  | { type: 'blocked'; reason: 'daily' | 'gone' }

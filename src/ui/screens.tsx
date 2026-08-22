@@ -718,17 +718,19 @@ function HomeField() {
   )
 }
 
-/** Campfire quest dialog: the village elder explains the communal fire.
- *  Fills the same rectangle the home party cards live in. Tap to dismiss. */
+/** Campfire quest dialog: classic MMO NPC box over the home party strip.
+ *  On the phone this strip is horizontal: the elder's framed portrait sits on
+ *  the left (UI bottom, column-reverse), his lines to the right of it, all
+ *  left-aligned (UI flex-end). Tap anywhere to dismiss. */
 function FireTalk() {
   return (
     <UiEntity
       uiTransform={{
         width: '100%',
         height: '100%',
-        flexDirection: 'row',
+        flexDirection: 'column-reverse',
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'flex-start'
       }}
       uiBackground={{
         textureMode: 'stretch',
@@ -739,17 +741,48 @@ function FireTalk() {
         game.fireTalk = false
       })}
     >
+      {/* framed portrait, phone-left */}
       <UiEntity
-        uiTransform={{ width: 190, height: 190, margin: 4, pointerFilter: 'none' }}
-        uiBackground={{
-          textureMode: 'stretch',
-          texture: { src: villagerSheet() },
-          uvs: villagerTalkUvs(),
-          color: Color4.White()
+        uiTransform={{
+          width: 244,
+          height: 244,
+          margin: { bottom: 14 },
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerFilter: 'none'
         }}
-      />
-      <Img k="fire-grows" w={24} tint={gold} margin={4} />
-      <Img k="players-stronger" w={24} tint={cream} margin={4} />
+        uiBackground={{ color: Color4.create(0.62, 0.46, 0.2, 1) }}
+      >
+        <UiEntity
+          uiTransform={{ width: 236, height: 236, alignItems: 'center', justifyContent: 'center', pointerFilter: 'none' }}
+          uiBackground={{ color: Color4.create(0.09, 0.07, 0.06, 1) }}
+        >
+          <UiEntity
+            uiTransform={{ width: 228, height: 228, pointerFilter: 'none' }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: villagerSheet() },
+              uvs: villagerTalkUvs(),
+              color: Color4.White()
+            }}
+          />
+        </UiEntity>
+      </UiEntity>
+      {/* speech lines, phone-right of the portrait, left-aligned */}
+      <UiEntity
+        uiTransform={{
+          flexGrow: 1,
+          width: '100%',
+          flexDirection: 'row',
+          alignItems: 'flex-end',
+          justifyContent: 'center',
+          padding: { bottom: 20, left: 10, right: 10 },
+          pointerFilter: 'none'
+        }}
+      >
+        <Img k="fire-grows" w={26} tint={gold} margin={5} />
+        <Img k="players-stronger" w={26} tint={cream} margin={5} />
+      </UiEntity>
     </UiEntity>
   )
 }
@@ -4383,7 +4416,7 @@ function PhaseFade() {
   )
 }
 
-const AD_SRCS = ['images/ads/koa-b.png', 'images/ads/decentracraft-b.png']
+const AD_SRCS = ['images/ads/koa-c.png', 'images/ads/decentracraft-c.png']
 const AD_ROTATE_MS = 8000
 
 /** Fake 2010 mobile banner on the physical bottom (virtual-canvas right gutter). */

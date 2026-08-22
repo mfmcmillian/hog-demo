@@ -23,8 +23,8 @@ const EXTRA = [
   'images/packs/vow-a.png',
   'images/packs/crown-a.png',
   'images/hud/crown.png',
-  'images/ads/koa-b.png',
-  'images/ads/decentracraft-b.png',
+  'images/ads/koa-c.png',
+  'images/ads/decentracraft-c.png',
   'sounds/fx/rift-c.mp3',
   cardBackArt().src
 ]

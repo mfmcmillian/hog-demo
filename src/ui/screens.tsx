@@ -8,7 +8,7 @@ import { FLOORS, ROADS, dropStarsFor } from '../game/quests'
 import { PACKS, PackDef } from '../game/packs'
 import { DEBUG, advanceBanner, benchUnits, cancelPack, canFuse, confirmPack, cycleHero, cycleTier, findOwned, frontierFloor, fuse, fuseCount, fuseFaces, game, goHome, goRoad, leaveResult, openHeroCard, openLevels, pickFuse, pickFuseHero, pickFuseRank, pickHero, pickedStarOf, requestPack, resetAccount, resumeFloor, roadStarOf, skipBattle, startFloor, tapBenchHero, tapPartySlot, toggleParty } from '../game/state'
 import { BattleUnit, MAX_STARS, OwnedFamiliar, PARTY_SIZE, Rarity, XpLine } from '../game/types'
-import { chestFx, chestOpenSheet, chestWobble, dmgPops, dropRaySheet, giftFx, loopSparksUvs, revealBurstSheet, revealBurstUvs, foeLungeAmt, heroPoster, idleMotion, idlePoster, posterDrive, posterPunch, reportFx, revealFx, revealReady, shownHp, skillFxUvs, skipReveal, sparksSheet, starBurstFx, startChestFx, stopGiftFx, SKILL_FX_KINDS, SKILL_FX_SRC, unitHit, unitSkillFx } from './flipbook'
+import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs, chestFx, chestOpenSheet, chestWobble, dmgPops, dropRaySheet, giftFx, loopSparksUvs, revealBurstSheet, revealBurstUvs, foeLungeAmt, heroPoster, idleMotion, idlePoster, posterDrive, posterPunch, reportFx, revealFx, revealReady, shownHp, skillFxUvs, skipReveal, sparksSheet, starBurstFx, startChestFx, stopGiftFx, SKILL_FX_KINDS, SKILL_FX_SRC, unitHit, unitSkillFx } from './flipbook'
 import { cardBackArt, hallArt } from './halls'
 import { LABELS } from './labels.gen'
 import { boot, enterGame } from '../game/boot'
@@ -81,6 +81,29 @@ function Img(props: { k: string; w: number; tint?: Color4; margin?: number; key?
         color: props.tint ?? cream
       }}
     />
+  )
+}
+
+/** Game logo, pushed past the chrome inset toward the real screen top. */
+function GameLogo() {
+  if (!LABELS['boot-logo']) return null
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: -185, top: 0 },
+        width: 170,
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerFilter: 'none'
+      }}
+    >
+      <UiEntity
+        uiTransform={{ width: 160, height: 320, pointerFilter: 'none' }}
+        uiBackground={{ textureMode: 'stretch', texture: { src: LABELS['boot-logo'].src }, color: Color4.White() }}
+      />
+    </UiEntity>
   )
 }
 
@@ -647,9 +670,10 @@ function HomePoi(props: {
 }
 
 function HomeField() {
-  const road = ROADS[game.cleared]
-  const face = road ? LABELS[`char-${road.boss}`] : undefined
   const village = LABELS['map-home']
+  // The village fire grows with every player in the scene.
+  const online = presentPlayers.size + 1
+  const fireSize = Math.min(220, 84 + (online - 1) * 32)
   return (
     <UiEntity
       uiTransform={{
@@ -662,25 +686,70 @@ function HomeField() {
         color: Color4.White()
       }}
     >
-      {face ? (
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { left: '32%', top: '41%' },
+          width: 170,
+          height: 170,
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerFilter: 'none'
+        }}
+      >
         <UiEntity
-          uiTransform={{
-            positionType: 'absolute',
-            position: { left: '32%', top: '41%' },
-            width: 170,
-            height: 170
-          }}
+          uiTransform={{ width: fireSize, height: fireSize }}
           uiBackground={{
             textureMode: 'stretch',
-            texture: { src: face.src },
+            texture: { src: campfireSheet() },
+            uvs: campfireUvs(),
             color: Color4.White()
           }}
+          onMouseDown={tap(() => {
+            game.fireTalk = true
+          })}
         />
-      ) : null}
+      </UiEntity>
       <HomePoi k="home-shop" label="shop" left="8%" top="14%" size={132} onTap={() => open('shop')} />
       <HomePoi k="home-trade" label="trade" left="50%" top="68%" size={140} onTap={() => open('trade')} />
       <HomePoi k="home-rift" label="friendzone" left="54%" top="13%" size={148} onTap={() => open('rift')} />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />
+    </UiEntity>
+  )
+}
+
+/** Campfire quest dialog: the village elder explains the communal fire.
+ *  Fills the same rectangle the home party cards live in. Tap to dismiss. */
+function FireTalk() {
+  return (
+    <UiEntity
+      uiTransform={{
+        width: '100%',
+        height: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src: 'images/hud/panel-leather-a.png' },
+        color: Color4.White()
+      }}
+      onMouseDown={tap(() => {
+        game.fireTalk = false
+      })}
+    >
+      <UiEntity
+        uiTransform={{ width: 190, height: 190, margin: 4, pointerFilter: 'none' }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: villagerSheet() },
+          uvs: villagerTalkUvs(),
+          color: Color4.White()
+        }}
+      />
+      <Img k="fire-grows" w={24} tint={gold} margin={4} />
+      <Img k="players-stronger" w={24} tint={cream} margin={4} />
     </UiEntity>
   )
 }
@@ -701,7 +770,7 @@ function HomeParty() {
         color: Color4.White()
       }}
     >
-      {[0, 1, 2, 3].map((i) => {
+      {game.fireTalk ? <FireTalk /> : [0, 1, 2, 3].map((i) => {
         const uid = game.party[i]
         const owned = findOwned(uid)
         const info = owned ? LABELS[`char-${owned.defId}`] : undefined
@@ -815,25 +884,7 @@ function HomeScreen() {
       <HomeField />
       <HomeParty />
       <HomeNav />
-      {/* game logo pushed up past the chrome inset, toward the real screen top */}
-      {LABELS['boot-logo'] ? (
-        <UiEntity
-          uiTransform={{
-            positionType: 'absolute',
-            position: { left: -185, top: 0 },
-            width: 170,
-            height: '100%',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerFilter: 'none'
-          }}
-        >
-          <UiEntity
-            uiTransform={{ width: 160, height: 320, pointerFilter: 'none' }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: LABELS['boot-logo'].src }, color: Color4.White() }}
-          />
-        </UiEntity>
-      ) : null}
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -1144,6 +1195,7 @@ function FestivalScreen() {
       <FestGoalPanel />
       <FestGiftPanel />
       <GiftPicker />
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -1328,6 +1380,7 @@ function SettingsScreen() {
           ) : null}
         </UiEntity>
       ) : null}
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -1450,6 +1503,7 @@ function QuestScreen() {
       <UiEntity uiTransform={{ positionType: 'absolute', position: { right: 60, top: '42%' }, pointerFilter: 'none' }}>
         <Notice />
       </UiEntity>
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -1818,6 +1872,7 @@ function PartyScreen() {
         </UiEntity>
       </UiEntity>
       <Notice />
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -2086,6 +2141,7 @@ function FuseScreen() {
         </UiEntity>
       </UiEntity>
       <Notice />
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -2434,6 +2490,7 @@ function ShopScreen() {
       >
         <Notice />
       </UiEntity>
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -2713,6 +2770,7 @@ function TradeScreen() {
         <HeroPickStrip hint="offer-card" selectedUid={sides.mine?.uid} onPick={(uid) => tradeOffer(uid)} />
       ) : null}
       <Notice />
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -2964,6 +3022,7 @@ function RiftScreen() {
     >
       <MpBackdrop k="map-rift" />
       {pub.phase === 'lobby' ? <RiftLobby /> : pub.phase === 'battle' ? <RiftBattle /> : <RiftEnd />}
+      <GameLogo />
     </UiEntity>
   )
 }
@@ -3310,25 +3369,7 @@ function BattleScreen() {
           <Gain value={b.kinCoins} w={16} tint={gold} />
         </UiEntity>
       ) : null}
-      {/* game logo pushed up past the chrome inset, same as the home screen */}
-      {LABELS['boot-logo'] ? (
-        <UiEntity
-          uiTransform={{
-            positionType: 'absolute',
-            position: { left: -185, top: 0 },
-            width: 170,
-            height: '100%',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerFilter: 'none'
-          }}
-        >
-          <UiEntity
-            uiTransform={{ width: 160, height: 320, pointerFilter: 'none' }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: LABELS['boot-logo'].src }, color: Color4.White() }}
-          />
-        </UiEntity>
-      ) : null}
+      <GameLogo />
     </BattleField>
   )
 }

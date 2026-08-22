@@ -461,7 +461,7 @@ function beginFloor() {
     const floor = game.run.floor
     const star = game.run.star ?? roadStarOf(road.id)
     const scale = floorScale(floor) * starScale(star)
-    const foes = floorFoes(road, floor)
+    const foes = floorFoes(road, floor, star)
     const kin = listOathkin()
     const ally = game.selectedAlly ? familiarForKin(game.selectedAlly) : undefined
     const replay = !!game.run.replay

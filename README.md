@@ -55,6 +55,20 @@ Every chest, raid, and road drops hero cards. Stack duplicates and fuse them int
 
 Each Road ends in a boss. Beat it and the Road ascends to a higher star tier: tougher enemies, richer coin, better drops. Master a Road at five stars and your oath hero ascends with it. A tier picker lets you replay any tier you've conquered to farm the drops you're missing.
 
+### Wear the set, earn the hero
+
+<img src="docs/img/nft-heroes.webp" alt="Frost Monarch, Ether Assassin, and Wasteland Monarch — idle art above each hero card" width="720" />
+
+Three heroes never drop from packs, roads, rifts, or trades. Own the **full** Decentraland wearable set and the hero card joins your collection. Sell or transfer a piece and the card leaves with it.
+
+| Hero | Role | Wearable set |
+| --- | --- | --- |
+| **Frost Monarch** | Legendary support | [Helm & body](https://market.decentraland.org/contracts/0x0e9663c4b53ed79b343739b5bafab89666ee8ba3) · [Shield](https://market.decentraland.org/contracts/0x0897430acd7bfc81bdcf51e815db8f0f53c94878) |
+| **Ether Assassin** | Legendary melee | [Armor set](https://market.decentraland.org/contracts/0x0bf152a83a6fc55066c2b664b164ca2916ad38f5) |
+| **Wasteland Monarch** | Mythic support | [Helm, armor & pants](https://market.decentraland.org/contracts/0xf8a87150ca602dbeb2e748ad7c9c790d55d10528) |
+
+Locked teasers sit on the PARTY bench. Tap one to see which pieces you still need. Ownership is read from your wallet (owned wearables, not just equipped). Guests cannot unlock these cards. NFT heroes are untradable — the wearables are the only door in.
+
 ## Inside the game
 
 | Clash battles | Build your party | Open chests |

@@ -12,7 +12,7 @@ import { chestFx, chestOpenSheet, chestWobble, dmgPops, dropRaySheet, giftFx, lo
 import { cardBackArt, hallArt } from './halls'
 import { LABELS } from './labels.gen'
 import { boot, enterGame } from '../game/boot'
-import { PRELOAD_SRCS, startPreload } from './preload'
+import { CRITICAL_SRCS, PRELOAD_SRCS, startPreload } from './preload'
 import {
   canGiftToday,
   festView,
@@ -679,7 +679,7 @@ function HomeField() {
       ) : null}
       <HomePoi k="home-shop" label="shop" left="8%" top="14%" size={132} onTap={() => open('shop')} />
       <HomePoi k="home-trade" label="trade" left="50%" top="68%" size={140} onTap={() => open('trade')} />
-      <HomePoi k="home-rift" label="rift" left="54%" top="13%" size={148} onTap={() => open('rift')} />
+      <HomePoi k="home-rift" label="friendzone" left="54%" top="13%" size={148} onTap={() => open('rift')} />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />
     </UiEntity>
   )
@@ -4013,6 +4013,10 @@ function StartScreen() {
 // ---- boot ---------------------------------------------------------------------
 
 function PreloadTiles() {
+  // During the boot bar only the critical set binds, so bandwidth goes to
+  // what the start screen needs. Once the bar fills (player is reading the
+  // oath screen) the rest of the tiles mount and warm the remaining sheets.
+  const srcs = boot.filled ? PRELOAD_SRCS : CRITICAL_SRCS
   return (
     <UiEntity
       uiTransform={{
@@ -4022,7 +4026,7 @@ function PreloadTiles() {
         height: 2
       }}
     >
-      {PRELOAD_SRCS.map((src) => (
+      {srcs.map((src) => (
         <UiEntity
           uiTransform={{
             positionType: 'absolute',

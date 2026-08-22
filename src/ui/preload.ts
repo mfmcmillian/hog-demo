@@ -1,7 +1,8 @@
 import { AssetLoad, engine, executeTask } from '@dcl/sdk/ecs'
 import { boot } from '../game/boot'
-import { allFxSrcs, allSheetSrcs } from './flipbook'
-import { allHallSrcs, cardBackArt } from './halls'
+import { HERO_IDS } from '../game/familiars'
+import { allFxSrcs, allSheetSrcs, chestOpenSrcs, sheetSrcOf } from './flipbook'
+import { allHallSrcs, cardBackArt, hallSrc } from './halls'
 import { LABELS } from './labels.gen'
 
 const BOOT_SRCS = [
@@ -28,16 +29,10 @@ const EXTRA = [
   cardBackArt().src
 ]
 
-function uniqueSrcs(): string[] {
+function uniq(srcs: string[]): string[] {
   const seen: Record<string, true> = {}
   const out: string[] = []
-  for (const src of [
-    ...Object.values(LABELS).map((info) => info.src),
-    ...allHallSrcs(),
-    ...allSheetSrcs(),
-    ...allFxSrcs(),
-    ...EXTRA
-  ]) {
+  for (const src of srcs) {
     if (!src || seen[src]) continue
     seen[src] = true
     out.push(src)
@@ -45,8 +40,26 @@ function uniqueSrcs(): string[] {
   return out
 }
 
-export const PRELOAD_SRCS = uniqueSrcs()
-boot.total = PRELOAD_SRCS.length
+// The boot gate waits for these only: boot art, every label/portrait the
+// start + home screens draw, the three starter sheets and halls, and the
+// small skill/reveal FX. LABELS already covers the inspect and party halls.
+const CHEST_SRCS = chestOpenSrcs()
+export const CRITICAL_SRCS = uniq([
+  ...BOOT_SRCS,
+  ...Object.values(LABELS).map((info) => info.src),
+  ...HERO_IDS.map((id) => sheetSrcOf(id) ?? ''),
+  ...HERO_IDS.map((id) => hallSrc(id)),
+  ...allFxSrcs().filter((src) => CHEST_SRCS.indexOf(src) < 0),
+  ...EXTRA
+])
+
+// Full set: collectible sheets, the rest of the halls, and the chest-open
+// flipbooks warm in the background after the gate opens.
+export const PRELOAD_SRCS = uniq([...CRITICAL_SRCS, ...allHallSrcs(), ...allSheetSrcs(), ...allFxSrcs()])
+
+const DEFERRED_SRCS = PRELOAD_SRCS.filter((src) => CRITICAL_SRCS.indexOf(src) < 0)
+
+boot.total = CRITICAL_SRCS.length
 
 function markFilled() {
   if (boot.filled) return
@@ -56,11 +69,11 @@ function markFilled() {
 
 export function startPreload() {
   const holder = engine.addEntity()
-  AssetLoad.create(holder, { assets: PRELOAD_SRCS })
+  AssetLoad.create(holder, { assets: CRITICAL_SRCS })
 
   executeTask(async () => {
     const first = BOOT_SRCS
-    const rest = PRELOAD_SRCS.filter((src) => first.indexOf(src) === -1)
+    const rest = CRITICAL_SRCS.filter((src) => first.indexOf(src) === -1)
     const queue = [...first, ...rest]
     const chunk = 12
     let bootDone = 0
@@ -82,6 +95,22 @@ export function startPreload() {
       )
     }
     if (!boot.artAt) boot.artAt = Date.now()
+
+    // Critical art has landed; warm combat sheets, halls, and chest FX in
+    // the background. Nothing gates on these.
+    const lateHolder = engine.addEntity()
+    AssetLoad.create(lateHolder, { assets: DEFERRED_SRCS })
+    for (let i = 0; i < DEFERRED_SRCS.length; i += chunk) {
+      await Promise.all(
+        DEFERRED_SRCS.slice(i, i + chunk).map(async (src) => {
+          try {
+            await fetch(src)
+          } catch {
+            // Same as above: the hidden tiles still bind it eventually.
+          }
+        })
+      )
+    }
   })
 
   let waited = 0

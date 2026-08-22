@@ -266,6 +266,14 @@ export function chestOpenSheet(pack: string): string | undefined {
   return CHEST_OPEN_SRCS[pack]
 }
 
+export function chestOpenSrcs(): string[] {
+  return Object.values(CHEST_OPEN_SRCS)
+}
+
+export function sheetSrcOf(id: string): string | undefined {
+  return SHEETS[id]
+}
+
 export function startChestFx() {
   if (chestAge >= 0) return
   chestAge = 0

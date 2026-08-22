@@ -4268,6 +4268,21 @@ function LoadingScreen() {
           />
         </UiEntity>
       )}
+      {boot.filled && LABELS['version'] ? (
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { top: 328, left: 1340 },
+            width: 22,
+            height: 64
+          }}
+          uiBackground={{
+            textureMode: 'stretch',
+            texture: { src: LABELS['version'].src },
+            color: Color4.create(1, 1, 1, 0.55)
+          }}
+        />
+      ) : null}
     </UiEntity>
   )
 }

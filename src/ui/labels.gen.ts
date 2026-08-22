@@ -86,6 +86,7 @@ export const LABELS: Record<string, LabelInfo> = {
   'trade': { src: 'images/labels/trade.png', w: 38, h: 108 },
   'rift': { src: 'images/labels/rift.png', w: 38, h: 69 },
   'friendzone': { src: 'images/labels/friendzone.png', w: 38, h: 210 },
+  'version': { src: 'images/labels/version.png', w: 29, h: 84 },
   'map-shop': { src: 'images/maps/shop-b.png', w: 768, h: 512 },
   'shop-card': { src: 'images/shop/card-a.png', w: 512, h: 301 },
   'shop-card-lit': { src: 'images/shop/card-lit-a.png', w: 512, h: 289 },

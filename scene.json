@@ -3,7 +3,7 @@
   "runtimeVersion": "7",
   "display": {
     "title": "Heroes of Genesis",
-    "description": "Recruit heroes, party up, and walk the Roads. Everyone can win a collectible.",
+    "description": "A dark fantasy card RPG built for the Regenesis Labs Build Contest. Recruit heroes, fuse duplicates into legends, raid Rift bosses with friends, trade face-to-face, and climb the Roads. Every battle can drop a collectible. 100% mobile.",
     "navmapThumbnail": "images/scene-thumbnail-b.jpg",
     "favicon": "favicon_asset"
   },

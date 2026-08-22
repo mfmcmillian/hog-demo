@@ -20,6 +20,7 @@ README.md
 *.md
 src
 tools
+docs
 cursor.config
 cursorignore
 .github

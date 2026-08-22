@@ -39,7 +39,24 @@ export const FAMILIARS: FamiliarDef[] = [
 
 export const BOSS_IDS = ['moor-ogre', 'thorn-queen', 'crimson-abbot', 'ashen-regent']
 
-const MAP = new Map([...FAMILIARS, ...HEROES].map((def) => [def.id, def]))
+/**
+ * Wearable-gated heroes. Deliberately NOT in FAMILIARS so every drop pool
+ * (rollDef, rollPack, familiarForKin) excludes them: the only way in is
+ * owning the full NFT wearable set (see nftHeroes.ts).
+ */
+export const NFT_HEROES: FamiliarDef[] = [
+  { id: 'frost-monarch', name: 'Frost Monarch', lineage: 'winter', rarity: 'legendary', role: 'support', hp: 62, atk: 15, skill: 'rally', skillText: 'Winter marches with you' },
+  { id: 'ether-assassin', name: 'Ether Assassin', lineage: 'ether', rarity: 'legendary', role: 'melee', hp: 64, atk: 22, skill: 'strike', skillText: 'One cut, no echo' },
+  { id: 'wasteland-monarch', name: 'Wasteland Monarch', lineage: 'waste', rarity: 'mythic', role: 'support', hp: 84, atk: 30, skill: 'drain', skillText: 'The waste claims all' }
+]
+
+export const NFT_HERO_IDS = NFT_HEROES.map((def) => def.id)
+
+export function isNftHero(defId: string): boolean {
+  return NFT_HERO_IDS.indexOf(defId) >= 0
+}
+
+const MAP = new Map([...FAMILIARS, ...HEROES, ...NFT_HEROES].map((def) => [def.id, def]))
 
 export function getDef(id: string): FamiliarDef {
   const def = MAP.get(id)
@@ -56,10 +73,11 @@ export function rarityWeight(rarity: Rarity): number {
   return 1
 }
 
-/** Every card a player can own: the three starters plus the whole drop pool.
- * Bosses count too - they drop from packs and rifts at high rarity. */
+/** Every card a player can own: the three starters, the whole drop pool,
+ * and the wearable-gated NFT heroes. Bosses count too - they drop from
+ * packs and rifts at high rarity. */
 export function collectionSize(): number {
-  return HEROES.length + FAMILIARS.filter((def) => HERO_IDS.indexOf(def.id) < 0).length
+  return HEROES.length + FAMILIARS.filter((def) => HERO_IDS.indexOf(def.id) < 0).length + NFT_HEROES.length
 }
 
 export function rollDef(): FamiliarDef {

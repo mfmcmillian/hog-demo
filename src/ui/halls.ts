@@ -1,4 +1,4 @@
-import { FAMILIARS, HEROES } from '../game/familiars'
+import { FAMILIARS, HEROES, NFT_HEROES } from '../game/familiars'
 
 export const HALL_W = 1024
 export const HALL_H = 576
@@ -15,7 +15,7 @@ export function hallArt(id: string) {
 }
 
 export function allHallSrcs(): string[] {
-  return [INSPECT_SRC, ...HEROES.map((hero) => hallSrc(hero.id)), ...FAMILIARS.map((def) => hallSrc(def.id))]
+  return [INSPECT_SRC, ...HEROES.map((hero) => hallSrc(hero.id)), ...FAMILIARS.map((def) => hallSrc(def.id)), ...NFT_HEROES.map((def) => hallSrc(def.id))]
 }
 
 export const CARD_BACK_W = 1024

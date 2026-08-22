@@ -2,7 +2,7 @@ import { AvatarBase, PlayerIdentityData, engine, executeTask } from '@dcl/sdk/ec
 import { syncEntity } from '@dcl/sdk/network'
 import { Storage } from '@dcl/sdk/server'
 import { buildBattle, stepBattle } from '../game/combat'
-import { BOSS_IDS, getDef, grantXp, makeOwned, nextUid, rollDef } from '../game/familiars'
+import { BOSS_IDS, getDef, grantXp, isNftHero, makeOwned, nextUid, rollDef } from '../game/familiars'
 import { PACKS, rollPack } from '../game/packs'
 import { ROADS } from '../game/quests'
 import { MAX_LEVEL, MAX_STARS, OwnedFamiliar, PARTY_SIZE } from '../game/types'
@@ -249,8 +249,10 @@ export function startServer(): void {
       closeTrade(session, 'failed')
       return
     }
-    const cardA = saveA.collection.find((owned) => owned.uid === offerA.uid && !owned.isHero)
-    const cardB = saveB.collection.find((owned) => owned.uid === offerB.uid && !owned.isHero)
+    // NFT wearable-gated heroes are untradable: ownership follows the
+    // wearables, and a traded copy would just be revoked on the buyer's client.
+    const cardA = saveA.collection.find((owned) => owned.uid === offerA.uid && !owned.isHero && !isNftHero(owned.defId))
+    const cardB = saveB.collection.find((owned) => owned.uid === offerB.uid && !owned.isHero && !isNftHero(owned.defId))
     if (!cardA || !cardB) {
       closeTrade(session, 'failed')
       return

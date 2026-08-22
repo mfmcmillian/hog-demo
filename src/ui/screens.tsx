@@ -1,7 +1,8 @@
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
 import { familiarForKin, listOathkin } from '../game/allies'
-import { HEROES, collectionSize, getDef, statsOf, xpProgress } from '../game/familiars'
+import { HEROES, collectionSize, getDef, isNftHero, statsOf, xpProgress } from '../game/familiars'
+import { lockedNftHeroes, nftPieces, ownsUrn } from '../game/nftHeroes'
 import { playCancel, playClick, tap } from '../game/audio'
 import { MENU_WINDOW, back, focused, lockNav, open, primary, setCursor, shiftBench, shiftFromPad, windowed } from '../game/nav'
 import { FLOORS, ROADS, dropStarsFor } from '../game/quests'
@@ -706,7 +707,7 @@ function HomeField() {
             color: Color4.White()
           }}
           onMouseDown={tap(() => {
-            game.fireTalk = true
+            game.fireTalk = !game.fireTalk
           })}
         />
       </UiEntity>
@@ -744,8 +745,8 @@ function FireTalk() {
       {/* framed portrait, phone-left */}
       <UiEntity
         uiTransform={{
-          width: 244,
-          height: 244,
+          width: 176,
+          height: 176,
           margin: { bottom: 14 },
           alignItems: 'center',
           justifyContent: 'center',
@@ -754,11 +755,11 @@ function FireTalk() {
         uiBackground={{ color: Color4.create(0.62, 0.46, 0.2, 1) }}
       >
         <UiEntity
-          uiTransform={{ width: 236, height: 236, alignItems: 'center', justifyContent: 'center', pointerFilter: 'none' }}
+          uiTransform={{ width: 168, height: 168, alignItems: 'center', justifyContent: 'center', pointerFilter: 'none' }}
           uiBackground={{ color: Color4.create(0.09, 0.07, 0.06, 1) }}
         >
           <UiEntity
-            uiTransform={{ width: 228, height: 228, pointerFilter: 'none' }}
+            uiTransform={{ width: 160, height: 160, pointerFilter: 'none' }}
             uiBackground={{
               textureMode: 'stretch',
               texture: { src: villagerSheet() },
@@ -780,8 +781,11 @@ function FireTalk() {
           pointerFilter: 'none'
         }}
       >
-        <Img k="fire-grows" w={26} tint={gold} margin={5} />
-        <Img k="players-stronger" w={26} tint={cream} margin={5} />
+        <Img k="fire-grows" w={26} tint={gold} margin={6} />
+        <Img k="fire-line1" w={20} tint={cream} margin={4} />
+        <Img k="fire-line2" w={20} tint={cream} margin={4} />
+        <Img k="fire-line3" w={20} tint={cream} margin={4} />
+        <Img k="fire-line4" w={20} tint={cream} margin={4} />
       </UiEntity>
     </UiEntity>
   )
@@ -1769,6 +1773,153 @@ function TeamSlot(props: { slot: number }) {
   )
 }
 
+/**
+ * Wearable-gated heroes the player has not unlocked yet: dark silhouette
+ * tiles with a lock. Owning the full NFT wearable set turns each into a
+ * real card (see nftHeroes.ts), and the tile disappears from here.
+ */
+function NftTeaser() {
+  const locked = lockedNftHeroes()
+  if (!locked.length) return null
+  const frame = LABELS['party-tile']
+  if (!frame) return null
+  const w = 74
+  const h = Math.round((w * frame.h) / frame.w)
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 2 }}>
+      {locked.map((id) => (
+        <UiEntity
+          key={id}
+          uiTransform={{ width: w, height: h, margin: 2, alignItems: 'center', justifyContent: 'center' }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, color: Color4.create(0.5, 0.45, 0.5, 1) }}
+          onMouseDown={tap(() => {
+            game.nftTalk = id
+          })}
+        >
+          <Face id={id} w={Math.round(w * 0.78)} h={Math.round(h * 0.78)} tint={Color4.create(0.07, 0.05, 0.09, 0.96)} />
+          <UiEntity
+            uiTransform={{
+              positionType: 'absolute',
+              position: { top: Math.round(h / 2) - 14, left: Math.round(w / 2) - 20 },
+              width: 40,
+              height: 28,
+              alignItems: 'center',
+              justifyContent: 'center',
+              pointerFilter: 'none'
+            }}
+          >
+            <Img k="road-lock" w={38} tint={gold} margin={0} />
+          </UiEntity>
+        </UiEntity>
+      ))}
+    </UiEntity>
+  )
+}
+
+/** Locked NFT hero dialog: same NPC quest box as the campfire elder, but
+ *  the darkened hero explains the wearable gate. Tap anywhere to dismiss. */
+function NftTalk() {
+  const id = game.nftTalk
+  if (!id) return null
+  const frame = LABELS['party-tile']
+  if (!frame) return null
+  const tileW = 180
+  const tileH = Math.round((tileW * frame.h) / frame.w)
+  const pieces = nftPieces(id)
+  // Panel hugs its widest row (the piece strip) so no dead leather above/below.
+  const iconsW = pieces.length * 94
+  const panelW = Math.max(tileW, iconsW) + 56
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: 0, left: 0 },
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+      uiBackground={{ color: Color4.create(0, 0, 0, 0.55) }}
+      onMouseDown={tap(() => {
+        game.nftTalk = ''
+      })}
+    >
+      <UiEntity
+        uiTransform={{
+          width: panelW,
+          height: '86%',
+          flexDirection: 'column-reverse',
+          alignItems: 'center',
+          justifyContent: 'flex-start',
+          padding: 12
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: 'images/hud/panel-leather-a.png' },
+          color: Color4.White()
+        }}
+      >
+        {/* the hero's card in the same party-tile frame as the bench, phone-left */}
+        <UiEntity
+          uiTransform={{
+            width: tileW,
+            height: tileH,
+            margin: { bottom: 12 },
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerFilter: 'none'
+          }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, color: Color4.White() }}
+        >
+          <Face id={id} w={Math.round(tileW * 0.78)} h={Math.round(tileH * 0.78)} tint={Color4.create(0.07, 0.05, 0.09, 0.96)} />
+        </UiEntity>
+        {/* the exact pieces: full color = owned, darkened = still missing */}
+        <UiEntity
+          uiTransform={{
+            width: iconsW,
+            height: 100,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: { bottom: 6 },
+            pointerFilter: 'none'
+          }}
+        >
+          {pieces.map((piece) => {
+            const have = ownsUrn(piece.urn)
+            return (
+              <UiEntity
+                key={piece.icon}
+                uiTransform={{ width: 88, height: 88, margin: 3, alignItems: 'center', justifyContent: 'center', pointerFilter: 'none' }}
+                uiBackground={{ color: have ? Color4.create(0.95, 0.78, 0.35, 0.3) : Color4.create(0, 0, 0, 0.4) }}
+              >
+                <Img k={piece.icon} w={80} tint={have ? Color4.White() : Color4.create(0.28, 0.24, 0.3, 1)} margin={0} />
+              </UiEntity>
+            )
+          })}
+        </UiEntity>
+        {/* hero name + speech lines, phone-right of the portrait */}
+        <UiEntity
+          uiTransform={{
+            flexGrow: 1,
+            width: '100%',
+            flexDirection: 'row',
+            alignItems: 'flex-end',
+            justifyContent: 'center',
+            padding: { bottom: 16, left: 8, right: 8 },
+            pointerFilter: 'none'
+          }}
+        >
+          <Img k={id} w={26} tint={gold} margin={6} />
+          <Img k="nft-line1" w={20} tint={cream} margin={4} />
+          <Img k="nft-line2" w={20} tint={cream} margin={4} />
+          <Img k="nft-line3" w={20} tint={cream} margin={4} />
+        </UiEntity>
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
 function BenchTile(props: { owned: OwnedFamiliar; index: number; key?: string }) {
   const abs = PARTY_SIZE + props.index
   const lit = focused(abs)
@@ -1843,6 +1994,7 @@ function PartyScreen() {
           <Img k="road-slash" w={22} tint={gold} margin={2} />
           <Digits value={collectionSize()} w={26} tint={cream} tight />
         </UiEntity>
+        <NftTeaser />
       </UiEntity>
       <UiEntity
         uiTransform={{
@@ -1904,6 +2056,7 @@ function PartyScreen() {
           ) : null}
         </UiEntity>
       </UiEntity>
+      <NftTalk />
       <Notice />
       <GameLogo />
     </UiEntity>
@@ -2605,7 +2758,8 @@ function MpBackdrop(props: { k: string }) {
 }
 
 function tradeables(): OwnedFamiliar[] {
-  return game.collection.filter((owned) => !owned.isHero)
+  // NFT wearable-gated heroes stay with the wearables - never on the table.
+  return game.collection.filter((owned) => !owned.isHero && !isNftHero(owned.defId))
 }
 
 const PICK_WINDOW = 4
@@ -3439,6 +3593,7 @@ function BannerScreen() {
           <Plate k="continue" w={56} h={240} />
         </UiEntity>
       </UiEntity>
+      <GameLogo />
     </BattleField>
   )
 }
@@ -3645,6 +3800,7 @@ function ReportScreen() {
       >
         <Plate k="continue" w={64} h={280} />
       </UiEntity>
+      <GameLogo />
     </UiEntity>
   )
 }

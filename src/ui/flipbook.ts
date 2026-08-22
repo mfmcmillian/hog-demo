@@ -34,7 +34,10 @@ const SHEETS: Record<string, string> = {
   'oath-knight': 'images/chars/oath-knight-sheet-f.png',
   'night-covenant': 'images/chars/night-covenant-sheet-f.png',
   'pale-howl': 'images/chars/pale-howl-sheet-f.png',
-  'ashen-regent': 'images/chars/ashen-regent-sheet-f.png'
+  'ashen-regent': 'images/chars/ashen-regent-sheet-f.png',
+  'frost-monarch': 'images/chars/frost-monarch-sheet-f.png',
+  'ether-assassin': 'images/chars/ether-assassin-sheet-f.png',
+  'wasteland-monarch': 'images/chars/wasteland-monarch-sheet-f.png'
 }
 
 const FULL16 = new Set([
@@ -66,7 +69,10 @@ const FULL16 = new Set([
   'ashen-regent',
   'hallwarden',
   'sigil-witch',
-  'crowmark'
+  'crowmark',
+  'frost-monarch',
+  'ether-assassin',
+  'wasteland-monarch'
 ])
 
 // 2048x2048 power-of-two sheet, 4x4 grid of 512px cells.
@@ -357,6 +363,31 @@ export function loopSparksUvs(): number[] {
   return cellUvs(Math.floor(idleTime * 14) % 16)
 }
 
+const CAMPFIRE_SRC = 'images/fx/campfire-f.png'
+
+export function campfireSheet(): string {
+  return CAMPFIRE_SRC
+}
+
+/** Endless village campfire loop for the home field. */
+export function campfireUvs(): number[] {
+  return cellUvs(Math.floor(idleTime * 12) % 16)
+}
+
+// Village elder quest dialog: standard 2048 sheet, 4x4 of 512. The 16 cells
+// are one continuous talking cycle authored to flow back into cell 0.
+const VILLAGER_SRC = 'images/chars/villager-sheet-b.png'
+const VILLAGER_FPS = 8
+
+export function villagerSheet(): string {
+  return VILLAGER_SRC
+}
+
+/** Seamless talking loop for the campfire elder. */
+export function villagerTalkUvs(): number[] {
+  return cellUvs(Math.floor(idleTime * VILLAGER_FPS) % 16)
+}
+
 /** Brief "something is alive in there" rattle on the focused shop card. */
 export function chestWobble(): { jx: number; jy: number } {
   const cyc = idleTime % 2.8
@@ -455,7 +486,7 @@ export function allSheetSrcs(): string[] {
 }
 
 export function allFxSrcs(): string[] {
-  return [...Object.values(SKILL_FX_SRC), RAY_SRC, BURST_SRC, SPARKS_SRC, ...Object.values(CHEST_OPEN_SRCS)]
+  return [...Object.values(SKILL_FX_SRC), RAY_SRC, BURST_SRC, SPARKS_SRC, CAMPFIRE_SRC, VILLAGER_SRC, ...Object.values(CHEST_OPEN_SRCS)]
 }
 
 export function sparksSheet(): string {

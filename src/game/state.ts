@@ -83,6 +83,10 @@ export const game = {
   fuseA: '' as string,
   fuseB: '' as string,
   fuseHelp: false,
+  /** Campfire elder quest dialog open on the home screen. */
+  fireTalk: false,
+  /** Locked NFT hero dialog on the party screen: the tapped defId, '' = closed. */
+  nftTalk: '',
   /** Hero face selected on the fuse tree. */
   fuseId: '',
   /** Ingredient star rank (1..4). Two of these become fuseRank + 1. */
@@ -262,6 +266,8 @@ export function resetMenu() {
   game.notice = ''
   game.noticeArg = ''
   game.fuseHelp = false
+  game.fireTalk = false
+  game.nftTalk = ''
 }
 
 function closeOverlay(then: Phase | 'leaveResult') {

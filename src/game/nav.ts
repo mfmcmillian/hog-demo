@@ -189,6 +189,18 @@ function dismissOverlay() {
 /** F — leave the current screen. */
 export function back() {
   if (!isBootReady()) return
+  if (game.phase === 'home' && game.fireTalk) {
+    playCancel()
+    game.fireTalk = false
+    lockNav()
+    return
+  }
+  if (game.phase === 'party' && game.nftTalk) {
+    playCancel()
+    game.nftTalk = ''
+    lockNav()
+    return
+  }
   if (game.phase === 'start' || game.phase === 'home') return
   playCancel()
   if (game.phase === 'battle') {

@@ -109,7 +109,7 @@ export const LABELS: Record<string, LabelInfo> = {
   'trade-lock-on': { src: 'images/trade/lock-on-a.png', w: 156, h: 484 },
   'trade-sel': { src: 'images/trade/sel-frame-a.png', w: 245, h: 512 },
   'trade-back': { src: 'images/trade/back-a.png', w: 116, h: 320 },
-  'rift-title': { src: 'images/rift/title-a.png', w: 191, h: 512 },
+  'rift-title': { src: 'images/rift/title-b.png', w: 178, h: 512 },
   'rift-ribbon': { src: 'images/rift/ribbon-a.png', w: 96, h: 512 },
   'rift-seat': { src: 'images/rift/seat-a.png', w: 512, h: 215 },
   'rift-ready-off': { src: 'images/rift/ready-off-a.png', w: 120, h: 336 },

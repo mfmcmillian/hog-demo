@@ -22,7 +22,7 @@ const SFX = {
 }
 
 const MUSIC = {
-  hub: 'sounds/music/hub-e.mp3',
+  hub: 'sounds/music/hub-f.mp3',
   match: 'sounds/music/match.mp3',
   victory: 'sounds/music/victory.mp3',
   defeat: 'sounds/music/defeat.mp3'

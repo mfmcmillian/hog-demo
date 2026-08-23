@@ -46,6 +46,10 @@ export const trade = {
 
 export const riftView: { pub: RiftPub; revision: number } = { pub: emptyRift(), revision: -1 }
 
+/** Watchers leave the end plaque on their own clock, not the room's 12s hold. */
+const SPECTATOR_HOME_SECS = 2.8
+let spectatorHomeIn = SPECTATOR_HOME_SECS
+
 /** My rift drop, waiting for its hero-card reveal after the spoils screen. */
 let riftDropUid = ''
 /** A card that came inside a gift chest, waiting for its reveal. */
@@ -404,6 +408,18 @@ export function initMultiplayerSession(): void {
         if (mine?.dropUid) riftDropUid = mine.dropUid
       }
       break
+    }
+
+    // Watchers are not on the spoils clock. A short recap, then home —
+    // they should not sit on YOU WIN until the raiders tap through.
+    if (game.phase === 'rift' && !mySeat() && (riftView.pub.phase === 'won' || riftView.pub.phase === 'lost')) {
+      spectatorHomeIn -= dt
+      if (spectatorHomeIn <= 0) {
+        spectatorHomeIn = SPECTATOR_HOME_SECS
+        goHome()
+      }
+    } else {
+      spectatorHomeIn = SPECTATOR_HOME_SECS
     }
 
     // Mirror the synced festival state (realm goal + window clock).

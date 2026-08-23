@@ -3152,7 +3152,8 @@ function RiftBattle() {
 function RiftEnd() {
   const pub = riftView.pub
   const won = pub.phase === 'won'
-  const mine = pub.rewards?.find((reward) => reward.address === getMyAddress())
+  const seated = !!mySeat()
+  const mine = seated ? pub.rewards?.find((reward) => reward.address === getMyAddress()) : undefined
   const dismiss = () => {
     goHome()
     lockNav()
@@ -3163,7 +3164,11 @@ function RiftEnd() {
       onMouseDown={dismiss}
     >
       <UiEntity uiTransform={{ width: 220, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <Img k={won ? 'win' : 'lose'} w={190} tint={Color4.White()} margin={0} />
+        {seated ? (
+          <Img k={won ? 'win' : 'lose'} w={190} tint={Color4.White()} margin={0} />
+        ) : (
+          <Img k="watching" w={36} tint={muted} margin={0} />
+        )}
       </UiEntity>
       {won && pub.rewards ? (
         <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>

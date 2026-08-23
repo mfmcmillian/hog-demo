@@ -19,7 +19,7 @@ export type StoryPage = {
 
 function roadPages(id: string): StoryPage[] {
   return [1, 2].map((n) => ({
-    art: `images/story/story-${id}-${n}.png`,
+    art: `images/story/story-${id}-${n}.jpg`,
     lines: ['a', 'b', 'c'].map((s) => `story-${id}-${n}${s}`),
     vo: `sounds/vo/story-${id}-${n}.mp3`
   }))
@@ -27,12 +27,12 @@ function roadPages(id: string): StoryPage[] {
 
 export const STORIES: Record<StoryId, StoryPage[]> = {
   main: [
-    { art: 'images/intro/intro-1.png', lines: ['intro-1a', 'intro-1b'], vo: 'sounds/vo/intro-1.mp3' },
-    { art: 'images/intro/intro-2.png', lines: ['intro-2a', 'intro-2b', 'intro-2c'], vo: 'sounds/vo/intro-2.mp3' },
-    { art: 'images/intro/intro-3.png', lines: ['intro-3a', 'intro-3b', 'intro-3c'], vo: 'sounds/vo/intro-3.mp3' },
-    { art: 'images/intro/intro-4.png', lines: ['intro-4a', 'intro-4b', 'intro-4c', 'intro-4d'], vo: 'sounds/vo/intro-4.mp3' },
-    { art: 'images/intro/intro-5.png', lines: ['intro-5a', 'intro-5b', 'intro-5c', 'intro-5d'], vo: 'sounds/vo/intro-5.mp3' },
-    { art: 'images/intro/intro-6.png', lines: ['intro-6a', 'intro-6b', 'intro-6c', 'intro-6d'], vo: 'sounds/vo/intro-6.mp3' }
+    { art: 'images/intro/intro-1.jpg', lines: ['intro-1a', 'intro-1b'], vo: 'sounds/vo/intro-1.mp3' },
+    { art: 'images/intro/intro-2.jpg', lines: ['intro-2a', 'intro-2b', 'intro-2c'], vo: 'sounds/vo/intro-2.mp3' },
+    { art: 'images/intro/intro-3.jpg', lines: ['intro-3a', 'intro-3b', 'intro-3c'], vo: 'sounds/vo/intro-3.mp3' },
+    { art: 'images/intro/intro-4.jpg', lines: ['intro-4a', 'intro-4b', 'intro-4c', 'intro-4d'], vo: 'sounds/vo/intro-4.mp3' },
+    { art: 'images/intro/intro-5.jpg', lines: ['intro-5a', 'intro-5b', 'intro-5c', 'intro-5d'], vo: 'sounds/vo/intro-5.mp3' },
+    { art: 'images/intro/intro-6.jpg', lines: ['intro-6a', 'intro-6b', 'intro-6c', 'intro-6d'], vo: 'sounds/vo/intro-6.mp3' }
   ],
   q1: roadPages('q1'),
   q3: roadPages('q3'),

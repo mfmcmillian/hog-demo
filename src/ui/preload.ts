@@ -1,6 +1,7 @@
 import { AssetLoad, engine, executeTask } from '@dcl/sdk/ecs'
 import { boot } from '../game/boot'
 import { HERO_IDS } from '../game/familiars'
+import { STORIES } from '../game/stories'
 import { allFxSrcs, allSheetSrcs, campfireSheet, sheetSrcOf } from './flipbook'
 import { allHallSrcs, cardBackArt, hallSrc } from './halls'
 import { LABELS } from './labels.gen'
@@ -40,14 +41,23 @@ function uniq(srcs: string[]): string[] {
   return out
 }
 
-// The boot gate waits for these only: boot art, every label/portrait the
-// start + home screens draw, the three starter sheets and halls, and the
-// campfire (visible the moment a returning player lands on home). Skill,
-// reveal, and villager FX warm in the deferred pass right after the gate -
-// the earliest any of them can appear is the oath clash, a few taps in.
-// LABELS already covers the inspect and party halls.
+// The main intro plays the moment a NEW player clears the gate, so its first
+// page (art + VO) rides in the boot-first fetch; the remaining pages chain at
+// the head of the deferred warm and land while page 1 narrates. Road/final/
+// epilogue story art stays on-demand - it is mid-game, never boot-adjacent.
+const INTRO_PAGES = STORIES.main
+const INTRO_FIRST = [INTRO_PAGES[0].art, INTRO_PAGES[0].vo]
+const INTRO_REST = INTRO_PAGES.slice(1).flatMap((page) => [page.art, page.vo])
+
+// The boot gate waits for these only: boot art, the intro's first page, every
+// label/portrait the start + home screens draw, the three starter sheets and
+// halls, and the campfire (visible the moment a returning player lands on
+// home). Skill, reveal, and villager FX warm in the deferred pass right after
+// the gate - the earliest any of them can appear is the oath clash, a few
+// taps in. LABELS already covers the inspect and party halls.
 export const CRITICAL_SRCS = uniq([
   ...BOOT_SRCS,
+  ...INTRO_FIRST,
   ...Object.values(LABELS).map((info) => info.src),
   ...HERO_IDS.map((id) => sheetSrcOf(id) ?? ''),
   ...HERO_IDS.map((id) => hallSrc(id)),
@@ -55,11 +65,12 @@ export const CRITICAL_SRCS = uniq([
   ...EXTRA
 ])
 
-// Full set: collectible sheets, the rest of the halls, and the chest-open
-// flipbooks warm in the background after the gate opens.
-export const PRELOAD_SRCS = uniq([...CRITICAL_SRCS, ...allHallSrcs(), ...allSheetSrcs(), ...allFxSrcs()])
+// Full set: the rest of the intro, collectible sheets, the rest of the halls,
+// and the chest-open flipbooks warm in the background after the gate opens.
+export const PRELOAD_SRCS = uniq([...CRITICAL_SRCS, ...INTRO_REST, ...allHallSrcs(), ...allSheetSrcs(), ...allFxSrcs()])
 
-const DEFERRED_SRCS = PRELOAD_SRCS.filter((src) => CRITICAL_SRCS.indexOf(src) < 0)
+// INTRO_REST leads the deferred queue so intro pages 2+ land during page 1.
+const DEFERRED_SRCS = uniq([...INTRO_REST, ...PRELOAD_SRCS]).filter((src) => CRITICAL_SRCS.indexOf(src) < 0)
 
 boot.total = CRITICAL_SRCS.length
 

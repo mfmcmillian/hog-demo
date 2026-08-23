@@ -1,5 +1,5 @@
 import { PackId } from './packs'
-import { BattleState, NoticeCode, OwnedFamiliar, Phase, RoadRun, XpLine } from './types'
+import { BattleState, NoticeCode, OwnedFamiliar, Phase, RoadRun, SeenStoryId, StoryId, TipId, XpLine } from './types'
 
 export const game = {
   phase: 'start' as Phase,
@@ -17,7 +17,35 @@ export const game = {
   selectedAlly: '' as string,
   fuseA: '' as string,
   fuseB: '' as string,
-  fuseHelp: false,
+  /** Story slideshow currently showing during the intro phase. */
+  storyId: 'main' as StoryId,
+  /** Intro story page currently showing (0-based). */
+  introPage: 0,
+  /** Intro story already watched (or skipped); persisted in the save. */
+  introSeen: false,
+  /** Road/final/epilogue stories this account has watched; persisted. */
+  storySeen: {} as Partial<Record<SeenStoryId, boolean>>,
+  /** Run stashed while its road's story plays; launched when the story ends. */
+  pendingRun: undefined as { index: number; run: RoadRun } | undefined,
+  /** Gates of Antrom already beaten (first-win jackpot spent); persisted. */
+  finalWon: false,
+  /** When the credits roll started (Date.now); drives the crawl position. */
+  creditsAt: 0,
+  /** Welcome dialog on the oath chamber, armed when the intro ends. */
+  welcomeTalk: false,
+  /** First-fight explainer page over the oath clash (0 = closed, 1..2 = page).
+   * The battle is frozen while it shows. */
+  fightTalk: 0,
+  /** Card-drop tease on arriving home after the oath clash (card back + elder). */
+  dropTalk: false,
+  /** First-press tutorial dialog currently showing; '' = none. */
+  tutTip: '' as TipId | '',
+  /** Page of the showing tutorial dialog (0-based). */
+  tutPage: 0,
+  /** Tips this account has already dismissed; persisted in the save. */
+  tutSeen: {} as Partial<Record<TipId, boolean>>,
+  /** Cards acquired but never yet seen on the party bench (red PARTY badge). */
+  freshUids: [] as string[],
   /** Campfire elder quest dialog open on the home screen. */
   fireTalk: false,
   /** Who's-online roster overlay open on the home screen. */

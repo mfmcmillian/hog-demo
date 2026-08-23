@@ -4,10 +4,12 @@ import { boot } from '../game/boot'
 import { DEBUG } from '../game/debug'
 import { back, primary, shiftFromPad } from '../game/nav'
 import { game } from '../game/store'
+import { backPointerShowing } from '../game/tutorial'
 import { revealReady } from './flipbook'
 import { LABELS } from './labels.gen'
 import { CRITICAL_SRCS, PRELOAD_SRCS } from './preload'
 import { PASS } from './theme'
+import { TutPointer } from './tutorial'
 import { CardBtn, Img } from './widgets'
 
 let padFlash = ''
@@ -115,6 +117,7 @@ function showsMenuBack() {
     case 'battle':
     case 'banner':
     case 'report':
+    case 'credits':
       return false
     default:
       return true
@@ -133,6 +136,8 @@ function MenuBack() {
       }}
     >
       <CardBtn k="btn-back" w={96} onTap={() => back()} />
+      {/* onboarding: recruit seated, point home (tip lands 13,66 from anchor) */}
+      {backPointerShowing() ? <TutPointer left={48 - 13} top={48 - 66} /> : null}
     </UiEntity>
   )
 }

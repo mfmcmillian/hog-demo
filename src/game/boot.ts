@@ -1,3 +1,5 @@
+import { game } from './store'
+
 /** Boot gate. UI preload writes this; game/nav only reads it. */
 export const boot = {
   ready: false,
@@ -24,4 +26,10 @@ export function isBootFilled() {
 export function enterGame() {
   if (!boot.filled) return
   boot.ready = true
+  // New accounts hear the story before the oath. Returning players are
+  // already on 'home' by now (saveSync routes them before the curtain lifts).
+  if (game.phase === 'start' && !game.introSeen) {
+    game.introPage = 0
+    game.phase = 'intro'
+  }
 }

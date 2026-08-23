@@ -1,5 +1,6 @@
 import { AudioSource, Transform, engine, type Entity } from '@dcl/sdk/ecs'
 import { riftView } from '../mp/views'
+import { STORIES } from './stories'
 import { game } from './store'
 import { BattleFx, Phase, Rarity } from './types'
 
@@ -34,7 +35,8 @@ const VOL = {
   musicHub: 0.28,
   musicMatch: 0.42,
   sting: 0.48,
-  rift: 1
+  rift: 1,
+  vo: 0.9
 }
 
 const MATCH_PHASES: Phase[] = ['battle']
@@ -45,6 +47,8 @@ const sfxPool: Entity[] = []
 let sfxAt = 0
 let music: Entity | undefined
 let sting: Entity | undefined
+let vo: Entity | undefined
+let lastVoKey = ''
 let lastRiftPub = ''
 
 let lastPhase: Phase | '' = ''
@@ -63,13 +67,13 @@ function throttled(key: string, ms: number) {
 
 function musicBed(phase: Phase): { clip: string; loop: boolean; volume: number; key: string } {
   if (phase === 'banner' || phase === 'report') {
-    const win = game.battle?.winner === 'you'
-    return {
-      clip: win ? MUSIC.victory : MUSIC.defeat,
-      loop: false,
-      volume: VOL.sting,
-      key: win ? 'victory' : 'defeat'
+    // No victory fanfare: it fired on every clear and wore thin fast. The
+    // hub bed resuming quietly under the WIN banner is the low-key cue;
+    // losses keep their somber sting.
+    if (game.battle?.winner !== 'you') {
+      return { clip: MUSIC.defeat, loop: false, volume: VOL.sting, key: 'defeat' }
     }
+    return { clip: MUSIC.hub, loop: true, volume: VOL.musicHub, key: 'hub' }
   }
   if (MATCH_PHASES.includes(phase) || (phase === 'rift' && riftView.pub.phase === 'battle')) {
     return { clip: MUSIC.match, loop: true, volume: VOL.musicMatch, key: 'match' }
@@ -102,6 +106,37 @@ function getSting(): Entity {
     Transform.create(sting, { parent: engine.PlayerEntity })
   }
   return sting
+}
+
+function getVo(): Entity {
+  if (vo === undefined) {
+    vo = engine.addEntity()
+    Transform.create(vo, { parent: engine.PlayerEntity })
+  }
+  return vo
+}
+
+/** Story narration follows phase + story + page edges: a new page starts its
+ * clip, leaving the slideshow stops it. */
+function watchIntroVo() {
+  const key = game.phase === 'intro' && game.soundOn ? `${game.storyId}-${game.introPage}` : ''
+  if (key === lastVoKey) return
+  lastVoKey = key
+  if (!key) {
+    if (vo !== undefined) {
+      const audio = AudioSource.getMutableOrNull(vo)
+      if (audio) audio.playing = false
+    }
+    return
+  }
+  const pages = STORIES[game.storyId]
+  const page = pages[Math.min(game.introPage, pages.length - 1)]
+  AudioSource.createOrReplace(getVo(), {
+    audioClipUrl: page.vo,
+    playing: true,
+    loop: false,
+    volume: VOL.vo
+  })
 }
 
 function playSfx(id: keyof typeof SFX, volume = VOL.sfx) {
@@ -229,6 +264,7 @@ function watchCoins() {
 export function tickAudio() {
   if (!Transform.has(engine.PlayerEntity)) return
   syncMusic()
+  watchIntroVo()
   watchPhase()
   watchRiftStart()
   watchNotice()

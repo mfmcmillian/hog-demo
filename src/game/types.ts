@@ -48,7 +48,21 @@ export type XpLine = {
   levels: number
 }
 
-export type Phase = 'start' | 'home' | 'quest' | 'levels' | 'party' | 'fuse' | 'shop' | 'allies' | 'battle' | 'banner' | 'report' | 'heroCard' | 'trade' | 'rift' | 'settings' | 'festival'
+export type Phase = 'intro' | 'start' | 'home' | 'quest' | 'levels' | 'party' | 'fuse' | 'shop' | 'allies' | 'battle' | 'banner' | 'report' | 'heroCard' | 'trade' | 'rift' | 'settings' | 'festival' | 'credits'
+
+/** First-press tutorial tips: one per nav button and village building, plus
+ * 'go' — the dialogless pointer on the home GO button after the first party
+ * visit (persists via tutSeen like the rest). */
+export const TIP_IDS = ['party', 'map', 'settings', 'events', 'fuse', 'shop', 'trade', 'friendzone', 'go'] as const
+export type TipId = (typeof TIP_IDS)[number]
+
+/** Once-per-account story slideshows that persist in the save: one per road
+ * (played before its first fight), the final-battle prelude, and the victory
+ * epilogue (replays after every Gates win, then the credits roll). The main
+ * intro persists separately as the `intro` flag. */
+export const STORY_IDS = ['q1', 'q3', 'q4', 'q6', 'final', 'epilogue'] as const
+export type SeenStoryId = (typeof STORY_IDS)[number]
+export type StoryId = 'main' | SeenStoryId
 
 /**
  * Notices are codes, not sentences: every code matches a pre-rotated label
@@ -70,6 +84,8 @@ export type BattleUnit = {
   skill: SkillKind
   ally?: boolean
   level?: number
+  /** Actions taken so far; used to pace boss specials. */
+  acts?: number
 }
 
 export type LogLine = { text: string; side?: BattleSide }
@@ -87,6 +103,8 @@ export type BattleState = {
   fxUids: string[]
   damage: number
   oathClash?: boolean
+  /** The Gates of Antrom: all four warlords at once (see startFinalBattle). */
+  finalBattle?: boolean
   winner?: 'you' | 'foe'
   coins: number
   dropId?: string

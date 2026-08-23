@@ -5,12 +5,17 @@ import { openHeroCard } from '../game/menu'
 import { open } from '../game/nav'
 import { goRoad } from '../game/roads'
 import { findOwned, game } from '../game/store'
+import { goPointerShowing } from '../game/tutorial'
 import { getMyName, presentPlayers } from '../mp/session'
+import { riftView } from '../mp/views'
+import { ElderTalk } from './elderTalk'
 import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs } from './flipbook'
+import { cardBackArt } from './halls'
 import { LABELS } from './labels.gen'
 import { ModalScrim, TalkPanel, TravelerPlate } from './panels'
 import { disarmRestart } from './settings'
 import { cream, gold, muted, panelDim } from './theme'
+import { TutPointer } from './tutorial'
 import { Digits, Face, FillBar, GameLogo, Img, Stars } from './widgets'
 
 function HomeHud() {
@@ -62,6 +67,8 @@ function HomePoi(props: {
   left: `${number}%`
   top: `${number}%`
   size: number
+  /** Players seated inside; >0 shows a green presence dot by the label. */
+  badge?: number
   onTap?: () => void
 }) {
   const info = LABELS[props.k]
@@ -69,6 +76,7 @@ function HomePoi(props: {
   if (!info) return null
   const plateW = 22
   const plateH = plate ? Math.round((plateW * plate.h) / plate.w) : 0
+  const plateTop = Math.max(0, Math.round((props.size - plateH) / 2))
   return (
     <UiEntity
       uiTransform={{
@@ -98,7 +106,7 @@ function HomePoi(props: {
             positionType: 'absolute',
             position: {
               left: props.size + 2,
-              top: Math.max(0, Math.round((props.size - plateH) / 2))
+              top: plateTop
             },
             width: plateW,
             height: plateH
@@ -109,6 +117,22 @@ function HomePoi(props: {
             color: cream
           }}
         />
+      ) : null}
+      {props.badge ? (
+        // presence badge: canvas-above the plate = physically right of the label
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { left: props.size + 4, top: plateTop - 46 },
+            width: plateW,
+            flexDirection: 'column-reverse',
+            alignItems: 'center',
+            pointerFilter: 'none'
+          }}
+        >
+          <Img k="dot" w={12} tint={Color4.create(0.28, 0.85, 0.35, 1)} margin={2} />
+          <Digits value={props.badge} w={13} tint={cream} tight />
+        </UiEntity>
       ) : null}
     </UiEntity>
   )
@@ -157,7 +181,15 @@ function HomeField() {
       </UiEntity>
       <HomePoi k="home-shop" label="shop" left="8%" top="14%" size={132} onTap={() => open('shop')} />
       <HomePoi k="home-trade" label="trade" left="50%" top="68%" size={140} onTap={() => open('trade')} />
-      <HomePoi k="home-rift" label="friendzone" left="54%" top="13%" size={148} onTap={() => open('rift')} />
+      <HomePoi
+        k="home-rift"
+        label="friendzone"
+        left="54%"
+        top="13%"
+        size={148}
+        badge={riftView.pub.seats.length}
+        onTap={() => open('rift')}
+      />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />
     </UiEntity>
   )
@@ -301,7 +333,7 @@ function HomeParty() {
   )
 }
 
-function NavBtn(props: { k: string; big?: boolean; onTap: () => void }) {
+function NavBtn(props: { k: string; big?: boolean; badge?: number; onTap: () => void }) {
   const w = props.big ? 118 : 78
   return (
     <UiEntity
@@ -315,6 +347,33 @@ function NavBtn(props: { k: string; big?: boolean; onTap: () => void }) {
       onMouseDown={tap(props.onTap)}
     >
       <Img k={props.k} w={w} tint={Color4.White()} margin={0} />
+      {props.badge ? (
+        // red notification: undiscovered cards, physical top-right of the button
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { left: -4, top: -4 },
+            width: 34,
+            height: 34,
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerFilter: 'none'
+          }}
+        >
+          <UiEntity
+            uiTransform={{
+              positionType: 'absolute',
+              position: { left: 0, top: 0 },
+              width: '100%',
+              height: '100%',
+              pointerFilter: 'none'
+            }}
+          >
+            <Img k="dot" w={34} tint={Color4.create(0.85, 0.16, 0.12, 1)} margin={0} />
+          </UiEntity>
+          <Digits value={props.badge} w={16} tint={Color4.White()} tight />
+        </UiEntity>
+      ) : null}
     </UiEntity>
   )
 }
@@ -336,7 +395,7 @@ function HomeNav() {
         color: Color4.White()
       }}
     >
-      <NavBtn k="btn-party" onTap={() => open('party')} />
+      <NavBtn k="btn-party" badge={game.freshUids.length} onTap={() => open('party')} />
       <NavBtn k="btn-map" onTap={() => open('quest')} />
       <NavBtn k="btn-go" big onTap={() => goRoad()} />
       <NavBtn
@@ -347,6 +406,16 @@ function HomeNav() {
         }}
       />
       <NavBtn k="btn-event" onTap={() => open('festival')} />
+      {goPointerShowing() ? (
+        // First-quest nudge: aim the animated pointer at the GO button's
+        // center. GO is the middle of the five buttons in this centered
+        // rail, so its center sits at (70, 324) - half the 140 rail width,
+        // half its 648 height (90% of the fixed 720 canvas). The cursor tip
+        // lands 13px right / 66px down from the pointer's anchor, hence the
+        // offset. Last child of the rail so it draws over the buttons; no
+        // handlers, taps fall through.
+        <TutPointer left={70 - 13} top={324 - 66} />
+      ) : null}
     </UiEntity>
   )
 }
@@ -367,7 +436,40 @@ export function HomeScreen() {
       <HomeNav />
       <GameLogo />
       <OnlineRoster />
+      <DropTalk />
     </UiEntity>
+  )
+}
+
+/** After the oath clash: the elder teases the hound's card drop over the
+ * village, showing the card back so the reveal waits on the party bench. */
+function DropTalk() {
+  if (!game.dropTalk) return null
+  const back = cardBackArt()
+  const bob = Math.sin(Date.now() / 480) * 6
+  return (
+    <ElderTalk
+      lines={[{ k: 'intro-d1' }, { k: 'intro-d2' }, { k: 'intro-d3', tint: gold }]}
+      onTap={tap(() => {
+        game.dropTalk = false
+      })}
+    >
+      {/* the mystery card, face down over the upper phone-half */}
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { left: '20%', top: `${34 + bob / 7.2}%` },
+          width: 300,
+          height: 150,
+          pointerFilter: 'none'
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: back.src },
+          color: Color4.White()
+        }}
+      />
+    </ElderTalk>
   )
 }
 

@@ -15,12 +15,15 @@ import {
 } from './progress'
 import { FLOORS, ROADS } from './quests'
 import { findOwned, game } from './store'
-import { MAX_STARS, Phase, RoadRun } from './types'
+import { maybeStartTip } from './tutorial'
+import { MAX_STARS, Phase, RoadRun, SeenStoryId, STORY_IDS } from './types'
 
 function partyReady(): boolean {
   if (partyUnits().length === 0) {
     game.notice = 'recruit-first'
     game.phase = 'party'
+    game.freshUids = []
+    maybeStartTip('party')
     return false
   }
   if (!DEBUG.unlimitedEnergy && game.energy < 1) {
@@ -31,10 +34,34 @@ function partyReady(): boolean {
 }
 
 function launchRun(index: number, run: RoadRun) {
+  // First road fight ever: the GO-button pointer has done its job.
+  game.tutSeen.go = true
+  // A road's story plays once before its first fight: stash the run, roll
+  // the slideshow, and finishStory (intro.ts) relaunches via resumePendingRun.
+  // Party/energy were already checked; nothing is spent until beginFloor.
+  const storyId = (STORY_IDS as readonly string[]).indexOf(run.roadId) >= 0 ? (run.roadId as SeenStoryId) : undefined
+  if (storyId && !game.storySeen[storyId]) {
+    game.pendingRun = { index, run }
+    game.storyId = storyId
+    game.introPage = 0
+    game.phase = 'intro'
+    return
+  }
   game.fightingIndex = index
   resetRunRewards()
   game.run = run
   beginFloor()
+}
+
+/** The road story just ended: launch the fight it interrupted. */
+export function resumePendingRun(): void {
+  const pending = game.pendingRun
+  game.pendingRun = undefined
+  if (!pending) {
+    goHome()
+    return
+  }
+  launchRun(pending.index, pending.run)
 }
 
 function startRoad(index: number) {
@@ -75,6 +102,7 @@ export function goRoad() {
   if (index < 0) {
     game.phase = 'quest'
     resetMenu()
+    maybeStartTip('map')
     return
   }
   startRoad(index)
@@ -109,6 +137,10 @@ export function startFloor(index: number, floor: number) {
   launchRun(index, { roadId: road.id, floor, replay, via: 'map', star })
 }
 
+/** Where the report returns to; survives the card-reveal detour (which
+ * re-enters leaveResult after game.run was already cleared). */
+let resultReturn: { roadIndex: number; bossWin: boolean } | undefined
+
 export function leaveResult() {
   // Settle progression up front so a card-reveal detour can't skip it.
   // Replays never move the checkpoint (losing a replay must not roll it back).
@@ -123,6 +155,15 @@ export function leaveResult() {
     else if ((run.star ?? 1) >= MAX_STARS) rememberFloor(run.roadId, FLOORS) // mastered: boss stays open
     else clearFloor(run.roadId)
   }
+  // Road fights return to where the next fight starts, never the village:
+  // the road's floor grid, or the road map after a boss clear (that's where
+  // the next road just unlocked).
+  if (run && !oath) {
+    resultReturn = {
+      roadIndex: ROADS.findIndex((road) => road.id === run.roadId),
+      bossWin: run.floor >= FLOORS && game.battle?.winner === 'you' && !run.replay
+    }
+  }
   game.run = undefined
   if (game.reveal && !findOwned(game.reveal.uid)) {
     // The revealed card vanished from the collection (e.g. a save sync
@@ -133,12 +174,35 @@ export function leaveResult() {
     openHeroCard(game.reveal.uid, game.dropBack)
     return
   }
-  if (run?.via === 'map' && !oath) {
-    const index = ROADS.findIndex((road) => road.id === run.roadId)
-    if (index >= 0) {
-      openLevels(index)
+  const dest = resultReturn
+  resultReturn = undefined
+  if (dest && dest.roadIndex >= 0) {
+    if (dest.bossWin) {
+      // Boss felled: show the road map with the freshly unlocked next road
+      // (or the Gates of Antrom row once the last road falls).
+      game.phase = 'quest'
+      resetMenu()
+      game.cursor = Math.min(game.cleared, ROADS.length)
       return
     }
+    openLevels(dest.roadIndex)
+    // openLevels refuses locked roads (possible after a mid-battle save
+    // sync); don't strand the player on the report screen.
+    if (game.phase !== 'levels') goHome()
+    return
+  }
+  // First arrival at the village: tease the hound's card drop so the player
+  // follows the badge to the party screen (where the card waits undiscovered).
+  if (oath && game.battle?.winner === 'you' && game.freshUids.length > 0) {
+    game.dropTalk = true
+  }
+  // Gates of Antrom is the campaign ending: the epilogue (then credits)
+  // plays after every win. Card reveal detoured above.
+  if (game.battle?.finalBattle && game.battle.winner === 'you') {
+    game.storyId = 'epilogue'
+    game.introPage = 0
+    game.phase = 'intro'
+    return
   }
   goHome()
 }

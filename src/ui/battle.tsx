@@ -242,7 +242,7 @@ export function BattleRank(props: { units: BattleUnit[]; actingUid: string; hp: 
 
 function clashFloor() {
   // The Gates of Antrom finale fights in front of its own story painting.
-  if (game.battle?.finalBattle) return { src: 'images/story/story-final-2.png' }
+  if (game.battle?.finalBattle) return { src: 'images/story/story-final-2.jpg' }
   const roadId = game.run?.roadId ?? 'q1'
   return LABELS[`map-clash-${roadId}`] ?? LABELS['map-cave']
 }

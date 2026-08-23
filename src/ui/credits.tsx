@@ -170,7 +170,7 @@ export function CreditsScreen() {
   }
   return (
     <UiEntity uiTransform={{ width: '100%', height: '100%' }} onMouseDown={tap(() => endCredits())}>
-      {Backdrop({ src: 'images/story/story-epilogue-2.png', dim: 0.8, pass: true })}
+      {Backdrop({ src: 'images/story/story-epilogue-2.jpg', dim: 0.8, pass: true })}
       <CreditRoll elapsed={elapsed} />
       <ParkedLogo elapsed={elapsed} />
     </UiEntity>

@@ -1,4 +1,4 @@
-import { getDef, statsOf } from './familiars'
+import { BOSS_IDS, getDef, statsOf } from './familiars'
 import { BattleFx, BattleState, BattleUnit, LogLine, OwnedFamiliar } from './types'
 
 function living(units: BattleUnit[]) {
@@ -56,11 +56,27 @@ type ActResult = {
   damage: number
 }
 
-function act(actor: BattleUnit, allies: BattleUnit[], enemies: BattleUnit[]): ActResult {
+function act(actor: BattleUnit, allies: BattleUnit[], enemies: BattleUnit[], relentless = false): ActResult {
   const empty: ActResult = { targetUid: '', hitUids: [], damage: 0 }
   if (actor.hp <= 0) return empty
   const foe = weakest(enemies)
   if (!foe) return empty
+
+  // Player units use their skill every turn, but enemy bosses hold theirs
+  // back: a plain blow on most actions, the special every third one. At the
+  // Gates of Antrom (relentless) the warlords skip the plain blows and fire
+  // their specials every single turn.
+  actor.acts = (actor.acts ?? 0) + 1
+  if (actor.side === 'foe' && BOSS_IDS.includes(actor.defId) && !relentless && actor.acts % 3 !== 0) {
+    hit(foe, actor.atk)
+    return {
+      line: { text: `${actor.name} strikes ${foe.name}`, side: actor.side },
+      targetUid: foe.uid,
+      hitUids: [foe.uid],
+      fx: 'strike',
+      damage: actor.atk
+    }
+  }
 
   if (actor.defId === 'nova') {
     const rank = living(enemies)
@@ -73,6 +89,133 @@ function act(actor: BattleUnit, allies: BattleUnit[], enemies: BattleUnit[]): Ac
       targetUid: foe.uid,
       hitUids,
       fx: 'bolt',
+      damage: dmg
+    }
+  }
+
+  if (actor.defId === 'ashen-regent') {
+    // End the Line: a 1.75x killing blow whose overkill spills into the
+    // next-weakest foe, so finishing one enemy carves into the next.
+    const dmg = Math.max(12, Math.floor(actor.atk * 1.75))
+    const prior = foe.hp
+    hit(foe, dmg)
+    const spill = dmg - prior
+    const next = spill > 0 ? weakest(enemies) : undefined
+    if (next && spill > 0) hit(next, spill)
+    return {
+      line: { text: `${actor.name} ends a line through ${foe.name}`, side: actor.side },
+      targetUid: foe.uid,
+      hitUids: [foe.uid, ...(next ? [next.uid] : [])],
+      fx: 'strike',
+      damage: dmg
+    }
+  }
+
+  if (actor.defId === 'wasteland-monarch') {
+    // The Waste Claims All: drains the entire rank, hoards the life for
+    // himself, and grows stronger for every foe claimed. Self-heal matches
+    // drain's 0.35 ratio so the combatFx hp-hold stays accurate.
+    const rank = living(enemies)
+    const dmg = Math.max(10, Math.floor(actor.atk * 0.75))
+    for (const enemy of rank) hit(enemy, dmg)
+    actor.hp = Math.min(actor.maxHp, actor.hp + Math.floor(dmg * 0.35))
+    actor.atk += Math.max(1, Math.floor(dmg * 0.1)) * rank.length
+    return {
+      line: { text: `${actor.name} claims the rank for the waste`, side: actor.side },
+      targetUid: foe.uid,
+      hitUids: rank.map((enemy) => enemy.uid),
+      fx: 'drain',
+      damage: dmg
+    }
+  }
+
+  if (actor.defId === 'thorn-queen') {
+    // Briar Rain: a full-strength volley on every foe with no crowd taper,
+    // and the briars snag — each victim loses a little attack.
+    const rank = living(enemies)
+    const dmg = Math.max(6, Math.floor(actor.atk * 0.85))
+    const snag = Math.max(1, Math.floor(dmg * 0.12))
+    for (const enemy of rank) {
+      hit(enemy, dmg)
+      enemy.atk = Math.max(1, enemy.atk - snag)
+    }
+    return {
+      line: { text: `${actor.name} buries the rank in briars`, side: actor.side },
+      targetUid: foe.uid,
+      hitUids: rank.map((enemy) => enemy.uid),
+      fx: 'volley',
+      damage: dmg
+    }
+  }
+
+  if (actor.defId === 'garr') {
+    // Titan's Feast: a crushing drain at 1.5x attack. Heal stays at drain's
+    // 0.35 ratio so the hp-hold animation in combatFx stays accurate.
+    const dmg = Math.max(10, Math.floor(actor.atk * 1.5))
+    hit(foe, dmg)
+    actor.hp = Math.min(actor.maxHp, actor.hp + Math.floor(dmg * 0.35))
+    return {
+      line: { text: `${actor.name} feeds the gate with ${foe.name}`, side: actor.side },
+      targetUid: foe.uid,
+      hitUids: [foe.uid],
+      fx: 'drain',
+      damage: dmg
+    }
+  }
+
+  if (actor.defId === 'frost-monarch') {
+    // Winter's March: rallies the whole oath harder than a normal rally and
+    // chills every foe, sapping their attack.
+    const oath = living(allies)
+    const rank = living(enemies)
+    const gain = Math.max(3, Math.floor(actor.atk * 0.25))
+    for (const ally of oath) ally.atk += gain
+    const chill = Math.max(1, Math.floor(actor.atk * 0.12))
+    for (const enemy of rank) enemy.atk = Math.max(1, enemy.atk - chill)
+    const dmg = Math.max(4, Math.floor(actor.atk * 0.5))
+    hit(foe, dmg)
+    return {
+      line: { text: `${actor.name} marches winter through the rank`, side: actor.side },
+      targetUid: foe.uid,
+      hitUids: [foe.uid],
+      fx: 'rally',
+      fxUids: oath.map((ally) => ally.uid),
+      damage: dmg
+    }
+  }
+
+  if (actor.defId === 'ether-assassin') {
+    // Ghost Cut: ignores the weakest-first rule and executes the deadliest
+    // living enemy at 1.5x attack.
+    const rank = living(enemies)
+    const mark = [...rank].sort((a, b) => b.atk - a.atk)[0] ?? foe
+    const dmg = Math.max(10, Math.floor(actor.atk * 1.5))
+    hit(mark, dmg)
+    return {
+      line: { text: `${actor.name} cuts down ${mark.name} without echo`, side: actor.side },
+      targetUid: mark.uid,
+      hitUids: [mark.uid],
+      fx: 'strike',
+      damage: dmg
+    }
+  }
+
+  if (actor.defId === 'crimson-abbot') {
+    // Blood Rite: drains the whole enemy rank and feeds the stolen life to
+    // every living ally. Heal matches drain's 0.35 ratio so the hp-hold
+    // animation in combatFx stays accurate for the actor.
+    const rank = living(enemies)
+    const oath = living(allies)
+    const dmg = Math.max(8, Math.floor(actor.atk * 0.7))
+    for (const enemy of rank) hit(enemy, dmg)
+    const mend = Math.floor(dmg * 0.35)
+    for (const ally of oath) ally.hp = Math.min(ally.maxHp, ally.hp + mend)
+    return {
+      line: { text: `${actor.name} bleeds the rank to feed the oath`, side: actor.side },
+      targetUid: foe.uid,
+      hitUids: rank.map((enemy) => enemy.uid),
+      fx: 'drain',
+      fxUids: [...rank.map((enemy) => enemy.uid), ...oath.map((ally) => ally.uid)],
       damage: dmg
     }
   }
@@ -189,7 +332,7 @@ export function stepBattle(battle: BattleState): BattleState {
   const allies = actor.side === 'you' ? battle.you : battle.foe
   const enemies = actor.side === 'you' ? battle.foe : battle.you
   const livingBefore = living(enemies).length
-  const result = act(actor, allies, enemies)
+  const result = act(actor, allies, enemies, !!battle.finalBattle)
   if (actor.side === 'you') {
     battle.kills += Math.max(0, livingBefore - living(enemies).length)
   }

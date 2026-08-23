@@ -1,7 +1,7 @@
 import { Storage } from '@dcl/sdk/server'
 import { getDef } from '../game/familiars'
 import { ROADS } from '../game/quests'
-import { MAX_LEVEL, MAX_STARS, OwnedFamiliar, PARTY_SIZE } from '../game/types'
+import { MAX_LEVEL, MAX_STARS, OwnedFamiliar, PARTY_SIZE, STORY_IDS, TIP_IDS } from '../game/types'
 import { ENERGY_MAX, PlayerSave, emptySave } from '../mp/protocol'
 import { room } from '../mp/transport'
 
@@ -68,6 +68,19 @@ function sanitizeSave(raw: unknown): PlayerSave {
   save.soundOn = row.soundOn !== false
   save.musicOn = row.musicOn !== false
   save.giftDay = Math.max(0, Math.floor(Number(row.giftDay) || 0))
+  if (row.tutSeen && typeof row.tutSeen === 'object') {
+    for (const tip of TIP_IDS) {
+      if ((row.tutSeen as Record<string, unknown>)[tip] === true) save.tutSeen![tip] = true
+    }
+  }
+  if (Array.isArray(row.fresh)) {
+    save.fresh = row.fresh.filter((uid): uid is string => typeof uid === 'string' && uids.has(uid)).slice(0, 20)
+  }
+  save.intro = row.intro === true
+  if (Array.isArray(row.stories)) {
+    save.stories = STORY_IDS.filter((id) => (row.stories as unknown[]).indexOf(id) >= 0)
+  }
+  save.finalWon = row.finalWon === true
   return save
 }
 

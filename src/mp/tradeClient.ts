@@ -1,5 +1,6 @@
 import { openHeroCard } from '../game/menu'
 import { game } from '../game/store'
+import { maybeStartTip } from '../game/tutorial'
 import type { OwnedFamiliar } from '../game/types'
 import { getMyAddress } from './identity'
 import { TradeMsg, TradeTable, TradeUpdate } from './protocol'
@@ -92,6 +93,7 @@ export function setupTradeClient(): void {
       const p = game.phase
       if (p === 'home' || p === 'quest' || p === 'party' || p === 'fuse' || p === 'shop' || p === 'allies') {
         game.phase = 'trade'
+        maybeStartTip('trade')
       }
       return
     }

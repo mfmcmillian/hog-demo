@@ -1,7 +1,7 @@
 import { coinBonus, familiarForKin, listOathkin } from './allies'
 import { buildBattle, stepBattle } from './combat'
 import { COLLECTIBLE_HEROES, DEBUG, OATH_DROP_ID } from './debug'
-import { getDef, grantXp, makeOwned, pickWeighted, rarityWeight, rollDef, xpProgress } from './familiars'
+import { BOSS_IDS, getDef, grantXp, makeOwned, pickWeighted, rarityWeight, rollDef, rollDefOf, xpProgress } from './familiars'
 import { goHome, resetMenu, revealAcquisition } from './menu'
 import { partyUnits } from './party'
 import { clearFloor, resetRunRewards, roadStarOf } from './progress'
@@ -48,6 +48,75 @@ export function startOathClash() {
     const drop = makeOwned(dropId)
     game.pendingDrop = drop
     game.battle.dropId = drop.defId
+  }
+  enterBattlePhase()
+  // The elder explains the autobattle before the very first clash begins;
+  // tickBattle holds the fight until the dialog is dismissed.
+  game.fightTalk = 1
+}
+
+export const FIGHT_TALK_PAGES = 2
+
+/** Tap / E on the first-fight dialog: next page, then the clash begins. */
+export function advanceFightTalk() {
+  game.fightTalk = game.fightTalk >= FIGHT_TALK_PAGES ? 0 : game.fightTalk + 1
+}
+
+// --- The Gates of Antrom: all four warlords at once ------------------------------
+
+// Sim ballpark: the four raw warlords total 344hp/96atk, roughly a tier-1
+// Q6 boss floor. 1.2 makes it a genuine boss rush for the leveled party
+// that just cleared four roads without demanding a perfect draw.
+const FINAL_SCALE = 1.2
+const FINAL_COINS = 200
+
+/** Map row tap: checks first, then the prelude story (once), then the fight. */
+export function openFinalBattle() {
+  if (game.cleared < ROADS.length) {
+    game.notice = 'clear-road'
+    return
+  }
+  if (partyUnits().length === 0) {
+    game.notice = 'recruit-first'
+    game.phase = 'party'
+    game.freshUids = []
+    return
+  }
+  if (!DEBUG.unlimitedEnergy && game.energy < 1) {
+    game.notice = 'no-coin'
+    return
+  }
+  if (!game.storySeen.final) {
+    game.storyId = 'final'
+    game.introPage = 0
+    game.phase = 'intro'
+    return
+  }
+  startFinalBattle()
+}
+
+/** The 4v4 warlord battle. First win pays a guaranteed legendary (30% mythic);
+ * replays pay scrap coins and XP only. */
+export function startFinalBattle() {
+  if (partyUnits().length === 0 || !spendEnergy()) {
+    goHome()
+    return
+  }
+  game.run = undefined
+  game.fightingIndex = -1
+  resetRunRewards()
+  game.pendingDrop = undefined
+  game.rewarded = false
+  const ally = game.selectedAlly ? familiarForKin(game.selectedAlly) : undefined
+  game.battle = buildBattle(partyUnits(), [...BOSS_IDS], ally, FINAL_SCALE)
+  game.battle.finalBattle = true
+  game.battle.coins = game.finalWon ? Math.floor(FINAL_COINS * REPLAY_COIN_SCALE) : FINAL_COINS
+  if (!game.finalWon) {
+    const ownedIds = new Set(game.collection.map((entry) => entry.defId))
+    const def = Math.random() < 0.3 ? rollDefOf(['mythic'], ownedIds) : rollDefOf(['legendary'], ownedIds)
+    const drop = makeOwned(def.id)
+    game.battle.dropId = drop.defId
+    game.pendingDrop = drop
   }
   enterBattlePhase()
 }
@@ -125,11 +194,27 @@ export function beginFloor() {
     game.battle.kin = kin.length
     game.battle.kinCoins = Math.max(0, game.battle.coins - baseCoins)
     const bossFloor = floor >= FLOORS
+    // Finishing a road is the hype beat: a climb's boss (the fight that
+    // advances the road's tier) always pays out, epic or better - and the
+    // very first boss a player ever fells guarantees a legendary they don't
+    // own yet, their day-one chase card. Lower-tier boss re-farms fall
+    // through to the old chance roll so tier-1 replays can't mint epics.
+    const climbBoss = bossFloor && star >= roadStarOf(road.id)
+    // Checkpoints fill the 9-floor gap between cards: every non-replay
+    // climb pays a 1-star recruit at F3/F6/F9. The boss stays the
+    // chance + star-scaled roll.
+    const checkpoint = floor === 3 || floor === 6 || floor === 9
     // The first road always gifts a recruit after the solo floors: F4+ is
     // tuned for a party of three, and a fresh account only has two cards
     // (starter + oath drop). Granted on winning F3, seated for F4.
     const firstRoadGift = road.id === ROADS[0].id && floor === 3 && game.cleared === 0
-    if (!replay && ((bossFloor && Math.random() < road.dropChance + kin.length * 0.05) || firstRoadGift)) {
+    if (!replay && climbBoss) {
+      const ownedIds = new Set(game.collection.map((entry) => entry.defId))
+      const def = game.cleared === 0 ? rollDefOf(['legendary'], ownedIds) : rollDefOf(['epic', 'legendary', 'mythic'])
+      const drop = makeOwned(def.id, dropStarsFor(star))
+      game.battle.dropId = drop.defId
+      game.pendingDrop = drop
+    } else if (!replay && ((bossFloor && Math.random() < road.dropChance + kin.length * 0.05) || checkpoint || firstRoadGift)) {
       // The gift is curated, not rolled: a sustain/strike common the player
       // doesn't own yet, so an all-glass oath draw still gets a body that
       // can stand in front of the ogre. Sim-tuned (drain first).
@@ -138,6 +223,7 @@ export function beginFloor() {
         ? giftPool.find((id) => !game.collection.some((owned) => owned.defId === id)) ?? rollDef().id
         : rollDef().id
       // Boss drops climb in quality with the tier being fought.
+      // Checkpoints stay 1-star so they don't compete with the boss.
       const drop = makeOwned(giftId, bossFloor ? dropStarsFor(star) : 1)
       game.battle.dropId = drop.defId
       game.pendingDrop = drop
@@ -175,6 +261,8 @@ function settleBattle() {
   grantBattleXp()
   if (game.battle.winner !== 'you') return
   game.coins += game.battle.coins
+  // The Gates first-win jackpot is spent; later wins are scrap replays.
+  if (game.battle.finalBattle) game.finalWon = true
   const run = game.run
   const bossClear = !!run && run.floor >= FLOORS && !run.replay
   if (bossClear && run) {
@@ -193,16 +281,26 @@ function settleBattle() {
     }
   }
   // pendingDrop is only ever set for fights that may drop (boss floors,
-  // the oath clash, the first-road gift), so any win with one pays out.
+  // checkpoints, the oath clash, the first-road gift), so any win with
+  // one pays out.
   if (game.pendingDrop) {
     const drop = game.pendingDrop
     game.pendingDrop = undefined
-    revealAcquisition(drop, 'home', { seat: true, show: false })
+    if (game.battle.oathClash) {
+      // The first card lands undiscovered: not seated, no reveal ceremony.
+      // The red PARTY badge pulls the player to the bench, where the party
+      // tutorial teaches seating it (see nav.ts PHASE_TIP / home.tsx badge).
+      if (!findOwned(drop.uid)) game.collection.push(drop)
+      game.freshUids.push(drop.uid)
+    } else {
+      revealAcquisition(drop, 'home', { seat: true, show: false })
+    }
   }
 }
 
 export function tickBattle(dt: number) {
   if (game.phase !== 'battle' || !game.battle) return
+  if (game.fightTalk) return // the elder is still explaining the first clash
   game.battleWait -= dt
   if (game.battleWait > 0) return
   if (game.battle.winner) {

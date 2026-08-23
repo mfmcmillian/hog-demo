@@ -4,9 +4,10 @@ import { playCancel, playClick, playRift } from './audio'
 import { mySeat, riftLeave, tradeCancel } from '../mp/session'
 import { gift, riftView } from '../mp/views'
 import { enterGame, isBootFilled, isBootReady } from './boot'
-import { advanceBanner, skipBattle } from './campaign'
+import { advanceBanner, advanceFightTalk, openFinalBattle, skipBattle } from './campaign'
 import { canFuse, fuse, fuseFaces, pickFuseHero, prepareFuse } from './fuse'
-import { goHome, resetMenu } from './menu'
+import { advanceIntro, endCredits, skipIntro } from './intro'
+import { cycleHeroCard, goHome, resetMenu } from './menu'
 import { PACKS, packAt } from './packs'
 import { benchUnits, tapBenchHero, tapPartySlot } from './party'
 import { frontierFloor } from './progress'
@@ -14,7 +15,8 @@ import { ROADS } from './quests'
 import { leaveHeroCard, leaveResult, openLevels, startFloor } from './roads'
 import { cancelPack, openPendingChest, requestPack } from './shop'
 import { findOwned, game } from './store'
-import { PARTY_SIZE, Phase } from './types'
+import { advanceTip, dismissTip, maybeStartTip, tipShowing } from './tutorial'
+import { PARTY_SIZE, Phase, TipId } from './types'
 
 export const MENU_WINDOW = 4
 
@@ -22,7 +24,8 @@ const HOME: Phase[] = ['quest', 'party', 'fuse', 'shop', 'allies']
 
 const MENU_LEN: { [P in Phase]?: () => number } = {
   home: () => HOME.length,
-  quest: () => Math.min(game.cleared + 1, ROADS.length),
+  // Every unlocked road, plus the Gates of Antrom row once all are cleared.
+  quest: () => Math.min(game.cleared + 1, ROADS.length) + (game.cleared >= ROADS.length ? 1 : 0),
   party: () => PARTY_SIZE + Math.min(MENU_WINDOW, benchUnits().length),
   fuse: () => fuseFaces().length,
   allies: () => Math.max(0, listOathkin().length),
@@ -35,6 +38,18 @@ const OVERLAY_LEAVE: { [P in Phase]?: () => void } = {
   heroCard: leaveHeroCard
 }
 
+/** Screens that teach themselves the first time they open. */
+const PHASE_TIP: { [P in Phase]?: TipId } = {
+  party: 'party',
+  quest: 'map',
+  settings: 'settings',
+  festival: 'events',
+  fuse: 'fuse',
+  shop: 'shop',
+  trade: 'trade',
+  rift: 'friendzone'
+}
+
 export function open(phase: Phase) {
   game.phase = phase
   game.selectedSlot = -1
@@ -42,6 +57,10 @@ export function open(phase: Phase) {
   if (phase === 'quest') game.cursor = Math.min(game.cleared, ROADS.length - 1)
   if (phase === 'rift') playRift()
   if (phase === 'fuse') prepareFuse()
+  // Fresh cards are discovered the moment the bench is on screen.
+  if (phase === 'party') game.freshUids = []
+  const tip = PHASE_TIP[phase]
+  if (tip) maybeStartTip(tip)
 }
 
 function menuLen(): number {
@@ -96,6 +115,10 @@ export function shiftMenu(delta: number) {
     cycleHero(delta)
     return
   }
+  if (game.phase === 'heroCard') {
+    cycleHeroCard(delta)
+    return
+  }
   const len = menuLen()
   if (len <= 0) return
   game.cursor += delta
@@ -133,13 +156,34 @@ export function primary() {
   }
   if (Date.now() < lockUntil) return
   playClick()
+  if (tipShowing()) {
+    advanceTip()
+    return
+  }
+  if (game.phase === 'intro') {
+    advanceIntro()
+    return
+  }
+  if (game.phase === 'credits') {
+    endCredits()
+    lockNav()
+    return
+  }
   if (game.phase === 'start') {
+    if (game.welcomeTalk) {
+      game.welcomeTalk = false
+      return
+    }
     pickHero()
     return
   }
-  if (game.phase === 'home') return
+  if (game.phase === 'home') {
+    if (game.dropTalk) game.dropTalk = false
+    return
+  }
   if (game.phase === 'quest') {
-    openLevels(game.cursor)
+    if (game.cursor >= ROADS.length) openFinalBattle()
+    else openLevels(game.cursor)
     return
   }
   if (game.phase === 'levels') {
@@ -178,6 +222,10 @@ export function primary() {
     return
   }
   if (game.phase === 'battle') {
+    if (game.fightTalk) {
+      advanceFightTalk()
+      return
+    }
     skipBattle()
     return
   }
@@ -195,6 +243,18 @@ function dismissOverlay() {
 /** F — leave the current screen. */
 export function back() {
   if (!isBootReady()) return
+  if (tipShowing()) {
+    playCancel()
+    dismissTip()
+    lockNav()
+    return
+  }
+  if (game.phase === 'home' && game.dropTalk) {
+    playCancel()
+    game.dropTalk = false
+    lockNav()
+    return
+  }
   if (game.phase === 'home' && game.onlineOpen) {
     playCancel()
     game.onlineOpen = false
@@ -213,9 +273,32 @@ export function back() {
     lockNav()
     return
   }
+  if (game.phase === 'intro') {
+    playCancel()
+    skipIntro()
+    lockNav()
+    return
+  }
+  if (game.phase === 'credits') {
+    playCancel()
+    endCredits()
+    lockNav()
+    return
+  }
+  if (game.phase === 'start' && game.welcomeTalk) {
+    playCancel()
+    game.welcomeTalk = false
+    lockNav()
+    return
+  }
   if (game.phase === 'start' || game.phase === 'home') return
   playCancel()
   if (game.phase === 'battle') {
+    if (game.fightTalk) {
+      game.fightTalk = 0
+      lockNav()
+      return
+    }
     skipBattle()
     return
   }
@@ -233,11 +316,6 @@ export function back() {
   }
   if (game.phase === 'festival' && gift.picking) {
     gift.picking = false
-    lockNav()
-    return
-  }
-  if (game.phase === 'fuse' && game.fuseHelp) {
-    game.fuseHelp = false
     lockNav()
     return
   }

@@ -6,10 +6,12 @@ import { focused, setCursor, shiftBench, windowed } from '../game/nav'
 import { lockedNftHeroes, nftPieces, ownsUrn } from '../game/nftHeroes'
 import { benchUnits, tapBenchHero, tapPartySlot } from '../game/party'
 import { findOwned, game } from '../game/store'
+import { benchPointerShowing } from '../game/tutorial'
 import { OwnedFamiliar, PARTY_SIZE } from '../game/types'
 import { LABELS } from './labels.gen'
 import { ModalScrim, PagedColumn, TalkPanel } from './panels'
 import { cream, gold } from './theme'
+import { TutPointer } from './tutorial'
 import { Backdrop, Face, GameLogo, Img, Notice, PartyTile, SeatCard, SlashCount } from './widgets'
 
 /** One ornate kit seat: gold frame, hero in the leather, name in the banner. */
@@ -220,6 +222,10 @@ function BenchTile(props: { owned: OwnedFamiliar; index: number; key?: string })
       }}
     >
       <Face id={props.owned.defId} w={Math.round(w * 0.78)} h={Math.round(h * 0.78)} fallback={28} />
+      {/* onboarding: point at the hound's recruit (tip lands 13,66 from anchor) */}
+      {props.index === 0 && benchPointerShowing() ? (
+        <TutPointer left={Math.round(w / 2) - 13} top={Math.round(h / 2) - 66} />
+      ) : null}
     </PartyTile>
   )
 }

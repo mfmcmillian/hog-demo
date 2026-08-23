@@ -39,6 +39,20 @@ export function resetAccount() {
   game.soundOn = true
   game.musicOn = true
   game.giftDay = 0
+  game.tutSeen = {}
+  game.tutTip = ''
+  game.tutPage = 0
+  game.freshUids = []
+  game.introSeen = false
+  game.introPage = 0
+  game.storyId = 'main'
+  game.storySeen = {}
+  game.pendingRun = undefined
+  game.finalWon = false
+  game.creditsAt = 0
+  game.welcomeTalk = false
+  game.fightTalk = 0
+  game.dropTalk = false
   game.run = undefined
   game.battle = undefined
   game.pendingPack = ''
@@ -61,6 +75,7 @@ export function resetAccount() {
   game.xpLines = []
   game.cursor = 0
   game.menuShift = 0
-  game.phase = 'start'
+  // Fresh accounts hear the story again before the oath.
+  game.phase = 'intro'
   applyDebugGrants()
 }

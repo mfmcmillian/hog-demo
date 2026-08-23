@@ -6,10 +6,12 @@ import { AlliesScreen } from './allies'
 import { BattleScreen } from './battle'
 import { BootFade, LoadingScreen } from './boot'
 import { AdBanner, PhaseFade, PlayHud, PreloadTiles, ScreenChrome } from './chrome'
+import { CreditsScreen } from './credits'
 import { FestivalScreen, GiftCeremony } from './festival'
 import { FuseScreen } from './fuse'
 import { HeroCardScreen } from './heroCard'
 import { HomeScreen } from './home'
+import { IntroScreen } from './intro'
 import { LevelsScreen } from './levels'
 import { PartyScreen } from './party'
 import { startPreload } from './preload'
@@ -21,6 +23,7 @@ import { ShopScreen } from './shop'
 import { StartScreen } from './start'
 import { PASS } from './theme'
 import { TradeInviteToast, TradeScreen } from './trade'
+import { TutorialOverlay } from './tutorial'
 
 // 2D UI built from pre-rotated label images (see tools/gen-labels.ps1).
 // Native E/F are hidden; ACTION/BACK plaques call primary()/back().
@@ -60,6 +63,7 @@ function Root() {
         }}
       >
         <ScreenChrome>
+          {game.phase === 'intro' ? <IntroScreen /> : null}
           {game.phase === 'start' ? <StartScreen /> : null}
           {game.phase === 'home' ? <HomeScreen /> : null}
           {game.phase === 'quest' ? <QuestScreen /> : null}
@@ -76,8 +80,10 @@ function Root() {
           {game.phase === 'rift' ? <RiftScreen /> : null}
           {game.phase === 'settings' ? <SettingsScreen /> : null}
           {game.phase === 'festival' ? <FestivalScreen /> : null}
+          {game.phase === 'credits' ? <CreditsScreen /> : null}
           <TradeInviteToast />
           <GiftCeremony />
+          <TutorialOverlay />
         </ScreenChrome>
       </UiEntity>
       {DEBUG.showPlayHud ? <PlayHud /> : null}

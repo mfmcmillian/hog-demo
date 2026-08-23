@@ -2,6 +2,7 @@ import { boot } from '../game/boot'
 import { applyDebugGrants } from '../game/debug'
 import { goHome } from '../game/menu'
 import { game } from '../game/store'
+import { SeenStoryId, STORY_IDS, TipId } from '../game/types'
 import { getMyAddress } from './identity'
 import { MP_VERSION, PlayerSave } from './protocol'
 import { room } from './transport'
@@ -40,7 +41,12 @@ function mySave(): PlayerSave {
     roadStar: game.roadStar,
     soundOn: game.soundOn,
     musicOn: game.musicOn,
-    giftDay: game.giftDay
+    giftDay: game.giftDay,
+    tutSeen: game.tutSeen,
+    fresh: game.freshUids,
+    intro: game.introSeen,
+    stories: (Object.keys(game.storySeen) as SeenStoryId[]).filter((id) => game.storySeen[id]),
+    finalWon: game.finalWon
   }
 }
 
@@ -58,6 +64,16 @@ function applySave(save: PlayerSave): void {
   game.soundOn = save.soundOn !== false
   game.musicOn = save.musicOn !== false
   game.giftDay = Math.max(0, Math.floor(Number(save.giftDay) || 0))
+  // Older saves predate the tutorial; missing means every tip still fires.
+  game.tutSeen = save.tutSeen ?? {}
+  game.freshUids = Array.isArray(save.fresh) ? save.fresh : []
+  // Older saves predate the intro story; anyone with a sworn hero has "seen" it.
+  game.introSeen = save.intro === true || !!save.heroUid
+  game.storySeen = {}
+  for (const id of save.stories ?? []) {
+    if ((STORY_IDS as readonly string[]).indexOf(id) >= 0) game.storySeen[id as SeenStoryId] = true
+  }
+  game.finalWon = save.finalWon === true
   applyDebugGrants()
 }
 
@@ -76,10 +92,24 @@ function applyServerUpdate(save: PlayerSave): void {
   for (const road of Object.keys(game.roadStar)) {
     roadStar[road] = Math.max(roadStar[road] ?? 1, game.roadStar[road])
   }
+  // Seen tips and stories are forward-moving like road progress: a push
+  // racing a just-dismissed tip must not replay it.
+  const seen = { ...game.tutSeen }
+  const storySeen = { ...game.storySeen }
+  const introSeen = game.introSeen
+  const finalWon = game.finalWon
   applySave(save)
   game.cleared = cleared
   game.floorAt = floorAt
   game.roadStar = roadStar
+  for (const tip of Object.keys(seen) as TipId[]) {
+    if (seen[tip]) game.tutSeen[tip] = true
+  }
+  for (const id of Object.keys(storySeen) as SeenStoryId[]) {
+    if (storySeen[id]) game.storySeen[id] = true
+  }
+  if (introSeen) game.introSeen = true
+  if (finalWon) game.finalWon = true
 }
 
 /**
@@ -101,6 +131,14 @@ function mergeSave(save: PlayerSave): void {
   for (const road of Object.keys(save.roadStar ?? {})) {
     game.roadStar[road] = Math.max(game.roadStar[road] ?? 1, save.roadStar![road])
   }
+  for (const tip of Object.keys(save.tutSeen ?? {}) as TipId[]) {
+    if (save.tutSeen![tip]) game.tutSeen[tip] = true
+  }
+  if (save.intro === true) game.introSeen = true
+  for (const id of save.stories ?? []) {
+    if ((STORY_IDS as readonly string[]).indexOf(id) >= 0) game.storySeen[id as SeenStoryId] = true
+  }
+  if (save.finalWon === true) game.finalWon = true
   applyDebugGrants()
 }
 
@@ -132,9 +170,9 @@ export function setupSaveSync(): void {
           // it, but never let it roll road progression backwards.
           applyServerUpdate(save)
         }
-      } else if (game.phase === 'start') {
+      } else if (game.phase === 'start' || game.phase === 'intro') {
         applySave(save)
-        // Returning player: skip the oath ceremony, go straight to the hall.
+        // Returning player: skip the story and oath ceremony, straight to the hall.
         if (save.heroUid) goHome()
       } else {
         // Save arrived after the player already started playing; folding it
@@ -154,7 +192,7 @@ export function tickSavePush(dt: number): void {
   pushWait -= dt
   if (pushWait > 0) return
   pushWait = 1.5
-  if (game.phase === 'start') return // nothing worth saving before the oath
+  if (game.phase === 'start' || game.phase === 'intro') return // nothing worth saving before the oath
   const json = JSON.stringify(mySave())
   if (json === lastPushedJson) return
   lastPushedJson = json

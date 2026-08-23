@@ -19,9 +19,9 @@ export const FAMILIARS: FamiliarDef[] = [
   { id: 'blood-leech', name: 'Blood Leech', lineage: 'leech', rarity: 'uncommon', role: 'melee', hp: 40, atk: 12, skill: 'drain', skillText: 'Feeds mid-clash' },
   { id: 'oath-knight', name: 'Oath Knight', lineage: 'knight', rarity: 'rare', role: 'melee', hp: 70, atk: 18, skill: 'strike', skillText: 'A pledged killing blow' },
   { id: 'dusk-oracle', name: 'Dusk Oracle', lineage: 'oracle', rarity: 'rare', role: 'support', hp: 44, atk: 11, skill: 'rally', skillText: 'The hall fights harder' },
-  { id: 'thorn-queen', name: 'Thorn Queen', lineage: 'queen', rarity: 'legendary', role: 'ranged', hp: 56, atk: 24, skill: 'volley', skillText: 'A rain of briars' },
-  { id: 'crimson-abbot', name: 'Crimson Abbot', lineage: 'abbot', rarity: 'legendary', role: 'support', hp: 60, atk: 14, skill: 'drain', skillText: 'Takes and gives in kind' },
-  { id: 'ashen-regent', name: 'Ashen Regent', lineage: 'regent', rarity: 'mythic', role: 'melee', hp: 88, atk: 24, skill: 'strike', skillText: 'Ends a line' },
+  { id: 'thorn-queen', name: 'Thorn Queen', lineage: 'queen', rarity: 'legendary', role: 'ranged', hp: 56, atk: 24, skill: 'volley', skillText: 'Briars bury and snag every foe' },
+  { id: 'crimson-abbot', name: 'Crimson Abbot', lineage: 'abbot', rarity: 'legendary', role: 'support', hp: 110, atk: 32, skill: 'drain', skillText: 'Bleeds all foes to feed the oath' },
+  { id: 'ashen-regent', name: 'Ashen Regent', lineage: 'regent', rarity: 'mythic', role: 'melee', hp: 88, atk: 24, skill: 'strike', skillText: 'Overkill carves into the next foe' },
   { id: 'night-covenant', name: 'Night Covenant', lineage: 'covenant', rarity: 'epic', role: 'support', hp: 60, atk: 14, skill: 'rally', skillText: 'The oath becomes an army' },
   { id: 'pale-howl', name: 'Pale Howl', lineage: 'howl', rarity: 'epic', role: 'ranged', hp: 54, atk: 26, skill: 'volley', skillText: 'A scream across the field' },
   { id: 'moor-ogre', name: 'Moor Ogre', lineage: 'ogre', rarity: 'epic', role: 'melee', hp: 90, atk: 16, skill: 'strike', skillText: 'A gate that walks' },
@@ -33,7 +33,7 @@ export const FAMILIARS: FamiliarDef[] = [
   { id: 'siphon', name: 'Siphon, Red Knight', lineage: 'red', rarity: 'rare', role: 'melee', hp: 44, atk: 13, skill: 'drain', skillText: 'I drink the fallen' },
   { id: 'lyra', name: 'Lyra, War Siren', lineage: 'siren', rarity: 'epic', role: 'support', hp: 52, atk: 13, skill: 'drain', skillText: 'The hymn takes and gives' },
   { id: 'pax', name: 'Pax, Oath Priest', lineage: 'priest', rarity: 'epic', role: 'support', hp: 56, atk: 14, skill: 'rally', skillText: 'The hall sings back' },
-  { id: 'garr', name: 'Garr, Gold Titan', lineage: 'titan', rarity: 'legendary', role: 'melee', hp: 68, atk: 19, skill: 'drain', skillText: 'The gate feeds' },
+  { id: 'garr', name: 'Garr, Gold Titan', lineage: 'titan', rarity: 'legendary', role: 'melee', hp: 68, atk: 19, skill: 'drain', skillText: 'A crushing feast feeds the gate' },
   { id: 'nova', name: 'Nova, Light Saint', lineage: 'saint', rarity: 'mythic', role: 'support', hp: 76, atk: 38, skill: 'drain', skillText: 'Light splits the rank' }
 ]
 
@@ -45,9 +45,9 @@ export const BOSS_IDS = ['moor-ogre', 'thorn-queen', 'crimson-abbot', 'ashen-reg
  * owning the full NFT wearable set (see nftHeroes.ts).
  */
 export const NFT_HEROES: FamiliarDef[] = [
-  { id: 'frost-monarch', name: 'Frost Monarch', lineage: 'winter', rarity: 'legendary', role: 'support', hp: 62, atk: 15, skill: 'rally', skillText: 'Winter marches with you' },
-  { id: 'ether-assassin', name: 'Ether Assassin', lineage: 'ether', rarity: 'legendary', role: 'melee', hp: 64, atk: 22, skill: 'strike', skillText: 'One cut, no echo' },
-  { id: 'wasteland-monarch', name: 'Wasteland Monarch', lineage: 'waste', rarity: 'mythic', role: 'support', hp: 84, atk: 30, skill: 'drain', skillText: 'The waste claims all' }
+  { id: 'frost-monarch', name: 'Frost Monarch', lineage: 'winter', rarity: 'legendary', role: 'support', hp: 62, atk: 15, skill: 'rally', skillText: 'Winter rallies you and chills all foes' },
+  { id: 'ether-assassin', name: 'Ether Assassin', lineage: 'ether', rarity: 'legendary', role: 'melee', hp: 64, atk: 22, skill: 'strike', skillText: 'Executes the deadliest foe' },
+  { id: 'wasteland-monarch', name: 'Wasteland Monarch', lineage: 'waste', rarity: 'mythic', role: 'support', hp: 84, atk: 30, skill: 'drain', skillText: 'Drains all foes and grows each claim' }
 ]
 
 const NFT_HERO_IDS = NFT_HEROES.map((def) => def.id)
@@ -94,6 +94,17 @@ export function pickWeighted<T>(items: T[], weightOf: (item: T) => number): T {
 export function rollDef(): FamiliarDef {
   const pool = FAMILIARS.filter((def) => HERO_IDS.indexOf(def.id) < 0)
   return pickWeighted(pool, (def) => rarityWeight(def.rarity))
+}
+
+/**
+ * Roll restricted to the given rarities (boss-clear guarantees). `exclude`
+ * skips already-owned defs so a guaranteed drop lands a new face; if the
+ * player somehow owns the whole slice, the full slice rolls anyway.
+ */
+export function rollDefOf(rarities: Rarity[], exclude?: Set<string>): FamiliarDef {
+  const slice = FAMILIARS.filter((def) => HERO_IDS.indexOf(def.id) < 0 && rarities.indexOf(def.rarity) >= 0)
+  const pool = exclude ? slice.filter((def) => !exclude.has(def.id)) : slice
+  return pickWeighted(pool.length > 0 ? pool : slice, (def) => rarityWeight(def.rarity))
 }
 
 export function statsOf(owned: OwnedFamiliar) {

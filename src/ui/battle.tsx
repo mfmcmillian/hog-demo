@@ -1,8 +1,10 @@
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
-import { skipBattle } from '../game/campaign'
+import { tap } from '../game/audio'
+import { advanceFightTalk, FIGHT_TALK_PAGES, skipBattle } from '../game/campaign'
 import { game } from '../game/store'
 import { BattleUnit } from '../game/types'
+import { ElderTalk } from './elderTalk'
 import {
   dmgPops,
   foeLungeAmt,
@@ -239,6 +241,8 @@ export function BattleRank(props: { units: BattleUnit[]; actingUid: string; hp: 
 }
 
 function clashFloor() {
+  // The Gates of Antrom finale fights in front of its own story painting.
+  if (game.battle?.finalBattle) return { src: 'images/story/story-final-2.png' }
   const roadId = game.run?.roadId ?? 'q1'
   return LABELS[`map-clash-${roadId}`] ?? LABELS['map-cave']
 }
@@ -314,6 +318,17 @@ export function BattleScreen() {
         </UiEntity>
       ) : null}
       <GameLogo />
+      {game.fightTalk ? (
+        <ElderTalk
+          lines={
+            game.fightTalk === 1
+              ? [{ k: 'intro-f1' }, { k: 'intro-f2' }, { k: 'intro-f3' }, { k: 'intro-f4', tint: gold }]
+              : [{ k: 'intro-f5' }, { k: 'intro-f6' }, { k: 'intro-f7' }, { k: 'intro-f8', tint: gold }]
+          }
+          page={{ at: game.fightTalk, of: FIGHT_TALK_PAGES }}
+          onTap={tap(() => advanceFightTalk())}
+        />
+      ) : null}
     </BattleField>
   )
 }

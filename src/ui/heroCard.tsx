@@ -1,13 +1,15 @@
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import { tap } from '../game/audio'
 import { getDef, statsOf, xpProgress } from '../game/familiars'
+import { cycleHeroCard, heroCardRoster } from '../game/menu'
 import { findOwned, game } from '../game/store'
 import { OwnedFamiliar, Rarity } from '../game/types'
 import { revealBurstSheet, revealBurstUvs, revealFx, skipReveal } from './flipbook'
 import { cardBackArt, hallArt } from './halls'
 import { LABELS } from './labels.gen'
-import { cream, gold, panelDim } from './theme'
-import { Backdrop, Face, Img, Stars, Stat } from './widgets'
+import { cream, gold, panelDim, PASS } from './theme'
+import { Backdrop, CardBtn, Face, Img, Stars, Stat } from './widgets'
 
 function PlaqueLine(props: { children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component }) {
   return (
@@ -33,7 +35,36 @@ export function HeroCardScreen() {
   const def = getDef(owned.defId)
   const revealing = !!game.reveal
   const fx = revealFx(def.rarity)
-  return revealing && !fx.ready ? <HeroCardReveal owned={owned} fx={fx} /> : <HeroCardBody owned={owned} />
+  if (revealing && !fx.ready) return <HeroCardReveal owned={owned} fx={fx} />
+  return (
+    <UiEntity uiTransform={{ width: '100%', height: '100%', ...PASS }}>
+      <HeroCardBody owned={owned} />
+      {revealing ? null : <CycleArrows />}
+    </UiEntity>
+  )
+}
+
+/** Prev/next hero on the card's physical sides (canvas bottom = phone left). */
+function CycleArrows() {
+  if (heroCardRoster().length < 2) return null
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: 0, left: 0 },
+        width: '100%',
+        height: '100%',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: { top: 4, bottom: 4 },
+        ...PASS
+      }}
+    >
+      <CardBtn k="sel-arrow-right" w={76} onTap={tap(() => cycleHeroCard(1))} />
+      <CardBtn k="sel-arrow-left" w={76} onTap={tap(() => cycleHeroCard(-1))} />
+    </UiEntity>
+  )
 }
 
 function RevealSwirl(props: { rarity: Rarity; scale: number }) {

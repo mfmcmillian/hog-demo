@@ -1,4 +1,4 @@
-import type { BattleState, OwnedFamiliar } from '../game/types'
+import type { BattleState, OwnedFamiliar, TipId } from '../game/types'
 
 // Typed payloads carried as JSON strings inside the transport messages, so the
 // registered schemas stay tiny and stable (same pattern as DecentraCraft).
@@ -23,10 +23,20 @@ export type PlayerSave = {
   musicOn: boolean
   /** UTC day index of the last daily gift sent (0 = never). */
   giftDay: number
+  /** First-press tutorial tips this account has dismissed. */
+  tutSeen?: Partial<Record<TipId, boolean>>
+  /** Card uids acquired but never yet seen on the party bench (PARTY badge). */
+  fresh?: string[]
+  /** Intro story already watched (or skipped). */
+  intro?: boolean
+  /** Road/final/epilogue stories already watched (see STORY_IDS). */
+  stories?: string[]
+  /** Gates of Antrom beaten (the first-win jackpot is spent). */
+  finalWon?: boolean
 }
 
 export function emptySave(): PlayerSave {
-  return { v: MP_VERSION, collection: [], party: ['', '', '', ''], heroUid: '', coins: 0, energy: 0, cleared: 0, floorAt: {}, roadStar: {}, soundOn: true, musicOn: true, giftDay: 0 }
+  return { v: MP_VERSION, collection: [], party: ['', '', '', ''], heroUid: '', coins: 0, energy: 0, cleared: 0, floorAt: {}, roadStar: {}, soundOn: true, musicOn: true, giftDay: 0, tutSeen: {}, fresh: [], intro: false, stories: [], finalWon: false }
 }
 
 // --- Trading -------------------------------------------------------------------

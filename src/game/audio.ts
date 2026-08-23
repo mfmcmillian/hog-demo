@@ -1,7 +1,7 @@
 import { AudioSource, Transform, engine, type Entity } from '@dcl/sdk/ecs'
-import { riftView } from '../mp/session'
+import { riftView } from '../mp/views'
+import { game } from './store'
 import { BattleFx, Phase, Rarity } from './types'
-import { game } from './state'
 
 const SFX = {
   click: 'sounds/ui/click.mp3',
@@ -104,7 +104,7 @@ function getSting(): Entity {
   return sting
 }
 
-export function playSfx(id: keyof typeof SFX, volume = VOL.sfx) {
+function playSfx(id: keyof typeof SFX, volume = VOL.sfx) {
   if (!game.soundOn) return
   AudioSource.createOrReplace(getSfx(), {
     audioClipUrl: SFX[id],
@@ -124,7 +124,7 @@ export function playCancel() {
   playSfx('cancel')
 }
 
-export function playError() {
+function playError() {
   if (throttled('error', 280)) return
   playSfx('error')
 }

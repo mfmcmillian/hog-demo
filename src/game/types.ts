@@ -1,7 +1,7 @@
 export type Rarity = 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary' | 'mythic'
-export type Role = 'melee' | 'ranged' | 'support'
+type Role = 'melee' | 'ranged' | 'support'
 
-export type SkillKind = 'strike' | 'drain' | 'rally' | 'volley'
+type SkillKind = 'strike' | 'drain' | 'rally' | 'volley'
 export type BattleFx = SkillKind | 'bolt'
 
 export type FamiliarDef = {
@@ -57,7 +57,7 @@ export type Phase = 'start' | 'home' | 'quest' | 'levels' | 'party' | 'fuse' | '
  */
 export type NoticeCode = '' | 'clear-road' | 'recruit-first' | 'no-coin' | 'fuse-rule' | 'road-failed' | 'recruited' | 'fused'
 
-export type BattleSide = 'you' | 'foe'
+type BattleSide = 'you' | 'foe'
 
 export type BattleUnit = {
   uid: string
@@ -101,5 +101,3 @@ export type BattleState = {
 export const PARTY_SIZE = 4
 export const MAX_STARS = 5
 export const MAX_LEVEL = 30
-export const PACK_COST = 80
-export const VERSION = '0.2.0'

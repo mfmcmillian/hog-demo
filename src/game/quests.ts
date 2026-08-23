@@ -1,6 +1,6 @@
 import { MAX_STARS } from './types'
 
-export type Road = {
+type Road = {
   id: string
   name: string
   pool: string[]
@@ -27,7 +27,7 @@ export function floorScale(floor: number): number {
   return n === FLOORS ? base * 1.12 : base
 }
 
-export function floorFoeCount(floor: number, star = 1): number {
+function floorFoeCount(floor: number, star = 1): number {
   if (floor >= FLOORS) return 1
   if (floor <= 3) return 2
   if (floor <= 7) return 3
@@ -36,7 +36,7 @@ export function floorFoeCount(floor: number, star = 1): number {
 }
 
 /** Boss backup at higher tiers: alone at T1, +1 add at T2-3, +2 at T4-5. */
-export function bossAdds(star: number): number {
+function bossAdds(star: number): number {
   if (star >= 4) return 2
   if (star >= 2) return 1
   return 0

@@ -5,6 +5,8 @@ import type { BattleState, OwnedFamiliar } from '../game/types'
 
 export const MP_VERSION = 1
 
+export const ENERGY_MAX = 30
+
 /** Everything a wallet owns; the server persists this per player. */
 export type PlayerSave = {
   v: number

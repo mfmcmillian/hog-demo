@@ -1,7 +1,7 @@
 import { AssetLoad, engine, executeTask } from '@dcl/sdk/ecs'
 import { boot } from '../game/boot'
 import { HERO_IDS } from '../game/familiars'
-import { allFxSrcs, allSheetSrcs, chestOpenSrcs, sheetSrcOf } from './flipbook'
+import { allFxSrcs, allSheetSrcs, campfireSheet, sheetSrcOf } from './flipbook'
 import { allHallSrcs, cardBackArt, hallSrc } from './halls'
 import { LABELS } from './labels.gen'
 
@@ -42,14 +42,16 @@ function uniq(srcs: string[]): string[] {
 
 // The boot gate waits for these only: boot art, every label/portrait the
 // start + home screens draw, the three starter sheets and halls, and the
-// small skill/reveal FX. LABELS already covers the inspect and party halls.
-const CHEST_SRCS = chestOpenSrcs()
+// campfire (visible the moment a returning player lands on home). Skill,
+// reveal, and villager FX warm in the deferred pass right after the gate -
+// the earliest any of them can appear is the oath clash, a few taps in.
+// LABELS already covers the inspect and party halls.
 export const CRITICAL_SRCS = uniq([
   ...BOOT_SRCS,
   ...Object.values(LABELS).map((info) => info.src),
   ...HERO_IDS.map((id) => sheetSrcOf(id) ?? ''),
   ...HERO_IDS.map((id) => hallSrc(id)),
-  ...allFxSrcs().filter((src) => CHEST_SRCS.indexOf(src) < 0),
+  campfireSheet(),
   ...EXTRA
 ])
 

@@ -50,7 +50,7 @@ export const NFT_HEROES: FamiliarDef[] = [
   { id: 'wasteland-monarch', name: 'Wasteland Monarch', lineage: 'waste', rarity: 'mythic', role: 'support', hp: 84, atk: 30, skill: 'drain', skillText: 'The waste claims all' }
 ]
 
-export const NFT_HERO_IDS = NFT_HEROES.map((def) => def.id)
+const NFT_HERO_IDS = NFT_HEROES.map((def) => def.id)
 
 export function isNftHero(defId: string): boolean {
   return NFT_HERO_IDS.indexOf(defId) >= 0
@@ -80,15 +80,20 @@ export function collectionSize(): number {
   return HEROES.length + FAMILIARS.filter((def) => HERO_IDS.indexOf(def.id) < 0).length + NFT_HEROES.length
 }
 
+/** One Math.random() per call. Empty `items` still rolls, then returns undefined. */
+export function pickWeighted<T>(items: T[], weightOf: (item: T) => number): T {
+  const total = items.reduce((sum, item) => sum + weightOf(item), 0)
+  let roll = Math.random() * total
+  for (const item of items) {
+    roll -= weightOf(item)
+    if (roll <= 0) return item
+  }
+  return items[0]
+}
+
 export function rollDef(): FamiliarDef {
   const pool = FAMILIARS.filter((def) => HERO_IDS.indexOf(def.id) < 0)
-  const total = pool.reduce((sum, def) => sum + rarityWeight(def.rarity), 0)
-  let roll = Math.random() * total
-  for (const def of pool) {
-    roll -= rarityWeight(def.rarity)
-    if (roll <= 0) return def
-  }
-  return pool[0]
+  return pickWeighted(pool, (def) => rarityWeight(def.rarity))
 }
 
 export function statsOf(owned: OwnedFamiliar) {
@@ -107,7 +112,7 @@ export function makeOwned(defId: string, stars = 1, level = 1): OwnedFamiliar {
   return { uid: nextUid(), defId, stars, level, xp: 0 }
 }
 
-export function xpToNext(level: number): number {
+function xpToNext(level: number): number {
   return 16 + level * 10
 }
 

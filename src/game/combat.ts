@@ -10,7 +10,7 @@ function weakest(units: BattleUnit[]) {
   return alive.sort((a, b) => a.hp - b.hp)[0]
 }
 
-export function toUnit(owned: OwnedFamiliar, side: 'you' | 'foe', ally = false): BattleUnit {
+function toUnit(owned: OwnedFamiliar, side: 'you' | 'foe', ally = false): BattleUnit {
   const def = getDef(owned.defId)
   const stats = statsOf(owned)
   return {
@@ -27,7 +27,7 @@ export function toUnit(owned: OwnedFamiliar, side: 'you' | 'foe', ally = false):
   }
 }
 
-export function toFoe(defId: string, index: number, scale = 1): BattleUnit {
+function toFoe(defId: string, index: number, scale = 1): BattleUnit {
   const def = getDef(defId)
   const hp = Math.max(1, Math.floor(def.hp * scale))
   const atk = Math.max(1, Math.floor(def.atk * scale))

@@ -189,6 +189,12 @@ function dismissOverlay() {
 /** F — leave the current screen. */
 export function back() {
   if (!isBootReady()) return
+  if (game.phase === 'home' && game.onlineOpen) {
+    playCancel()
+    game.onlineOpen = false
+    lockNav()
+    return
+  }
   if (game.phase === 'home' && game.fireTalk) {
     playCancel()
     game.fireTalk = false

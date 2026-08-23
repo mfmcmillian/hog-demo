@@ -602,11 +602,21 @@ function HomeHud() {
         <Img k="icon-coins" w={22} tint={Color4.White()} />
         <Digits value={game.coins} w={16} tint={gold} />
       </UiEntity>
-      {/* live presence: green dot + count + "players online" */}
-      <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 6 }}>
+      {/* live presence: tap the header to open the who's-online roster */}
+      <UiEntity
+        uiTransform={{
+          flexDirection: 'column-reverse',
+          alignItems: 'center',
+          margin: 6,
+          padding: 4
+        }}
+        onMouseDown={tap(() => {
+          game.onlineOpen = !game.onlineOpen
+        })}
+      >
         <Img k="dot" w={12} tint={Color4.create(0.28, 0.85, 0.35, 1)} margin={3} />
-        <Digits value={online} w={16} tint={cream} tight />
-        <Img k="players-online" w={14} tint={muted} margin={3} />
+        <Digits value={online} w={16} tint={game.onlineOpen ? gold : cream} tight />
+        <Img k="players-online" w={14} tint={game.onlineOpen ? gold : muted} margin={3} />
       </UiEntity>
     </UiEntity>
   )
@@ -922,6 +932,92 @@ function HomeScreen() {
       <HomeParty />
       <HomeNav />
       <GameLogo />
+      <OnlineRoster />
+    </UiEntity>
+  )
+}
+
+/** Who's in the hall right now. Opens from the home "players online" header. */
+function OnlineRoster() {
+  if (!game.onlineOpen) return null
+  const panel = LABELS['fest-panel']
+  const plate = LABELS['trade-name']
+  const mine = (getMyName() || 'you').trim()
+  const others = [...presentPlayers.entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]))
+    .slice(0, 8)
+  const close = () => {
+    playCancel()
+    game.onlineOpen = false
+  }
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: 0, left: 84 },
+        width: '100%',
+        height: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-start'
+      }}
+      uiBackground={{ color: Color4.create(0.02, 0.01, 0.02, 0.86) }}
+      onMouseDown={close}
+    >
+      <UiEntity
+        uiTransform={{
+          width: Math.min(820, 200 + 86 * (1 + Math.max(others.length, 1))),
+          height: 740,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 20,
+          margin: { left: 12 }
+        }}
+        uiBackground={panel ? { textureMode: 'stretch', texture: { src: panel.src }, color: Color4.White() } : { color: panelDim }}
+        onMouseDown={() => {}}
+      >
+        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 8 }}>
+          <Img k="dot" w={14} tint={Color4.create(0.28, 0.85, 0.35, 1)} margin={4} />
+          <Digits value={presentPlayers.size + 1} w={28} tint={gold} tight />
+          <Img k="players-online" w={28} tint={cream} margin={4} />
+        </UiEntity>
+        <UiEntity
+          uiTransform={{
+            width: 74,
+            height: 420,
+            alignItems: 'center',
+            justifyContent: 'center',
+            margin: 4
+          }}
+          uiBackground={plate ? { textureMode: 'stretch', texture: { src: plate.src }, color: Color4.White() } : { color: panelDim }}
+        >
+          <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center' }}>
+            <NameTag name={mine} w={24} tint={gold} />
+            <UiEntity uiTransform={{ width: 30, height: 8 }} />
+            <Img k="dot" w={14} tint={Color4.create(0.28, 0.85, 0.35, 1)} />
+          </UiEntity>
+        </UiEntity>
+        {others.length === 0 ? (
+          <Img k="no-travelers" w={26} tint={muted} margin={8} />
+        ) : (
+          others.map(([address, name]) => (
+            <UiEntity
+              key={address}
+              uiTransform={{
+                width: 74,
+                height: 420,
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: 4
+              }}
+              uiBackground={plate ? { textureMode: 'stretch', texture: { src: plate.src }, color: Color4.White() } : { color: panelDim }}
+            >
+              <NameTag name={name} w={24} tint={cream} />
+            </UiEntity>
+          ))
+        )}
+      </UiEntity>
     </UiEntity>
   )
 }
@@ -1982,20 +2078,14 @@ function PartyScreen() {
       />
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: 8, right: 4 } }}>
         <Img k="party-banner" w={132} tint={Color4.White()} margin={2} />
-        <UiEntity
-          uiTransform={{ width: 52, height: 140, alignItems: 'center', justifyContent: 'center', margin: 4 }}
-          onMouseDown={tap(() => open('fuse'))}
-        >
-          <Img k="fuse" w={36} tint={gold} margin={0} />
-        </UiEntity>
-        {/* collection tally: unique cards owned vs everything collectible */}
-        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 2 }}>
+        {/* unique faces owned vs the full collectible book */}
+        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: { left: 6 } }}>
           <Digits value={new Set(game.collection.map((owned) => owned.defId)).size} w={26} tint={gold} tight />
           <Img k="road-slash" w={22} tint={gold} margin={2} />
           <Digits value={collectionSize()} w={26} tint={cream} tight />
         </UiEntity>
-        <NftTeaser />
       </UiEntity>
+      <NftTeaser />
       <UiEntity
         uiTransform={{
           height: '96%',

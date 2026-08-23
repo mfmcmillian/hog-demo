@@ -85,6 +85,8 @@ export const game = {
   fuseHelp: false,
   /** Campfire elder quest dialog open on the home screen. */
   fireTalk: false,
+  /** Who's-online roster overlay open on the home screen. */
+  onlineOpen: false,
   /** Locked NFT hero dialog on the party screen: the tapped defId, '' = closed. */
   nftTalk: '',
   /** Hero face selected on the fuse tree. */
@@ -267,6 +269,7 @@ export function resetMenu() {
   game.noticeArg = ''
   game.fuseHelp = false
   game.fireTalk = false
+  game.onlineOpen = false
   game.nftTalk = ''
 }
 

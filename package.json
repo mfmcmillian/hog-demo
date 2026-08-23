@@ -1,6 +1,6 @@
 {
   "name": "heroes-of-genesis",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Heroes of Genesis — recruit heroes, party up, and walk the Roads",
   "scripts": {
     "start": "sdk-commands start",

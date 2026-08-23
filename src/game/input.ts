@@ -1,7 +1,7 @@
 import { InputAction, PointerEventType, engine, inputSystem } from '@dcl/sdk/ecs'
 import { back, padTappedRecently, primary, shiftMenu } from './nav'
 
-export function tickInput() {
+function tickInput() {
   if (!padTappedRecently()) {
     if (inputSystem.isTriggered(InputAction.IA_FORWARD, PointerEventType.PET_DOWN)) shiftMenu(-1)
     if (inputSystem.isTriggered(InputAction.IA_BACKWARD, PointerEventType.PET_DOWN)) shiftMenu(1)

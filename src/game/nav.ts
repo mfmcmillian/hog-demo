@@ -1,16 +1,39 @@
+import { cycleHero, pickHero } from './account'
 import { listOathkin } from './allies'
 import { playCancel, playClick, playRift } from './audio'
-import { gift, mySeat, riftLeave, riftView, tradeCancel } from '../mp/session'
+import { mySeat, riftLeave, tradeCancel } from '../mp/session'
+import { gift, riftView } from '../mp/views'
 import { enterGame, isBootFilled, isBootReady } from './boot'
+import { advanceBanner, skipBattle } from './campaign'
+import { canFuse, fuse, fuseFaces, pickFuseHero, prepareFuse } from './fuse'
+import { goHome, resetMenu } from './menu'
 import { PACKS, packAt } from './packs'
+import { benchUnits, tapBenchHero, tapPartySlot } from './party'
+import { frontierFloor } from './progress'
 import { ROADS } from './quests'
-import { chestFxActive, startChestFx } from '../ui/flipbook'
-import { advanceBanner, benchUnits, cancelPack, canFuse, cycleHero, findOwned, frontierFloor, fuse, fuseFaces, game, goHome, leaveHeroCard, leaveResult, openLevels, pickFuseHero, pickHero, prepareFuse, requestPack, resetMenu, skipBattle, startFloor, tapBenchHero, tapPartySlot } from './state'
+import { leaveHeroCard, leaveResult, openLevels, startFloor } from './roads'
+import { cancelPack, openPendingChest, requestPack } from './shop'
+import { findOwned, game } from './store'
 import { PARTY_SIZE, Phase } from './types'
 
 export const MENU_WINDOW = 4
 
 const HOME: Phase[] = ['quest', 'party', 'fuse', 'shop', 'allies']
+
+const MENU_LEN: { [P in Phase]?: () => number } = {
+  home: () => HOME.length,
+  quest: () => Math.min(game.cleared + 1, ROADS.length),
+  party: () => PARTY_SIZE + Math.min(MENU_WINDOW, benchUnits().length),
+  fuse: () => fuseFaces().length,
+  allies: () => Math.max(0, listOathkin().length),
+  shop: () => PACKS.length
+}
+
+const OVERLAY_LEAVE: { [P in Phase]?: () => void } = {
+  banner: advanceBanner,
+  report: leaveResult,
+  heroCard: leaveHeroCard
+}
 
 export function open(phase: Phase) {
   game.phase = phase
@@ -22,13 +45,7 @@ export function open(phase: Phase) {
 }
 
 function menuLen(): number {
-  if (game.phase === 'home') return HOME.length
-  if (game.phase === 'quest') return Math.min(game.cleared + 1, ROADS.length)
-  if (game.phase === 'party') return PARTY_SIZE + Math.min(MENU_WINDOW, benchUnits().length)
-  if (game.phase === 'fuse') return fuseFaces().length
-  if (game.phase === 'allies') return Math.max(0, listOathkin().length)
-  if (game.phase === 'shop') return PACKS.length
-  return 0
+  return MENU_LEN[game.phase]?.() ?? 0
 }
 
 function keepCursorInView() {
@@ -150,7 +167,7 @@ export function primary() {
     return
   }
   if (game.phase === 'shop') {
-    if (game.pendingPack) startChestFx()
+    if (game.pendingPack) openPendingChest()
     else requestPack(packAt(game.cursor).id)
     return
   }
@@ -168,22 +185,11 @@ export function primary() {
 }
 
 function dismissOverlay() {
-  if (game.phase === 'banner') {
-    advanceBanner()
-    lockNav()
-    return true
-  }
-  if (game.phase === 'report') {
-    leaveResult()
-    lockNav()
-    return true
-  }
-  if (game.phase === 'heroCard') {
-    leaveHeroCard()
-    lockNav()
-    return true
-  }
-  return false
+  const leave = OVERLAY_LEAVE[game.phase]
+  if (!leave) return false
+  leave()
+  lockNav()
+  return true
 }
 
 /** F — leave the current screen. */
@@ -215,7 +221,7 @@ export function back() {
   }
   if (dismissOverlay()) return
   if (game.phase === 'shop' && game.pendingPack) {
-    if (chestFxActive()) return // the chest is already opening
+    if (game.chestOpening) return // the chest is already opening
     cancelPack()
     lockNav()
     return
@@ -244,7 +250,7 @@ export function back() {
 }
 
 /** Trade + Rift screens exit through here so the server hears about it. */
-export function leaveMultiplayerScreen() {
+function leaveMultiplayerScreen() {
   if (game.phase === 'trade') tradeCancel()
   if (game.phase === 'rift' && riftView.pub.phase === 'lobby' && mySeat()) riftLeave()
   goHome()

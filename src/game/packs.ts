@@ -1,4 +1,4 @@
-import { FAMILIARS, HERO_IDS, rarityWeight } from './familiars'
+import { FAMILIARS, HERO_IDS, pickWeighted, rarityWeight } from './familiars'
 import { FamiliarDef, Rarity } from './types'
 
 export type PackId = 'ember' | 'vow' | 'crown'
@@ -45,11 +45,5 @@ export function rollPack(pack: PackDef): FamiliarDef {
     return RANK.indexOf(def.rarity) >= floor
   })
   const weightOf = (rarity: Rarity) => pack.weights?.[rarity] ?? rarityWeight(rarity)
-  const total = pool.reduce((sum, def) => sum + weightOf(def.rarity), 0)
-  let roll = Math.random() * total
-  for (const def of pool) {
-    roll -= weightOf(def.rarity)
-    if (roll <= 0) return def
-  }
-  return pool[0]
+  return pickWeighted(pool, (def) => weightOf(def.rarity))
 }

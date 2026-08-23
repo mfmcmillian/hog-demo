@@ -3,7 +3,7 @@ import { getPlayer } from '@dcl/sdk/src/players'
 import { FAMILIARS, makeOwned } from './familiars'
 import { OwnedFamiliar } from './types'
 
-export type Oathkin = {
+type Oathkin = {
   userId: string
   name: string
 }

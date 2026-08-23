@@ -2,14 +2,15 @@ import { engine } from '@dcl/sdk/ecs'
 import { getPlayer } from '@dcl/sdk/src/players'
 import { isHydrated } from '../mp/session'
 import { NFT_HEROES, isNftHero, makeOwned } from './familiars'
-import { game, openHeroCard } from './state'
+import { isCeremonyBusy, openHeroCard } from './menu'
+import { game } from './store'
 
 // Wearable-gated heroes. Own the FULL wearable set (every URN below, from
 // the Antrom3 collections) and the hero card joins your collection; sell or
 // lose a piece and the card leaves again. These never appear in packs,
 // drops, or trades - the wearables are the only door in.
 
-export type NftPiece = { urn: string; icon: string }
+type NftPiece = { urn: string; icon: string }
 
 /** Full set per hero: normalized 6-segment lowercase URNs, plus the LABELS
  *  key of each piece's marketplace thumbnail (images/wear/). */
@@ -65,10 +66,6 @@ let nextFetchIn = 0
 let reconcileIn = 0
 /** Freshly granted cards waiting for their hero-card reveal. */
 const revealQueue: string[] = []
-
-export function nftChecked(): boolean {
-  return checked
-}
 
 /** Wearable-gated heroes the player has NOT unlocked - the teaser tiles. */
 export function lockedNftHeroes(): string[] {
@@ -175,9 +172,7 @@ function reconcile(): void {
 
 function tryReveal(): void {
   if (!revealQueue.length) return
-  const busy =
-    game.phase === 'battle' || game.phase === 'banner' || game.phase === 'report' || game.phase === 'heroCard' || game.phase === 'start'
-  if (busy) return
+  if (isCeremonyBusy()) return
   const uid = revealQueue[0]
   const owned = game.collection.find((entry) => entry.uid === uid)
   if (!owned) {

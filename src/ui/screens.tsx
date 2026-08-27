@@ -6,7 +6,7 @@ import { AlliesScreen } from './allies'
 import { BattleScreen } from './battle'
 import { BootFade, LoadingBackdrop, LoadingScreen } from './boot'
 import { startCanvasWatch } from './canvas'
-import { AdBanner, PhaseFade, PlayHud, PreloadTiles, ScreenChrome } from './chrome'
+import { AdBanner, CanvasReadout, PhaseFade, PlayHud, PreloadTiles, ScreenChrome } from './chrome'
 import { CreditsScreen } from './credits'
 import { FestivalScreen, GiftCeremony } from './festival'
 import { FuseScreen } from './fuse'
@@ -127,6 +127,7 @@ function Root() {
       <AdBanner />
       <PreloadTiles />
       <PhaseFade />
+      <CanvasReadout />
     </UiEntity>
   )
 }

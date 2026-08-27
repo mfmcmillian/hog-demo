@@ -5,10 +5,11 @@ import { DEBUG } from '../game/debug'
 import { back, primary, shiftFromPad } from '../game/nav'
 import { game } from '../game/store'
 import { backPointerShowing } from '../game/tutorial'
+import { canvasV } from './canvas'
 import { revealReady } from './flipbook'
 import { LABELS } from './labels.gen'
 import { CRITICAL_SRCS, PRELOAD_SRCS } from './preload'
-import { PASS } from './theme'
+import { PASS, STAGE_H, STAGE_W } from './theme'
 import { TutPointer } from './tutorial'
 import { CardBtn, Img } from './widgets'
 
@@ -238,6 +239,78 @@ export function PhaseFade() {
       }}
       uiBackground={{ color: Color4.create(0, 0, 0, alpha) }}
     />
+  )
+}
+
+/** DEBUG.showCanvasInfo: live canvas / stage / safe-area numbers (plain
+ * landscape text, dev-only) plus a gold outline of the fixed stage, to verify
+ * responsive behavior at different window aspect ratios and on device. */
+export function CanvasReadout() {
+  if (!DEBUG.showCanvasInfo) return null
+  const f = (n: number) => Math.round(n)
+  const box = (r: { top: number; left: number; right: number; bottom: number }) =>
+    `${f(r.top)}/${f(r.left)}/${f(r.right)}/${f(r.bottom)}`
+  const text =
+    `canvas ${canvasV.pxW}x${canvasV.pxH}px dpr ${canvasV.dpr}\n` +
+    `virtual ${f(canvasV.w)}x${f(canvasV.h)} gutters ${f(canvasV.gutterX)},${f(canvasV.gutterY)}\n` +
+    `inset t/l/r/b ${box(canvasV.inset)}\n` +
+    `hud t/l/r/b ${box(canvasV.hud)}`
+  return (
+    <UiEntity uiTransform={{ width: '100%', height: '100%', positionType: 'absolute', position: { top: 0, left: 0 }, ...PASS }}>
+      {/* stage outline: four gold hairlines around the centered 1600x720 box */}
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: canvasV.gutterY, left: canvasV.gutterX },
+          width: STAGE_W,
+          height: 2,
+          ...PASS
+        }}
+        uiBackground={{ color: Color4.create(0.82, 0.62, 0.28, 0.9) }}
+      />
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: canvasV.gutterY + STAGE_H - 2, left: canvasV.gutterX },
+          width: STAGE_W,
+          height: 2,
+          ...PASS
+        }}
+        uiBackground={{ color: Color4.create(0.82, 0.62, 0.28, 0.9) }}
+      />
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: canvasV.gutterY, left: canvasV.gutterX },
+          width: 2,
+          height: STAGE_H,
+          ...PASS
+        }}
+        uiBackground={{ color: Color4.create(0.82, 0.62, 0.28, 0.9) }}
+      />
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: canvasV.gutterY, left: canvasV.gutterX + STAGE_W - 2 },
+          width: 2,
+          height: STAGE_H,
+          ...PASS
+        }}
+        uiBackground={{ color: Color4.create(0.82, 0.62, 0.28, 0.9) }}
+      />
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: 6, left: 6 },
+          width: 460,
+          height: 110,
+          padding: 8,
+          ...PASS
+        }}
+        uiBackground={{ color: Color4.create(0, 0, 0, 0.72) }}
+        uiText={{ value: text, fontSize: 16, textAlign: 'top-left' }}
+      />
+    </UiEntity>
   )
 }
 

@@ -75,21 +75,15 @@ function Spinner(props: { size: number; tint: Color4; fade: Color4; percent: num
 let shownFrac = 0
 let shownTick = 0
 
-export function LoadingScreen() {
-  // Real fetch progress, capped by the minimum-hold ramp: locally everything is
-  // cached so raw progress is instantly 100%; the gate keeps the bar sweeping.
-  const rawFrac = boot.total > 0 ? boot.loaded / boot.total : 0
-  const frac = Math.min(rawFrac, boot.gate)
-  const now = Date.now()
-  const dt = Math.min(0.1, (now - (shownTick || now)) / 1000)
-  shownTick = now
-  shownFrac += (frac - shownFrac) * Math.min(1, dt * 9)
-  const logo = LABELS['boot-logo']
-  const startBtn = LABELS['boot-start']
-  const ember = Color4.create(0.96, 0.72, 0.28, 1)
-  // Unbound textures render as the tint color (white), so hold the art at black
-  // until its file has landed, then fade up. Kills the white flash at boot.
-  const fade = boot.artAt ? Math.min(1, (Date.now() - boot.artAt) / 500) : 0
+// Unbound textures render as the tint color (white), so hold the art at black
+// until its file has landed, then fade up. Kills the white flash at boot.
+function artFade() {
+  return boot.artAt ? Math.min(1, (Date.now() - boot.artAt) / 500) : 0
+}
+
+/** Full-bleed ink + keyart on the real canvas, behind the stage-pinned boot UI. */
+export function LoadingBackdrop() {
+  const fade = artFade()
   const artTint = Color4.create(fade, fade, fade, 1)
   return (
     <UiEntity
@@ -102,6 +96,36 @@ export function LoadingScreen() {
       uiBackground={{ color: ink }}
     >
       {Backdrop({ label: 'boot-keyart', tint: artTint, dim: 0.34, veilPass: false })}
+    </UiEntity>
+  )
+}
+
+export function LoadingScreen() {
+  // Real fetch progress, capped by the minimum-hold ramp: locally everything is
+  // cached so raw progress is instantly 100%; the gate keeps the bar sweeping.
+  const rawFrac = boot.total > 0 ? boot.loaded / boot.total : 0
+  const frac = Math.min(rawFrac, boot.gate)
+  const now = Date.now()
+  const dt = Math.min(0.1, (now - (shownTick || now)) / 1000)
+  shownTick = now
+  shownFrac += (frac - shownFrac) * Math.min(1, dt * 9)
+  const logo = LABELS['boot-logo']
+  const startBtn = LABELS['boot-start']
+  const ember = Color4.create(0.96, 0.72, 0.28, 1)
+  const fade = artFade()
+  const artTint = Color4.create(fade, fade, fade, 1)
+  // Positioned boot furniture in stage coordinates (the backdrop is separate,
+  // full-bleed, in LoadingBackdrop). PASS so taps reach only the start button.
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: 0, left: 0 },
+        width: '100%',
+        height: '100%',
+        ...PASS
+      }}
+    >
       {logo ? (
         <UiEntity
           uiTransform={{

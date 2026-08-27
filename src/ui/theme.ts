@@ -1,6 +1,14 @@
 import { Color4 } from '@dcl/sdk/math'
 import { Rarity } from '../game/types'
 
+// The fixed design stage. Every screen is composed in these units and rendered
+// inside a centered, uniformly-scaled box of exactly this size (see Stage in
+// screens.tsx), so compositions are pixel-identical on every device. The SDK
+// contain-fits the virtual canvas, which means the *canvas* can be larger than
+// this on one axis — only the stage is guaranteed to be 1600x720.
+export const STAGE_W = 1600
+export const STAGE_H = 720
+
 export const ink = Color4.create(0.07, 0.045, 0.06, 1)
 export const panelDim = Color4.create(0.13, 0.08, 0.1, 1)
 export const navySoft = Color4.create(0.28, 0.08, 0.1, 1)

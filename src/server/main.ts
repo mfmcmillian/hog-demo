@@ -1,5 +1,6 @@
 import { MP_VERSION } from '../mp/protocol'
 import { ServerCtx, displayNames, nameFor, present } from './ctx'
+import { setupDuels } from './duel'
 import { setupFest } from './fest'
 import { setupPresence } from './presence'
 import { setupRift } from './rift'
@@ -33,6 +34,8 @@ export function startServer(): void {
 
   riftApi = setupRift(ctx, { festBump: festApi.festBump })
 
+  const duelApi = setupDuels(ctx)
+
   const tradesApi = setupTrades(ctx)
 
   setupPresence(ctx, {
@@ -42,7 +45,8 @@ export function startServer(): void {
     invites: tradesApi.invites,
     rift: riftApi.rift,
     publishRift: riftApi.publishRift,
-    riftReset: riftApi.riftReset
+    riftReset: riftApi.riftReset,
+    duelRooms: duelApi.rooms
   })
 
   console.log(`[Server] ready (protocol v${MP_VERSION})`)

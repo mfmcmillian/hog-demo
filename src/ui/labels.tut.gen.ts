@@ -43,12 +43,15 @@ export const TUT_LABELS: Record<string, LabelInfo> = {
   'tut-trade-2a': { src: 'images/labels/tut-trade-2a.png', w: 38, h: 317 },
   'tut-trade-2b': { src: 'images/labels/tut-trade-2b.png', w: 38, h: 286 },
   'tut-trade-2c': { src: 'images/labels/tut-trade-2c.png', w: 38, h: 493 },
-  'tut-friendzone-1a': { src: 'images/labels/tut-friendzone-1a.png', w: 38, h: 364 },
+  'tut-friendzone-1a': { src: 'images/labels/tut-friendzone-1a.png', w: 38, h: 390 },
   'tut-friendzone-1b': { src: 'images/labels/tut-friendzone-1b.png', w: 38, h: 336 },
   'tut-friendzone-1c': { src: 'images/labels/tut-friendzone-1c.png', w: 38, h: 323 },
   'tut-friendzone-2a': { src: 'images/labels/tut-friendzone-2a.png', w: 38, h: 435 },
-  'tut-friendzone-2b': { src: 'images/labels/tut-friendzone-2b.png', w: 38, h: 515 },
+  'tut-friendzone-2b': { src: 'images/labels/tut-friendzone-2b.png', w: 38, h: 585 },
   'tut-friendzone-2c': { src: 'images/labels/tut-friendzone-2c.png', w: 38, h: 434 },
+  'tut-friendzone-3a': { src: 'images/labels/tut-friendzone-3a.png', w: 38, h: 406 },
+  'tut-friendzone-3b': { src: 'images/labels/tut-friendzone-3b.png', w: 38, h: 437 },
+  'tut-friendzone-3c': { src: 'images/labels/tut-friendzone-3c.png', w: 38, h: 382 },
   'tut-continue': { src: 'images/labels/tut-continue.png', w: 38, h: 236 }
 }
 

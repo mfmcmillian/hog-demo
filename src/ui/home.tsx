@@ -6,7 +6,7 @@ import { open } from '../game/nav'
 import { goRoad } from '../game/roads'
 import { findOwned, game } from '../game/store'
 import { goPointerShowing } from '../game/tutorial'
-import { getMyName, presentPlayers } from '../mp/session'
+import { duelSeatCount, getMyName, presentPlayers } from '../mp/session'
 import { riftView } from '../mp/views'
 import { ElderTalk } from './elderTalk'
 import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs } from './flipbook'
@@ -187,7 +187,7 @@ function HomeField() {
         left="54%"
         top="13%"
         size={148}
-        badge={riftView.pub.seats.length}
+        badge={riftView.pub.seats.length + duelSeatCount()}
         onTap={() => open('rift')}
       />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />

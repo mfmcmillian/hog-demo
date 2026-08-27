@@ -1,8 +1,9 @@
 import { cycleHero, pickHero } from './account'
 import { listOathkin } from './allies'
 import { playCancel, playClick, playRift } from './audio'
-import { mySeat, riftLeave, tradeCancel } from '../mp/session'
-import { gift, riftView } from '../mp/views'
+import { duelLeave, myDuelSeat, mySeat, riftLeave, tradeCancel } from '../mp/session'
+import { duelViews, gift, riftView } from '../mp/views'
+import { DUEL_MODES } from '../mp/protocol'
 import { enterGame, isBootFilled, isBootReady } from './boot'
 import { advanceBanner, advanceFightTalk, openFinalBattle, skipBattle } from './campaign'
 import { canFuse, fuse, fuseFaces, pickFuseHero, prepareFuse } from './fuse'
@@ -327,10 +328,15 @@ export function back() {
   lockNav()
 }
 
-/** Trade + Rift screens exit through here so the server hears about it. */
+/** Trade + Friendzone screens exit through here so the server hears about it. */
 function leaveMultiplayerScreen() {
   if (game.phase === 'trade') tradeCancel()
   if (game.phase === 'rift' && riftView.pub.phase === 'lobby' && mySeat()) riftLeave()
+  if (game.phase === 'rift') {
+    for (const mode of DUEL_MODES) {
+      if (duelViews[mode].pub.phase === 'lobby' && myDuelSeat(mode)) duelLeave(mode)
+    }
+  }
   goHome()
   lockNav()
 }

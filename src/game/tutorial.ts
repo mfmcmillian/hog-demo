@@ -59,7 +59,9 @@ export const TIPS: Record<TipId, TipPage[]> = {
   friendzone: [
     // page 1: the hero pick strip
     { lines: ['tut-friendzone-1a', 'tut-friendzone-1b', 'tut-friendzone-1c'], pointer: { left: '45%', top: '55%' } },
-    { lines: ['tut-friendzone-2a', 'tut-friendzone-2b', 'tut-friendzone-2c'] }
+    { lines: ['tut-friendzone-2a', 'tut-friendzone-2b', 'tut-friendzone-2c'] },
+    // page 3: the raids/duels tabs
+    { lines: ['tut-friendzone-3a', 'tut-friendzone-3b', 'tut-friendzone-3c'], pointer: { left: '14%', top: '30%' } }
   ],
   // No dialog: 'go' is only the pointer on the home GO button (goPointerShowing).
   go: []

@@ -21,6 +21,19 @@ export const MpRiftState = engine.defineComponent('hog-mp-rift-state', {
 
 MpRiftState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
 
+/** Sync ids for the duel ring entities the server publishes (one per mode). */
+export const DUEL_SYNC_IDS = { '1v1': 6003, '4v4': 6004 } as const
+
+/** A duel ring (lobby seats or the live fight snapshot), same pattern as the
+ * rift. One component type on two entities - clients route by the mode field
+ * inside the JSON. */
+export const MpDuelState = engine.defineComponent('hog-mp-duel-state', {
+  json: Schemas.String,
+  revision: Schemas.Int
+})
+
+MpDuelState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+
 /** Sync id for the festival entity (realm goal + window clock). */
 export const FEST_SYNC_ID = 6002
 
@@ -45,6 +58,8 @@ export const MpMessages = {
   tradeUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String }),
   // Client -> server: one RiftMsg.
   riftMsg: Schemas.Map({ json: Schemas.String }),
+  // Client -> server: one DuelMsg.
+  duelMsg: Schemas.Map({ json: Schemas.String }),
   // Client -> server: one GiftMsg (daily gift to another player).
   giftMsg: Schemas.Map({ json: Schemas.String }),
   // Server -> clients: a GiftUpdate addressed to one wallet.

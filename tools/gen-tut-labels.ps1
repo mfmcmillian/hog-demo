@@ -64,12 +64,15 @@ $lines = [ordered]@{
   'tut-trade-2b'      = 'THEN TAP YOUR LOCK.'
   'tut-trade-2c'      = 'WHEN BOTH SIDES LOCK, CARDS SWAP.'
   # friendzone
-  'tut-friendzone-1a' = 'TAP A HERO TO TAKE A SEAT.'
+  'tut-friendzone-1a' = 'TAP A HERO TO JOIN THE RAID.'
   'tut-friendzone-1b' = 'THE RAID COSTS 5 ENERGY'
   'tut-friendzone-1c' = 'WHEN THE FIGHT BEGINS.'
   'tut-friendzone-2a' = 'TAP ENTER WHEN YOU ARE READY.'
-  'tut-friendzone-2b' = 'WHEN ALL SEATED ARE READY, IT BEGINS.'
+  'tut-friendzone-2b' = 'WHEN ALL WHO JOINED ARE READY, IT BEGINS.'
   'tut-friendzone-2c' = 'EVERY RAIDER SHARES THE SPOILS.'
+  'tut-friendzone-3a' = 'DUELS PIT HERO AGAINST HERO.'
+  'tut-friendzone-3b' = 'TWO TRAVELERS ENTER THE RING -'
+  'tut-friendzone-3c' = 'THE VICTOR TAKES THE PURSE.'
   # shared
   'tut-continue'      = 'TAP TO CONTINUE'
 }

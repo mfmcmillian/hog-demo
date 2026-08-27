@@ -318,27 +318,26 @@ const AD_SRCS = ['images/ads/koa-c.png', 'images/ads/decentracraft-c.png']
 const AD_ROTATE_MS = 8000
 
 /** Fake 2010 mobile banner hugging the physical bottom (real canvas right
- * edge, whatever the device aspect), inside the hardware safe area so it
- * clears the home indicator. */
+ * edge, whatever the device aspect). Deliberately NOT inset-wrapped: shifting
+ * it inward would crowd the stage's right gutter (the party BENCH tab), and a
+ * fake ad under the gesture bar is period-authentic anyway. */
 export function AdBanner() {
   if (!DEBUG.showAds) return null
   const src = AD_SRCS[Math.floor(Date.now() / AD_ROTATE_MS) % AD_SRCS.length]
   return (
-    <ScreenInsetArea uiTransform={PASS}>
-      <UiEntity
-        uiTransform={{
-          positionType: 'absolute',
-          position: { right: 0, top: 0 },
-          width: 116,
-          height: '100%',
-          pointerFilter: 'none'
-        }}
-        uiBackground={{
-          textureMode: 'stretch',
-          texture: { src },
-          color: Color4.White()
-        }}
-      />
-    </ScreenInsetArea>
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { right: 0, top: 0 },
+        width: 116,
+        height: '100%',
+        pointerFilter: 'none'
+      }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src },
+        color: Color4.White()
+      }}
+    />
   )
 }

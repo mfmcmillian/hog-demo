@@ -21,19 +21,22 @@ function TeamSlot(props: { slot: number }) {
   const lit = game.selectedSlot === props.slot || focused(props.slot)
   const starter = !!owned && owned.uid === game.heroUid
   const def = owned ? getDef(owned.defId) : undefined
-  const h = 250 // landscape height = physical card width
+  // Sized so the full row (title + NFT teaser + 2 seat columns + occupied
+  // bench) stays inside the frame's 1229-unit content box: h=220 -> 369 wide,
+  // two columns ~766 with wrappers. At the old h=250 the worst case hit ~1330.
+  const h = 220 // landscape height = physical card width
   return (
     <SeatCard
       empty={!owned}
       h={h}
       faceId={owned?.defId}
-      face={195}
-      faceLeft={68}
+      face={172}
+      faceLeft={60}
       faceFallback={36}
       name={def?.name}
-      nameW={17}
-      nameLeft={10}
-      nameBox={42}
+      nameW={15}
+      nameLeft={9}
+      nameBox={37}
       glow={lit ? Color4.create(0.95, 0.78, 0.35, 0.35) : Color4.create(0, 0, 0, 0)}
       onTap={() => {
         setCursor(props.slot)
@@ -44,7 +47,7 @@ function TeamSlot(props: { slot: number }) {
         <UiEntity
           uiTransform={{
             positionType: 'absolute',
-            position: { top: 12, left: 62 },
+            position: { top: 11, left: 55 },
             width: 28,
             height: 28,
             pointerFilter: 'none'
@@ -209,7 +212,9 @@ function BenchTile(props: { owned: OwnedFamiliar; index: number; key?: string })
   const lit = focused(abs)
   const frame = LABELS['party-tile']
   if (!frame) return null
-  const w = lit ? 148 : 138
+  // Constant size: the glow wrap alone marks focus. Growing the lit tile used
+  // to widen the whole centered row and nudge the title.
+  const w = 138
   const h = Math.round((w * frame.h) / frame.w)
   return (
     <PartyTile
@@ -281,10 +286,15 @@ export function PartyScreen() {
         <TeamSlot slot={2} />
         <TeamSlot slot={3} />
       </UiEntity>
+      {/* Fixed-width slot: the row is centered, so if this group shrank when
+          the bench emptied (or a tile lit up) everything - including the
+          PARTY title - would slide. Reserve the worst-case width instead. */}
       <UiEntity
         uiTransform={{
+          width: 190,
           flexDirection: 'row',
           alignItems: 'center',
+          justifyContent: 'flex-start',
           height: '96%',
           margin: { left: 4 }
         }}

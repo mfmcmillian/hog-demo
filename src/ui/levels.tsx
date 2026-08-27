@@ -83,9 +83,9 @@ export function LevelsScreen() {
       ) : null}
       {/* tier picker + boss drop preview, physically under the banner */}
       <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 4 }}>
-        {star > 1 ? <CardBtn k="party-arrow-l" w={46} onTap={() => cycleTier(road.id, -1)} /> : null}
+        {star > 1 ? <CardBtn k="party-arrow-l" w={46} hit={84} onTap={() => cycleTier(road.id, -1)} /> : null}
         <Stars count={picked} w={20} />
-        {star > 1 ? <CardBtn k="party-arrow-r" w={46} onTap={() => cycleTier(road.id, 1)} /> : null}
+        {star > 1 ? <CardBtn k="party-arrow-r" w={46} hit={84} onTap={() => cycleTier(road.id, 1)} /> : null}
         <UiEntity uiTransform={{ height: 22 }} />
         <Img k="spoils" w={16} tint={muted} />
         <Stars count={dropStarsFor(picked)} w={13} />

@@ -12,7 +12,11 @@ $root = Split-Path $PSScriptRoot -Parent
 $outDir = Join-Path $root 'images\labels'
 $tsPath = Join-Path $root 'src\ui\labels.intro.gen.ts'
 
-$font = New-Object System.Drawing.Font('Segoe UI', 26, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+# Supersampled 2x for high-DPR phones; display sizes are stage units and derive
+# height from the aspect ratio, so layout is unchanged - strips just stay crisp.
+$scale = 2
+$fontPx = 26 * $scale
+$font = New-Object System.Drawing.Font('Segoe UI', $fontPx, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
 
 $lines = [ordered]@{
   # page 1 - Antrom

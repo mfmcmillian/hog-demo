@@ -4,23 +4,23 @@
 import { LABELS, LabelInfo } from './labels.gen'
 
 export const CREDITS_LABELS: Record<string, LabelInfo> = {
-  'credits-created': { src: 'images/labels/credits-created.png', w: 38, h: 158 },
-  'credits-matt': { src: 'images/labels/credits-matt.png', w: 38, h: 81 },
-  'credits-role': { src: 'images/labels/credits-role.png', w: 38, h: 454 },
-  'credits-voice': { src: 'images/labels/credits-voice.png', w: 38, h: 229 },
-  'credits-eleven': { src: 'images/labels/credits-eleven.png', w: 38, h: 161 },
-  'credits-art': { src: 'images/labels/credits-art.png', w: 38, h: 135 },
-  'credits-art2': { src: 'images/labels/credits-art2.png', w: 38, h: 422 },
-  'credits-built': { src: 'images/labels/credits-built.png', w: 38, h: 151 },
-  'credits-sdk': { src: 'images/labels/credits-sdk.png', w: 38, h: 280 },
-  'credits-for': { src: 'images/labels/credits-for.png', w: 38, h: 135 },
-  'credits-regenesis': { src: 'images/labels/credits-regenesis.png', w: 38, h: 209 },
-  'credits-buildathon': { src: 'images/labels/credits-buildathon.png', w: 38, h: 339 },
-  'credits-starring': { src: 'images/labels/credits-starring.png', w: 38, h: 134 },
-  'credits-warlords': { src: 'images/labels/credits-warlords.png', w: 38, h: 280 },
-  'credits-tale': { src: 'images/labels/credits-tale.png', w: 38, h: 262 },
-  'credits-thanks': { src: 'images/labels/credits-thanks.png', w: 38, h: 280 },
-  'credits-fire': { src: 'images/labels/credits-fire.png', w: 38, h: 497 }
+  'credits-created': { src: 'images/labels/credits-created.png', w: 76, h: 314 },
+  'credits-matt': { src: 'images/labels/credits-matt.png', w: 76, h: 159 },
+  'credits-role': { src: 'images/labels/credits-role.png', w: 76, h: 906 },
+  'credits-voice': { src: 'images/labels/credits-voice.png', w: 76, h: 456 },
+  'credits-eleven': { src: 'images/labels/credits-eleven.png', w: 76, h: 319 },
+  'credits-art': { src: 'images/labels/credits-art.png', w: 76, h: 268 },
+  'credits-art2': { src: 'images/labels/credits-art2.png', w: 76, h: 842 },
+  'credits-built': { src: 'images/labels/credits-built.png', w: 76, h: 300 },
+  'credits-sdk': { src: 'images/labels/credits-sdk.png', w: 76, h: 557 },
+  'credits-for': { src: 'images/labels/credits-for.png', w: 76, h: 268 },
+  'credits-regenesis': { src: 'images/labels/credits-regenesis.png', w: 76, h: 415 },
+  'credits-buildathon': { src: 'images/labels/credits-buildathon.png', w: 76, h: 675 },
+  'credits-starring': { src: 'images/labels/credits-starring.png', w: 76, h: 266 },
+  'credits-warlords': { src: 'images/labels/credits-warlords.png', w: 76, h: 558 },
+  'credits-tale': { src: 'images/labels/credits-tale.png', w: 76, h: 521 },
+  'credits-thanks': { src: 'images/labels/credits-thanks.png', w: 76, h: 558 },
+  'credits-fire': { src: 'images/labels/credits-fire.png', w: 76, h: 991 }
 }
 
 Object.assign(LABELS, CREDITS_LABELS)

@@ -36,10 +36,15 @@ $lines = [ordered]@{
 
 $entries = New-Object System.Collections.Generic.List[string]
 
+# Supersampled 2x for high-DPR phones; display sizes are stage units and derive
+# height from the aspect ratio, so layout is unchanged - strips just stay crisp.
+$scale = 2
+
 foreach ($kv in $lines.GetEnumerator()) {
   $key = $kv.Key
   $text = $kv.Value.text
-  $font = New-Object System.Drawing.Font('Segoe UI', $kv.Value.size, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
+  $fontPx = $kv.Value.size * $scale
+  $font = New-Object System.Drawing.Font('Segoe UI', $fontPx, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
 
   $probe = New-Object System.Drawing.Bitmap(8, 8)
   $pg = [System.Drawing.Graphics]::FromImage($probe)

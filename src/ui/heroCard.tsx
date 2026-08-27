@@ -61,8 +61,8 @@ function CycleArrows() {
         ...PASS
       }}
     >
-      <CardBtn k="sel-arrow-right" w={76} onTap={tap(() => cycleHeroCard(1))} />
-      <CardBtn k="sel-arrow-left" w={76} onTap={tap(() => cycleHeroCard(-1))} />
+      <CardBtn k="sel-arrow-right" w={76} hit={96} onTap={tap(() => cycleHeroCard(1))} />
+      <CardBtn k="sel-arrow-left" w={76} hit={96} onTap={tap(() => cycleHeroCard(-1))} />
     </UiEntity>
   )
 }

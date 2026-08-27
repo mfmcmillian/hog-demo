@@ -96,7 +96,7 @@ export function StartScreen() {
         }}
       >
         <UiEntity
-          uiTransform={{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }}
+          uiTransform={{ width: 96, height: 96, margin: -10, alignItems: 'center', justifyContent: 'center' }}
           onMouseDown={tap(() => cycleHero(-1))}
         >
           <Img k="sel-arrow-left" w={72} tint={Color4.White()} margin={0} />
@@ -116,7 +116,7 @@ export function StartScreen() {
           </UiEntity>
         ) : null}
         <UiEntity
-          uiTransform={{ width: 76, height: 76, alignItems: 'center', justifyContent: 'center' }}
+          uiTransform={{ width: 96, height: 96, margin: -10, alignItems: 'center', justifyContent: 'center' }}
           onMouseDown={tap(() => cycleHero(1))}
         >
           <Img k="sel-arrow-right" w={72} tint={Color4.White()} margin={0} />

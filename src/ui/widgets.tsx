@@ -299,12 +299,18 @@ export function Face(props: {
   )
 }
 
-export function CardBtn(props: { k: string; w: number; onTap?: () => void }) {
+/** Icon button. `hit` grows the tappable box past the icon (negative margins
+ * keep the flex footprint at `w`, so layouts don't shift) — mobile thumbs need
+ * ~84 stage units to make the 44pt touch-target minimum. */
+export function CardBtn(props: { k: string; w: number; hit?: number; onTap?: () => void }) {
+  const hit = Math.max(props.w, props.hit ?? props.w)
+  const bleed = -Math.round((hit - props.w) / 2)
   return (
     <UiEntity
       uiTransform={{
-        width: props.w,
-        height: props.w,
+        width: hit,
+        height: hit,
+        margin: bleed,
         alignItems: 'center',
         justifyContent: 'center'
       }}

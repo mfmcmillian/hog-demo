@@ -41,11 +41,14 @@ function HomeHud() {
         <Img k="icon-coins" w={22} tint={Color4.White()} />
         <Digits value={game.coins} w={16} tint={gold} />
       </UiEntity>
-      {/* live presence: tap the header to open the who's-online roster */}
+      {/* live presence: tap the header to open the who's-online roster.
+          Fills the rail width so the tap target is thumb-sized, not glyph-sized. */}
       <UiEntity
         uiTransform={{
+          width: '100%',
           flexDirection: 'column-reverse',
           alignItems: 'center',
+          justifyContent: 'center',
           margin: 6,
           padding: 4
         }}

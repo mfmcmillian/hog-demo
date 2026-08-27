@@ -4,24 +4,24 @@
 import { LABELS, LabelInfo } from './labels.gen'
 
 export const DUEL_LABELS: Record<string, LabelInfo> = {
-  'raids': { src: 'images/labels/raids.png', w: 44, h: 97 },
-  'duels': { src: 'images/labels/duels.png', w: 44, h: 102 },
-  'victor': { src: 'images/labels/victor.png', w: 44, h: 117 },
-  'duel-1v1': { src: 'images/labels/duel-1v1.png', w: 44, h: 98 },
-  'duel-4v4': { src: 'images/labels/duel-4v4.png', w: 44, h: 98 },
-  'leaderboard': { src: 'images/labels/leaderboard.png', w: 38, h: 191 },
-  'wins': { src: 'images/labels/wins.png', w: 33, h: 66 },
-  'player-vs-player': { src: 'images/labels/player-vs-player.png', w: 38, h: 235 },
-  'awaiting-foe': { src: 'images/labels/awaiting-foe.png', w: 38, h: 329 },
-  'duel-cost': { src: 'images/labels/duel-cost.png', w: 38, h: 340 },
-  'duel-cost4': { src: 'images/labels/duel-cost4.png', w: 38, h: 340 },
-  'need-four': { src: 'images/labels/need-four.png', w: 38, h: 512 },
-  'join-duel': { src: 'images/labels/join-duel.png', w: 44, h: 222 },
-  'join-raid': { src: 'images/labels/join-raid.png', w: 44, h: 217 },
-  'pick-your-champion': { src: 'images/labels/pick-your-champion.png', w: 38, h: 485 },
-  'tap-join-party': { src: 'images/labels/tap-join-party.png', w: 38, h: 397 },
-  'tap-enter-ready': { src: 'images/labels/tap-enter-ready.png', w: 38, h: 315 },
-  'foe-not-ready': { src: 'images/labels/foe-not-ready.png', w: 38, h: 299 }
+  'raids': { src: 'images/labels/raids.png', w: 88, h: 192 },
+  'duels': { src: 'images/labels/duels.png', w: 88, h: 201 },
+  'victor': { src: 'images/labels/victor.png', w: 88, h: 232 },
+  'duel-1v1': { src: 'images/labels/duel-1v1.png', w: 88, h: 194 },
+  'duel-4v4': { src: 'images/labels/duel-4v4.png', w: 88, h: 194 },
+  'leaderboard': { src: 'images/labels/leaderboard.png', w: 76, h: 379 },
+  'wins': { src: 'images/labels/wins.png', w: 65, h: 130 },
+  'player-vs-player': { src: 'images/labels/player-vs-player.png', w: 76, h: 468 },
+  'awaiting-foe': { src: 'images/labels/awaiting-foe.png', w: 76, h: 655 },
+  'duel-cost': { src: 'images/labels/duel-cost.png', w: 76, h: 678 },
+  'duel-cost4': { src: 'images/labels/duel-cost4.png', w: 76, h: 678 },
+  'need-four': { src: 'images/labels/need-four.png', w: 76, h: 1022 },
+  'join-duel': { src: 'images/labels/join-duel.png', w: 88, h: 441 },
+  'join-raid': { src: 'images/labels/join-raid.png', w: 88, h: 432 },
+  'pick-your-champion': { src: 'images/labels/pick-your-champion.png', w: 76, h: 967 },
+  'tap-join-party': { src: 'images/labels/tap-join-party.png', w: 76, h: 791 },
+  'tap-enter-ready': { src: 'images/labels/tap-enter-ready.png', w: 76, h: 627 },
+  'foe-not-ready': { src: 'images/labels/foe-not-ready.png', w: 76, h: 595 }
 }
 
 Object.assign(LABELS, DUEL_LABELS)

@@ -11,7 +11,8 @@ export const canvasV = {
   /** Canvas size in virtual units (>= stage size on both axes). */
   w: STAGE_W,
   h: STAGE_H,
-  /** Stage origin offset from the canvas edges (one of these is usually 0). */
+  /** Stage origin offset from the canvas top-left. The stage hugs the canvas
+   * right edge, so all width slack is on the left; height slack splits. */
   gutterX: 0,
   gutterY: 0,
   /** Device hardware insets in virtual units; all zero on desktop. */
@@ -32,7 +33,7 @@ export function startCanvasWatch() {
     if (!Number.isFinite(scale) || scale <= 0) return
     canvasV.w = info.width / scale
     canvasV.h = info.height / scale
-    canvasV.gutterX = (canvasV.w - STAGE_W) / 2
+    canvasV.gutterX = canvasV.w - STAGE_W
     canvasV.gutterY = (canvasV.h - STAGE_H) / 2
     const inset = info.screenInsetArea
     canvasV.inset.top = (inset?.top ?? 0) / scale

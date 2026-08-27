@@ -38,19 +38,23 @@ import { TutorialOverlay } from './tutorial'
 // The SDK contain-fits the 1600x720 virtual canvas, so on any screen that is
 // not exactly 20:9 the canvas is *larger* than 1600x720 in virtual units on
 // one axis (16:9 desktop gets 1600x900, a 4:3 tablet gets 1600x1200). All the
-// hand-tuned compositions assume 1600x720, so they live inside this fixed,
-// centered stage: pixel-identical everywhere, with the leftover canvas as
-// symmetric gutters that the 3D room backdrop fills. Full-bleed layers
-// (backdrops, fades, scrims) and edge-anchored chrome stay outside on the
-// real canvas so the gutters are never uncovered.
+// hand-tuned compositions assume 1600x720, so they live inside this fixed
+// stage: pixel-identical everywhere, with the leftover canvas as gutters that
+// the 3D room backdrop fills. The stage hugs the canvas RIGHT edge (physical
+// bottom in the portrait grip) so the frame keeps its designed spacing to the
+// edge-anchored ad banner; all width slack lands at the physical top, by the
+// logo and the notch, where empty room reads naturally. Height slack splits
+// evenly onto the physical sides. Full-bleed layers (backdrops, fades) and
+// edge-anchored chrome stay outside on the real canvas.
 function Stage(props: { children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component }) {
   return (
     <UiEntity
       uiTransform={{
         width: '100%',
         height: '100%',
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        justifyContent: 'flex-end',
         ...PASS
       }}
     >
@@ -61,10 +65,12 @@ function Stage(props: { children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Compo
 
 // ---- root ---------------------------------------------------------------------
 
-// Chrome well inside the stage: the old '11%' left gutter / '78%' width of the
-// design canvas, as stage pixels so they no longer drift with the device.
+// Chrome well inside the stage: the old '11%' left gutter as stage pixels,
+// with the right edge extended flush against the ad banner (stage 1484). The
+// extra width over the old 78% keeps busy screens (party row) inside the
+// frame's inner lip.
 const WELL_LEFT = 176
-const WELL_W = 1248
+const WELL_W = 1308
 
 function Root() {
   if (!boot.ready) {

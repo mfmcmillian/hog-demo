@@ -3,6 +3,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { tap } from '../game/audio'
 import { endCredits } from '../game/intro'
 import { game } from '../game/store'
+import { canvasV } from './canvas'
 import './labels.credits.gen'
 import { LABELS } from './labels.gen'
 import { cream, gold, muted } from './theme'
@@ -85,7 +86,9 @@ function easeOut(t: number): number {
 
 function logoLeft(elapsed: number): number {
   const t = easeOut(elapsed / LOGO_SECS)
-  return Math.round(LOGO_START_LEFT + (LOGO_PARK_LEFT - LOGO_START_LEFT) * t)
+  // Same notch dodge as GameLogo, so the logo parks in the identical slot.
+  const park = LOGO_PARK_LEFT + Math.max(0, Math.round(canvasV.inset.left - canvasV.gutterX))
+  return Math.round(LOGO_START_LEFT + (park - LOGO_START_LEFT) * t)
 }
 
 function CellView(props: { cell: Cell; left: number; key?: number }) {

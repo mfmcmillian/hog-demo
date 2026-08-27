@@ -8,8 +8,9 @@ import { TipId } from './types'
  * the freshly opened, dimmed screen. Tapping anywhere advances; the last tap
  * dismisses and marks the tip seen (persisted in the player save). A page may
  * also aim the animated pointer at a key element of the screen underneath —
- * positions are percentages of the screen area, safe because the canvas
- * layout is fixed (1600x720 virtual, deterministic screens).
+ * positions are percentages of the screen area, safe because every screen is
+ * pinned to the fixed 1600x720 Stage (see ui/screens.tsx), so the screen area
+ * is deterministic on every device.
  */
 export type TipPage = {
   /** Label keys, one per dialog line, phone top-to-bottom. */

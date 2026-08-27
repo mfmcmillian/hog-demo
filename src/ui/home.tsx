@@ -410,10 +410,11 @@ function HomeNav() {
         // First-quest nudge: aim the animated pointer at the GO button's
         // center. GO is the middle of the five buttons in this centered
         // rail, so its center sits at (70, 324) - half the 140 rail width,
-        // half its 648 height (90% of the fixed 720 canvas). The cursor tip
-        // lands 13px right / 66px down from the pointer's anchor, hence the
-        // offset. Last child of the rail so it draws over the buttons; no
-        // handlers, taps fall through.
+        // half its 648 height (90% of the 720-unit Stage, which pins these
+        // numbers on every device). The cursor tip lands 13px right / 66px
+        // down from the pointer's anchor, hence the offset. Last child of
+        // the rail so it draws over the buttons; no handlers, taps fall
+        // through.
         <TutPointer left={70 - 13} top={324 - 66} />
       ) : null}
     </UiEntity>

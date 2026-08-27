@@ -1,5 +1,5 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs, { ScreenInsetArea, UiEntity } from '@dcl/sdk/react-ecs'
 import { boot } from '../game/boot'
 import { DEBUG } from '../game/debug'
 import { back, primary, shiftFromPad } from '../game/nav'
@@ -88,24 +88,28 @@ function HudBtn(props: { k: string; onTap: () => void }) {
 }
 
 export function PlayHud() {
+  // Edge-anchored to the real canvas (not the stage) and kept inside the
+  // hardware safe area so the pad clears the home-indicator edge.
   return (
-    <UiEntity
-      uiTransform={{
-        positionType: 'absolute',
-        position: { top: '4%', right: '1%' },
-        width: 268,
-        height: '82%',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: { top: 4, bottom: 4 }
-      }}
-    >
-      <Dpad />
-      <HudBtn k="btn-back" onTap={() => back()} />
-      <HudBtn k="btn-action" onTap={() => primary()} />
-    </UiEntity>
+    <ScreenInsetArea uiTransform={PASS}>
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: '4%', right: '1%' },
+          width: 268,
+          height: '82%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: { top: 4, bottom: 4 }
+        }}
+      >
+        <Dpad />
+        <HudBtn k="btn-back" onTap={() => back()} />
+        <HudBtn k="btn-action" onTap={() => primary()} />
+      </UiEntity>
+    </ScreenInsetArea>
   )
 }
 
@@ -240,24 +244,28 @@ export function PhaseFade() {
 const AD_SRCS = ['images/ads/koa-c.png', 'images/ads/decentracraft-c.png']
 const AD_ROTATE_MS = 8000
 
-/** Fake 2010 mobile banner on the physical bottom (virtual-canvas right gutter). */
+/** Fake 2010 mobile banner hugging the physical bottom (real canvas right
+ * edge, whatever the device aspect), inside the hardware safe area so it
+ * clears the home indicator. */
 export function AdBanner() {
   if (!DEBUG.showAds) return null
   const src = AD_SRCS[Math.floor(Date.now() / AD_ROTATE_MS) % AD_SRCS.length]
   return (
-    <UiEntity
-      uiTransform={{
-        positionType: 'absolute',
-        position: { left: 1484, top: 0 },
-        width: 116,
-        height: 720,
-        pointerFilter: 'none'
-      }}
-      uiBackground={{
-        textureMode: 'stretch',
-        texture: { src },
-        color: Color4.White()
-      }}
-    />
+    <ScreenInsetArea uiTransform={PASS}>
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { right: 0, top: 0 },
+          width: 116,
+          height: '100%',
+          pointerFilter: 'none'
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src },
+          color: Color4.White()
+        }}
+      />
+    </ScreenInsetArea>
   )
 }

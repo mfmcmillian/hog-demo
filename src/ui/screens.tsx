@@ -5,6 +5,7 @@ import { game } from '../game/store'
 import { AlliesScreen } from './allies'
 import { BattleScreen } from './battle'
 import { BootFade, LoadingBackdrop, LoadingScreen } from './boot'
+import { startCanvasWatch } from './canvas'
 import { AdBanner, PhaseFade, PlayHud, PreloadTiles, ScreenChrome } from './chrome'
 import { CreditsScreen } from './credits'
 import { FestivalScreen, GiftCeremony } from './festival'
@@ -138,6 +139,7 @@ export function setupUi() {
   // layers reach the physical edges; edge-anchored chrome wraps itself in
   // ScreenInsetArea instead (see chrome.tsx).
   startPreload()
+  startCanvasWatch()
   ReactEcsRenderer.setUiRenderer(Root, {
     virtualWidth: STAGE_W,
     virtualHeight: STAGE_H,

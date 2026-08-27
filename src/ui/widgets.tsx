@@ -2,6 +2,7 @@ import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { tap } from '../game/audio'
 import { game } from '../game/store'
+import { canvasV } from './canvas'
 import { idlePoster, sparksSheet, starBurstFx } from './flipbook'
 import { LABELS } from './labels.gen'
 import { cream, gold, ink, muted, PASS } from './theme'
@@ -28,14 +29,17 @@ export function Img(props: { k: string; w: number; tint?: Color4; margin?: numbe
   )
 }
 
-/** Game logo, pushed past the chrome inset toward the real screen top. */
+/** Game logo, pushed past the chrome inset toward the physical screen top
+ * (stage left). Decorative and stage-relative; when a notch/camera cutout
+ * reaches past the stage's left gutter, it slides right just enough to clear. */
 export function GameLogo() {
   if (!LABELS['boot-logo']) return null
+  const notchDodge = Math.max(0, Math.round(canvasV.inset.left - canvasV.gutterX))
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left: -185, top: 0 },
+        position: { left: -185 + notchDodge, top: 0 },
         width: 170,
         height: '100%',
         alignItems: 'center',

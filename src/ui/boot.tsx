@@ -2,6 +2,7 @@ import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { tap } from '../game/audio'
 import { boot, enterGame } from '../game/boot'
+import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { ink, PASS } from './theme'
 import { Backdrop, Digits } from './widgets'
@@ -137,6 +138,7 @@ export function LoadingScreen() {
           uiBackground={{
             textureMode: 'stretch',
             texture: { src: logo.src },
+            uvs: logo.uvs,
             color: artTint
           }}
         />
@@ -147,15 +149,29 @@ export function LoadingScreen() {
             positionType: 'absolute',
             position: { top: 160, left: 1180 },
             width: 150,
-            height: 400
+            height: 400,
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
-          uiBackground={{
-            textureMode: 'stretch',
-            texture: { src: startBtn.src },
-            color: Color4.White()
-          }}
-          onMouseDown={tap(() => enterGame())}
-        />
+          onMouseDown={press(
+            'boot:start',
+            tap(() => enterGame())
+          )}
+        >
+          <UiEntity
+            uiTransform={{
+              width: 150 - pressShrink('boot:start', 150),
+              height: 400 - pressShrink('boot:start', 400),
+              pointerFilter: 'none'
+            }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: startBtn.src },
+              uvs: startBtn.uvs,
+              color: pressTint('boot:start')
+            }}
+          />
+        </UiEntity>
       ) : (
         <UiEntity
           uiTransform={{

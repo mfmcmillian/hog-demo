@@ -15,6 +15,7 @@ export function setupPresence(
     publishRift: () => void
     riftReset: () => void
     duelRooms: DuelRoom[]
+    dropOwPlayer: (address: string) => void
   }
 ): void {
   // --- Presence -----------------------------------------------------------------
@@ -31,10 +32,11 @@ export function setupPresence(
 
     for (const address of ctx.present) {
       if (inScene.has(address)) continue
-      // Departures: void their trade, free their lobby seat.
+      // Departures: void their trade, free their lobby seat, clear their tile.
       const session = hooks.sessions.get(address)
       if (session) hooks.closeTrade(session, 'left')
       hooks.invites.delete(address)
+      hooks.dropOwPlayer(address)
       if (hooks.rift.phase === 'lobby' && hooks.rift.seats.some((seat) => seat.address === address)) {
         hooks.rift.seats = hooks.rift.seats.filter((seat) => seat.address !== address)
         hooks.publishRift()

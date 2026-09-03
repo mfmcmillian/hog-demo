@@ -6,10 +6,11 @@ import { canFuse, fuse, fuseCount, fuseFaces, pickFuse, pickFuseHero, pickFuseRa
 import { focused, MENU_WINDOW, setCursor, shiftBench, windowed } from '../game/nav'
 import { findOwned, game } from '../game/store'
 import { MAX_STARS, OwnedFamiliar } from '../game/types'
+import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { PagedColumn } from './panels'
 import { cream, gold, muted } from './theme'
-import { Backdrop, Digits, Face, GameLogo, Img, Notice, PartyTile, SeatCard, Stars } from './widgets'
+import { Backdrop, Digits, Face, Img, MenuTitle, Notice, PartyTile, SeatCard, Stars } from './widgets'
 
 function FuseSeat(props: { which: 'a' | 'b' }) {
   const uid = props.which === 'a' ? game.fuseA : game.fuseB
@@ -139,9 +140,6 @@ export function FuseScreen() {
       }}
     >
       {Backdrop({ label: 'hall-party', dim: 0.42 })}
-      <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: 6, right: 2 } }}>
-        <Img k="fuse-banner" w={112} tint={Color4.White()} margin={2} />
-      </UiEntity>
       {/* two physical rows: 1-3 stars over 4-5 stars, so the tiles can be big */}
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', margin: 2 }}>
         <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', justifyContent: 'center' }}>
@@ -167,9 +165,21 @@ export function FuseScreen() {
       <FuseResult />
       <UiEntity
         uiTransform={{ width: 66, height: 210, alignItems: 'center', justifyContent: 'center', margin: 4 }}
-        onMouseDown={ready ? tap(() => fuse()) : undefined}
+        onMouseDown={
+          ready
+            ? press(
+                'fuse:go',
+                tap(() => fuse())
+              )
+            : undefined
+        }
       >
-        <Img k="shop-accept" w={60} tint={ready ? Color4.White() : muted} margin={0} />
+        <Img
+          k="shop-accept"
+          w={60 - pressShrink('fuse:go', 60)}
+          tint={pressTint('fuse:go', ready ? Color4.White() : muted)}
+          margin={0}
+        />
       </UiEntity>
       <UiEntity
         uiTransform={{
@@ -196,7 +206,7 @@ export function FuseScreen() {
         </PagedColumn>
       </UiEntity>
       <Notice />
-      <GameLogo />
+      <MenuTitle k="fuse-banner" />
     </UiEntity>
   )
 }

@@ -6,7 +6,7 @@ import { AlliesScreen } from './allies'
 import { BattleScreen } from './battle'
 import { BootFade, LoadingBackdrop, LoadingScreen } from './boot'
 import { startCanvasWatch } from './canvas'
-import { AdBanner, CanvasReadout, PhaseFade, PlayHud, PreloadTiles, ScreenChrome } from './chrome'
+import { AdBanner, CanvasReadout, OverworldHud, PhaseFade, PlayHud, PreloadTiles, ScreenChrome } from './chrome'
 import { CreditsScreen } from './credits'
 import { FestivalScreen, GiftCeremony } from './festival'
 import { FuseScreen } from './fuse'
@@ -14,6 +14,8 @@ import { HeroCardScreen } from './heroCard'
 import { HomeScreen } from './home'
 import { IntroScreen } from './intro'
 import { LevelsScreen } from './levels'
+import { OverworldScreen } from './overworld'
+import { OwTalkOverlay } from './owTalk'
 import { PartyScreen } from './party'
 import { startPreload } from './preload'
 import { QuestScreen } from './quest'
@@ -123,13 +125,16 @@ function Root() {
             {game.phase === 'settings' ? <SettingsScreen /> : null}
             {game.phase === 'festival' ? <FestivalScreen /> : null}
             {game.phase === 'credits' ? <CreditsScreen /> : null}
+            {game.phase === 'overworld' ? <OverworldScreen /> : null}
             <TradeInviteToast />
             <GiftCeremony />
             <TutorialOverlay />
+            <OwTalkOverlay />
           </ScreenChrome>
         </UiEntity>
       </Stage>
       {DEBUG.showPlayHud ? <PlayHud /> : null}
+      <OverworldHud />
       <AdBanner />
       <PreloadTiles />
       <PhaseFade />

@@ -1,14 +1,16 @@
+import { InputAction, inputSystem } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { ScreenInsetArea, UiEntity } from '@dcl/sdk/react-ecs'
-import { boot } from '../game/boot'
 import { DEBUG } from '../game/debug'
 import { back, primary, shiftFromPad } from '../game/nav'
+import { owPadDir, setPadDir, type OwDir } from '../game/overworld'
 import { game } from '../game/store'
 import { backPointerShowing } from '../game/tutorial'
 import { canvasV } from './canvas'
 import { revealReady } from './flipbook'
+import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
-import { CRITICAL_SRCS, PRELOAD_SRCS } from './preload'
+import { bindSrcs } from './preload'
 import { PASS, STAGE_H, STAGE_W } from './theme'
 import { TutPointer } from './tutorial'
 import { CardBtn, Img } from './widgets'
@@ -16,10 +18,28 @@ import { CardBtn, Img } from './widgets'
 let padFlash = ''
 let padFlashUntil = 0
 
-function tapPad(dir: string, delta: number) {
+/** In the overworld the pad is hold-to-walk; elsewhere a tap shifts menus. */
+function padDown(dir: OwDir) {
   padFlash = dir
   padFlashUntil = Date.now() + 220
-  shiftFromPad(delta)
+  if (game.phase === 'overworld') {
+    setPadDir(dir)
+    return
+  }
+  shiftFromPad(dir === 'right' || dir === 'down' ? 1 : -1)
+}
+
+/** Finger slid onto another quadrant while still pressed: switch direction. */
+function padDrag(dir: OwDir) {
+  if (game.phase !== 'overworld') return
+  if (!inputSystem.isPressed(InputAction.IA_POINTER)) return
+  padFlash = dir
+  padFlashUntil = Date.now() + 220
+  setPadDir(dir)
+}
+
+function padUp() {
+  if (game.phase === 'overworld') setPadDir('')
 }
 
 const PAD = 236
@@ -28,8 +48,8 @@ const PAD_HIT = Math.round(PAD * 0.35)
 const PAD_EDGE = Math.round(PAD * 0.04)
 const PAD_MID = Math.round((PAD - PAD_HIT) / 2)
 
-function PadHit(props: { dir: string; top: number; left: number; onTap: () => void }) {
-  const lit = padFlash === props.dir && Date.now() < padFlashUntil
+function PadHit(props: { dir: OwDir; top: number; left: number }) {
+  const lit = owPadDir() === props.dir || (padFlash === props.dir && Date.now() < padFlashUntil)
   return (
     <UiEntity
       uiTransform={{
@@ -39,7 +59,9 @@ function PadHit(props: { dir: string; top: number; left: number; onTap: () => vo
         height: PAD_HIT
       }}
       uiBackground={{ color: lit ? Color4.create(0.82, 0.62, 0.28, 0.42) : Color4.create(0, 0, 0, 0.02) }}
-      onMouseDown={props.onTap}
+      onMouseDown={() => padDown(props.dir)}
+      onMouseEnter={() => padDrag(props.dir)}
+      onMouseUp={() => padUp()}
     />
   )
 }
@@ -60,19 +82,46 @@ function Dpad() {
           uiBackground={{
             textureMode: 'stretch',
             texture: { src: disc.src },
+            uvs: disc.uvs,
             color: Color4.White()
           }}
         />
       ) : null}
-      <PadHit dir="right" top={PAD_EDGE} left={PAD_MID} onTap={() => tapPad('right', 1)} />
-      <PadHit dir="up" top={PAD_MID} left={PAD_EDGE} onTap={() => tapPad('up', -1)} />
-      <PadHit dir="down" top={PAD_MID} left={PAD - PAD_HIT - PAD_EDGE} onTap={() => tapPad('down', 1)} />
-      <PadHit dir="left" top={PAD - PAD_HIT - PAD_EDGE} left={PAD_MID} onTap={() => tapPad('left', -1)} />
+      <PadHit dir="right" top={PAD_EDGE} left={PAD_MID} />
+      <PadHit dir="up" top={PAD_MID} left={PAD_EDGE} />
+      <PadHit dir="down" top={PAD_MID} left={PAD - PAD_HIT - PAD_EDGE} />
+      <PadHit dir="left" top={PAD - PAD_HIT - PAD_EDGE} left={PAD_MID} />
     </UiEntity>
   )
 }
 
+/** Walking pad for the overworld: same spot PlayHud anchors its pad, shown
+ * even while the full HUD stays off. */
+export function OverworldHud() {
+  if (game.phase !== 'overworld') return null
+  return (
+    <ScreenInsetArea uiTransform={PASS}>
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { top: '4%', right: '1%' },
+          width: 268,
+          height: '82%',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: { top: 4 }
+        }}
+      >
+        <Dpad />
+      </UiEntity>
+    </ScreenInsetArea>
+  )
+}
+
 function HudBtn(props: { k: string; onTap: () => void }) {
+  // `hud:` prefix keeps PlayHud's back button distinct from MenuBack's.
+  const id = `hud:${props.k}`
   return (
     <UiEntity
       uiTransform={{
@@ -81,9 +130,9 @@ function HudBtn(props: { k: string; onTap: () => void }) {
         alignItems: 'center',
         justifyContent: 'center'
       }}
-      onMouseDown={props.onTap}
+      onMouseDown={press(id, props.onTap)}
     >
-      <Img k={props.k} w={HUD_BTN} tint={Color4.White()} margin={0} />
+      <Img k={props.k} w={HUD_BTN - pressShrink(id, HUD_BTN)} tint={pressTint(id)} margin={0} />
     </UiEntity>
   )
 }
@@ -172,6 +221,7 @@ export function ScreenChrome(props: { children?: ReactEcs.JSX.Component[] | Reac
           uiBackground={{
             textureMode: 'stretch',
             texture: { src: frame.src },
+            uvs: frame.uvs,
             color: Color4.White()
           }}
         />
@@ -182,10 +232,9 @@ export function ScreenChrome(props: { children?: ReactEcs.JSX.Component[] | Reac
 }
 
 export function PreloadTiles() {
-  // During the boot bar only the critical set binds, so bandwidth goes to
-  // what the start screen needs. Once the bar fills (player is reading the
-  // oath screen) the rest of the tiles mount and warm the remaining sheets.
-  const srcs = boot.filled ? PRELOAD_SRCS : CRITICAL_SRCS
+  // Bind only the current screen plus one tap away. Binding every sheet at
+  // boot is what made phones fall over as the world grew.
+  const srcs = bindSrcs()
   return (
     <UiEntity
       uiTransform={{
@@ -256,7 +305,9 @@ export function CanvasReadout() {
     `inset t/l/r/b ${box(canvasV.inset)}\n` +
     `hud t/l/r/b ${box(canvasV.hud)}`
   return (
-    <UiEntity uiTransform={{ width: '100%', height: '100%', positionType: 'absolute', position: { top: 0, left: 0 }, ...PASS }}>
+    <UiEntity
+      uiTransform={{ width: '100%', height: '100%', positionType: 'absolute', position: { top: 0, left: 0 }, ...PASS }}
+    >
       {/* stage outline: four gold hairlines around the centered 1600x720 box */}
       <UiEntity
         uiTransform={{

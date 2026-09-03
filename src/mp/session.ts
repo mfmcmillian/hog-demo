@@ -1,9 +1,10 @@
 import { engine } from '@dcl/sdk/ecs'
-import { tickDuelMirror, tickDuelSpectatorHome } from './duelClient'
+import { tickDuelMirror } from './duelClient'
 import { setupGiftClient, tickGiftDropReveal, tickGiftTimers } from './giftClient'
 import { setupPresence, tickIdentity } from './identity'
+import { tickOwMirror } from './owClient'
 import { FestPub } from './protocol'
-import { tickRiftDropReveal, tickRiftMirror, tickSpectatorHome } from './riftClient'
+import { tickRiftDropReveal, tickRiftMirror } from './riftClient'
 import { setupSaveSync, tickSavePush } from './saveSync'
 import { setupTradeClient } from './tradeClient'
 import { MpFestState } from './transport'
@@ -50,9 +51,8 @@ export function initMultiplayerSession(): void {
     if (!tickIdentity()) return
     tickRiftMirror()
     tickDuelMirror()
-    tickSpectatorHome(dt)
-    tickDuelSpectatorHome(dt)
     tickFestMirror()
+    tickOwMirror(dt)
     tickGiftTimers(dt)
     tickGiftDropReveal()
     tickRiftDropReveal()

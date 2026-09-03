@@ -294,9 +294,8 @@ export function buildBattle(
   ally?: OwnedFamiliar,
   scale = 1
 ): BattleState {
-  const you = player.map((owned) => toUnit(owned, 'you'))
   return {
-    you: [...you, ...(ally ? [toUnit(ally, 'you', true)] : [])],
+    you: [...player.map((owned) => toUnit(owned, 'you')), ...(ally ? [toUnit(ally, 'you', true)] : [])],
     foe: foes.map((id, index) => toFoe(id, index, scale)),
     log: [{ text: ally ? 'An oath-kin joins the clash.' : 'The clash begins.' }],
     queue: [],

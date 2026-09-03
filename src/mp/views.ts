@@ -11,8 +11,9 @@ export const duelViews: Record<DuelMode, { pub: DuelPub; revision: number }> = {
   '4v4': { pub: emptyDuel('4v4'), revision: -1 }
 }
 
-/** Which half of the friendzone the local player is looking at, and which ring. */
-export const fz = { tab: 'raids' as 'raids' | 'duels', duelMode: '1v1' as DuelMode }
+/** Which half of the friendzone the local player is looking at, which ring,
+ * and whether the full-screen win-ladder board is open over the duel lobby. */
+export const fz = { tab: 'raids' as 'raids' | 'duels', duelMode: '1v1' as DuelMode, board: false }
 
 /** The duel ring currently on screen. */
 export function activeDuel(): DuelPub {

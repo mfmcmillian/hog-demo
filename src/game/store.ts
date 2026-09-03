@@ -36,8 +36,6 @@ export const game = {
   /** First-fight explainer page over the oath clash (0 = closed, 1..2 = page).
    * The battle is frozen while it shows. */
   fightTalk: 0,
-  /** Card-drop tease on arriving home after the oath clash (card back + elder). */
-  dropTalk: false,
   /** First-press tutorial dialog currently showing; '' = none. */
   tutTip: '' as TipId | '',
   /** Page of the showing tutorial dialog (0-based). */
@@ -79,6 +77,11 @@ export const game = {
   oathStar: 0,
   /** Road index being browsed on the level-select screen. */
   roadPick: 0,
+  /** Where backing out of the level-select returns: menu or overworld door. */
+  levelsBack: 'quest' as 'quest' | 'overworld',
+  /** Where backing out of a menu screen lands: home, or the map tile you
+   * opened it from (village buildings are the menu). */
+  menuBack: 'home' as 'home' | 'overworld',
   lastXp: 0,
   lastLevels: 0,
   xpLines: [] as XpLine[],
@@ -93,7 +96,11 @@ export const game = {
   giftDay: 0,
   /** Parent star count for the fuse flipbook; 0 = no burst. */
   starBurstFrom: 0,
-  starBurstTo: 0
+  starBurstTo: 0,
+  /** Opened overworld chests / one-shot flags; persisted. */
+  owFlags: [] as string[],
+  /** Key items found on the overworld; persisted. */
+  owItems: [] as string[]
 }
 
 export function findOwned(uid: string) {

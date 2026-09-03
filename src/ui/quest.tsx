@@ -9,7 +9,7 @@ import { game } from '../game/store'
 import { MAX_STARS } from '../game/types'
 import { LABELS } from './labels.gen'
 import { cream, gold } from './theme'
-import { Backdrop, Face, GameLogo, Img, Notice, SlashCount, Stars } from './widgets'
+import { Backdrop, Face, Img, MenuTitle, Notice, SlashCount, Stars } from './widgets'
 
 /** How far a road has come, shown on the right end of its row. */
 function RoadProgress(props: { at: number; tint: Color4 }) {
@@ -39,7 +39,7 @@ function RoadRow(props: { index: number; key?: string }) {
         justifyContent: 'flex-start',
         padding: { top: 16, bottom: 16, left: 12, right: 12 }
       }}
-      uiBackground={{ textureMode: 'stretch', texture: { src: row.src }, color: tint }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: row.src }, uvs: row.uvs, color: tint }}
       onMouseDown={() => {
         if (locked) game.notice = 'clear-road'
         else openLevels(props.index)
@@ -91,7 +91,7 @@ function FinalRow() {
         justifyContent: 'flex-start',
         padding: { top: 16, bottom: 16, left: 12, right: 12 }
       }}
-      uiBackground={{ textureMode: 'stretch', texture: { src: row.src }, color: tint }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: row.src }, uvs: row.uvs, color: tint }}
       onMouseDown={() => {
         if (locked) game.notice = 'clear-road'
         else openFinalBattle()
@@ -103,7 +103,14 @@ function FinalRow() {
         uiBackground={{ textureMode: 'stretch', texture: { src: LABELS['road-ring']!.src }, color: tint }}
       >
         <UiEntity
-          uiTransform={{ width: 110, height: 110, flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}
+          uiTransform={{
+            width: 110,
+            height: 110,
+            flexDirection: 'row',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
         >
           {BOSS_IDS.map((id) => (
             <UiEntity key={id} uiTransform={{ width: 53, height: 53 }}>
@@ -142,7 +149,6 @@ export function QuestScreen() {
       }}
     >
       {Backdrop({ label: 'map-cave', dim: 0.52, pass: true })}
-      <Img k="road-banner" w={132} tint={Color4.White()} margin={10} />
       {ROADS.map((road, i) => (
         <RoadRow key={road.id} index={i} />
       ))}
@@ -150,7 +156,7 @@ export function QuestScreen() {
       <UiEntity uiTransform={{ positionType: 'absolute', position: { right: 60, top: '42%' }, pointerFilter: 'none' }}>
         <Notice />
       </UiEntity>
-      <GameLogo />
+      <MenuTitle k="road-banner" />
     </UiEntity>
   )
 }

@@ -2,6 +2,7 @@ import { MP_VERSION } from '../mp/protocol'
 import { ServerCtx, displayNames, nameFor, present } from './ctx'
 import { setupDuels } from './duel'
 import { setupFest } from './fest'
+import { setupOverworld } from './overworld'
 import { setupPresence } from './presence'
 import { setupRift } from './rift'
 import { setupSaves } from './saves'
@@ -38,6 +39,8 @@ export function startServer(): void {
 
   const tradesApi = setupTrades(ctx)
 
+  const overworldApi = setupOverworld(ctx)
+
   setupPresence(ctx, {
     loadOnArrive: savesApi.loadOnArrive,
     sessions: tradesApi.sessions,
@@ -46,7 +49,8 @@ export function startServer(): void {
     rift: riftApi.rift,
     publishRift: riftApi.publishRift,
     riftReset: riftApi.riftReset,
-    duelRooms: duelApi.rooms
+    duelRooms: duelApi.rooms,
+    dropOwPlayer: overworldApi.dropOwPlayer
   })
 
   console.log(`[Server] ready (protocol v${MP_VERSION})`)

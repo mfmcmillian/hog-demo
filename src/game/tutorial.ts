@@ -90,7 +90,7 @@ export function goPointerShowing(): boolean {
   if (!game.tutSeen.party || game.tutSeen.go) return false
   // Saves that predate the flag: anyone with road progress knows GO already.
   if (game.cleared > 0) return false
-  return !game.dropTalk && !game.fireTalk && !game.onlineOpen && !tipShowing()
+  return !game.fireTalk && !game.onlineOpen && !tipShowing()
 }
 
 /**

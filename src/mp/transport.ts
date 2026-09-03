@@ -44,6 +44,16 @@ export const MpFestState = engine.defineComponent('hog-mp-fest-state', {
 
 MpFestState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
 
+/** Sync id for the shared overworld entity (player tiles + wilds monsters). */
+export const OW_SYNC_ID = 6005
+
+export const MpOwState = engine.defineComponent('hog-mp-ow-state', {
+  json: Schemas.String,
+  revision: Schemas.Int
+})
+
+MpOwState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+
 export const MpMessages = {
   // Client -> server: push my PlayerSave JSON ('' asks for a load only).
   saveRequest: Schemas.Map({ json: Schemas.String }),
@@ -63,7 +73,9 @@ export const MpMessages = {
   // Client -> server: one GiftMsg (daily gift to another player).
   giftMsg: Schemas.Map({ json: Schemas.String }),
   // Server -> clients: a GiftUpdate addressed to one wallet.
-  giftUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String })
+  giftUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String }),
+  // Client -> server: one OwMsg (overworld move / leave / monster slay).
+  owMsg: Schemas.Map({ json: Schemas.String })
 }
 
 export const room = registerMessages(MpMessages)

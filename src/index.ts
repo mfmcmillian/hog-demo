@@ -17,6 +17,7 @@ export async function main() {
   const { tickAudio } = await import('./game/audio')
   const { startInput } = await import('./game/input')
   const { tickBattle } = await import('./game/campaign')
+  const { tickOverworld } = await import('./game/overworld')
   const { DEBUG } = await import('./game/debug')
   const { createShell } = await import('./scene/shell')
   const { tickFlipbook } = await import('./ui/flipbook')
@@ -53,6 +54,7 @@ export async function main() {
 
   engine.addSystem((dt) => {
     tickBattle(dt)
+    tickOverworld(dt)
     tickFlipbook(dt)
     tickAudio()
   })

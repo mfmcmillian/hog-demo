@@ -1,5 +1,4 @@
 import { Entity, engine } from '@dcl/sdk/ecs'
-import { goHome } from '../game/menu'
 import { partyUnits } from '../game/party'
 import { findOwned, game } from '../game/store'
 import { getMyAddress } from './identity'
@@ -9,10 +8,6 @@ import { activeDuel, duelViews, fz } from './views'
 
 // Client side of the friendzone duel rings - the rift pattern in miniature:
 // send intents, mirror the server's per-mode snapshots, feed the battle FX.
-
-/** Watchers leave the verdict on their own clock, not the ring's 10s hold. */
-const SPECTATOR_HOME_SECS = 2.8
-let spectatorHomeIn = SPECTATOR_HOME_SECS
 
 /** Last seen phase per ring, so the tab pull fires only when a duel kicks off. */
 const lastDuelPhase: Record<DuelMode, string> = { '1v1': 'lobby', '4v4': 'lobby' }
@@ -85,18 +80,4 @@ export function tickDuelMirror(): void {
 /** Total sitters across both rings (the home POI badge). */
 export function duelSeatCount(): number {
   return DUEL_MODES.reduce((sum, mode) => sum + duelViews[mode].pub.seats.length, 0)
-}
-
-export function tickDuelSpectatorHome(dt: number): void {
-  // Watchers get a short look at the verdict, then head home - the ring's
-  // 10s hold belongs to the duelists.
-  if (game.phase === 'rift' && fz.tab === 'duels' && !myDuelSeat() && activeDuel().phase === 'done') {
-    spectatorHomeIn -= dt
-    if (spectatorHomeIn <= 0) {
-      spectatorHomeIn = SPECTATOR_HOME_SECS
-      goHome()
-    }
-  } else {
-    spectatorHomeIn = SPECTATOR_HOME_SECS
-  }
 }

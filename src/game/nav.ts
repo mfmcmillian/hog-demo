@@ -8,11 +8,14 @@ import { enterGame, isBootFilled, isBootReady } from './boot'
 import { advanceBanner, advanceFightTalk, openFinalBattle, skipBattle } from './campaign'
 import { canFuse, fuse, fuseFaces, pickFuseHero, prepareFuse } from './fuse'
 import { advanceIntro, endCredits, skipIntro } from './intro'
-import { cycleHeroCard, goHome, resetMenu } from './menu'
+import { cycleHeroCard, goHome, resetMenu, revealAcquisition } from './menu'
 import { PACKS, packAt } from './packs'
 import { benchUnits, tapBenchHero, tapPartySlot } from './party'
 import { frontierFloor } from './progress'
 import { ROADS } from './quests'
+import { makeOwned } from './familiars'
+import { enterOverworld, resumeOverworld, setOwOpener } from './overworld'
+import { advanceOwTalk, dismissOwTalk, hasOwFlag, owTalkActive, setOwFlag } from './owTalk'
 import { leaveHeroCard, leaveResult, openLevels, startFloor } from './roads'
 import { cancelPack, openPendingChest, requestPack } from './shop'
 import { findOwned, game } from './store'
@@ -52,16 +55,64 @@ const PHASE_TIP: { [P in Phase]?: TipId } = {
 }
 
 export function open(phase: Phase) {
+  // Screens opened from the home menu back out to home; openFromMap flips
+  // this for screens entered through a village building or portal.
+  if (game.phase === 'home') game.menuBack = 'home'
   game.phase = phase
   game.selectedSlot = -1
   resetMenu()
   if (phase === 'quest') game.cursor = Math.min(game.cleared, ROADS.length - 1)
   if (phase === 'rift') playRift()
   if (phase === 'fuse') prepareFuse()
+  if (phase === 'overworld') enterOverworld()
   // Fresh cards are discovered the moment the bench is on screen.
   if (phase === 'party') game.freshUids = []
   const tip = PHASE_TIP[phase]
   if (tip) maybeStartTip(tip)
+}
+
+/** A village building or portal opening a menu screen: back returns to the
+ * map tile you were standing on, not home. */
+function openFromMap(phase: string) {
+  game.menuBack = 'overworld'
+  open(phase as Phase)
+}
+setOwOpener(openFromMap)
+
+/** What a closed talk leaves behind: a screen to open, or a quest prize. */
+export function runOwTalkThen(then: string) {
+  if (!then) return
+  const [kind, arg] = then.split(':')
+  if (kind === 'open') openFromMap(arg)
+  if (kind === 'reward' && arg === 'boy' && !hasOwFlag('boy-reward')) {
+    setOwFlag('boy-reward')
+    // The card ceremony returns to the map in place (closeOverlay keeps the
+    // realm and tile; only enterOverworld respawns).
+    revealAcquisition(makeOwned('dusk-oracle'), 'overworld')
+  }
+}
+
+/** Tap/E on an open talk: next page, or close and run its follow-up. */
+export function owTalkNext() {
+  runOwTalkThen(advanceOwTalk())
+}
+
+/** Close the pause menu (home) back onto the map tile the player paused on. */
+export function closePause() {
+  if (game.phase !== 'home') return
+  playCancel()
+  resumeOverworld()
+  lockNav()
+}
+
+/** Back out to home, or to the map tile a building/portal was entered from. */
+export function leaveToHub() {
+  if (game.menuBack === 'overworld') {
+    game.menuBack = 'home'
+    resumeOverworld()
+    return
+  }
+  goHome()
 }
 
 function menuLen(): number {
@@ -161,6 +212,10 @@ export function primary() {
     advanceTip()
     return
   }
+  if (owTalkActive()) {
+    owTalkNext()
+    return
+  }
   if (game.phase === 'intro') {
     advanceIntro()
     return
@@ -178,10 +233,7 @@ export function primary() {
     pickHero()
     return
   }
-  if (game.phase === 'home') {
-    if (game.dropTalk) game.dropTalk = false
-    return
-  }
+  if (game.phase === 'home') return
   if (game.phase === 'quest') {
     if (game.cursor >= ROADS.length) openFinalBattle()
     else openLevels(game.cursor)
@@ -244,15 +296,15 @@ function dismissOverlay() {
 /** F — leave the current screen. */
 export function back() {
   if (!isBootReady()) return
-  if (tipShowing()) {
+  if (owTalkActive()) {
     playCancel()
-    dismissTip()
+    runOwTalkThen(dismissOwTalk())
     lockNav()
     return
   }
-  if (game.phase === 'home' && game.dropTalk) {
+  if (tipShowing()) {
     playCancel()
-    game.dropTalk = false
+    dismissTip()
     lockNav()
     return
   }
@@ -292,7 +344,12 @@ export function back() {
     lockNav()
     return
   }
-  if (game.phase === 'start' || game.phase === 'home') return
+  if (game.phase === 'start') return
+  if (game.phase === 'home') {
+    // Home is the pause menu: closing it resumes the map where you stood.
+    closePause()
+    return
+  }
   playCancel()
   if (game.phase === 'battle') {
     if (game.fightTalk) {
@@ -311,7 +368,9 @@ export function back() {
     return
   }
   if (game.phase === 'levels') {
-    open('quest')
+    // Walked into this floor-select via a landmark door: step back outside.
+    if (game.levelsBack === 'overworld') resumeOverworld()
+    else open('quest')
     lockNav()
     return
   }
@@ -324,7 +383,10 @@ export function back() {
     leaveMultiplayerScreen()
     return
   }
-  goHome()
+  // The map's own back is the pause menu (home); menu screens fall through
+  // to wherever they were opened from.
+  if (game.phase === 'overworld') goHome()
+  else leaveToHub()
   lockNav()
 }
 
@@ -337,6 +399,6 @@ function leaveMultiplayerScreen() {
       if (duelViews[mode].pub.phase === 'lobby' && myDuelSeat(mode)) duelLeave(mode)
     }
   }
-  goHome()
+  leaveToHub()
   lockNav()
 }

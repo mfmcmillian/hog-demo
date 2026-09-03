@@ -1,5 +1,5 @@
 import { startFinalBattle } from './campaign'
-import { goHome } from './menu'
+import { goVillage } from './overworld'
 import { resumePendingRun } from './roads'
 import { STORIES } from './stories'
 import { game } from './store'
@@ -64,5 +64,5 @@ export function endCredits(): void {
   if (game.phase !== 'credits') return
   if (game.creditsAt && Date.now() - game.creditsAt < 800) return
   game.creditsAt = 0
-  goHome()
+  goVillage()
 }

@@ -8,11 +8,12 @@ import { benchUnits, tapBenchHero, tapPartySlot } from '../game/party'
 import { findOwned, game } from '../game/store'
 import { benchPointerShowing } from '../game/tutorial'
 import { OwnedFamiliar, PARTY_SIZE } from '../game/types'
+import { cellUvs } from './fx/sheets'
 import { LABELS } from './labels.gen'
 import { ModalScrim, PagedColumn, TalkPanel } from './panels'
 import { cream, gold } from './theme'
 import { TutPointer } from './tutorial'
-import { Backdrop, Face, GameLogo, Img, Notice, PartyTile, SeatCard, SlashCount } from './widgets'
+import { Backdrop, Face, Img, MenuTitle, Notice, PartyTile, SeatCard, SlashCount } from './widgets'
 
 /** One ornate kit seat: gold frame, hero in the leather, name in the banner. */
 function TeamSlot(props: { slot: number }) {
@@ -139,7 +140,7 @@ function NftTalk() {
             justifyContent: 'center',
             pointerFilter: 'none'
           }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, color: Color4.White() }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, uvs: frame.uvs, color: Color4.White() }}
         >
           <Face
             id={id}
@@ -251,7 +252,6 @@ export function PartyScreen() {
       {/* dim the hall so the gold kit reads like the mock */}
       {Backdrop({ label: 'hall-party', dim: 0.42 })}
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: 8, right: 4 } }}>
-        <Img k="party-banner" w={132} tint={Color4.White()} margin={2} />
         {/* unique faces owned vs the full collectible book */}
         <SlashCount
           at={new Set(game.collection.map((owned) => owned.defId)).size}
@@ -317,7 +317,7 @@ export function PartyScreen() {
       </UiEntity>
       <NftTalk />
       <Notice />
-      <GameLogo />
+      <MenuTitle k="party-banner" />
     </UiEntity>
   )
 }

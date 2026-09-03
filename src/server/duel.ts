@@ -2,6 +2,7 @@ import { engine, executeTask } from '@dcl/sdk/ecs'
 import { syncEntity } from '@dcl/sdk/network'
 import { Storage } from '@dcl/sdk/server'
 import { buildDuelBattle, stepBattle } from '../game/combat'
+import { DEBUG } from '../game/debug'
 import { grantXp } from '../game/familiars'
 import { OwnedFamiliar } from '../game/types'
 import {
@@ -18,6 +19,7 @@ import {
   DuelPub,
   DuelRank,
   DuelSeat,
+  ENERGY_MAX,
   PlayerSave,
   RiftReward,
   emptyDuel
@@ -52,9 +54,14 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
   function persistLadder(): void {
     if (!ladderReady) return
     try {
-      Storage.set(LADDER_KEY, JSON.stringify(ladder)).catch((error: unknown) => {
-        console.log(`[Server] duel ladder persist failed: ${error}`)
-      })
+      // Storage.set resolves false on a failed PUT (it does not reject).
+      Storage.set(LADDER_KEY, JSON.stringify(ladder))
+        .then((ok) => {
+          if (!ok) console.log('[Server] duel ladder persist failed: storage set returned false')
+        })
+        .catch((error: unknown) => {
+          console.log(`[Server] duel ladder persist failed: ${error}`)
+        })
     } catch (error) {
       console.log(`[Server] duel ladder persist failed: ${error}`)
     }
@@ -79,6 +86,10 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
         ladder = { '1v1': stored['1v1'] ?? {}, '4v4': stored['4v4'] ?? {} }
       }
       ladderReady = true
+      // A missing key resolves null (no throw). Seed it now so the write
+      // path is proven at boot instead of first tested when a win is on
+      // the line - and so restarts stop re-reading an absent key.
+      if (!raw) persistLadder()
     } catch (error) {
       console.log(`[Server] duel ladder load failed: ${error}`)
     }
@@ -118,6 +129,7 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
       duel.battle = undefined
       duel.winner = undefined
       duel.rewards = undefined
+      duel.resetIn = undefined
       publishDuel()
     }
 
@@ -143,7 +155,9 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
       for (const seat of duel.seats) {
         const save = ctx.saves.get(seat.address)
         if (save) {
-          save.energy = Math.max(0, save.energy - DUEL_ENERGY_COST[mode])
+          // Mirrors the client's spendEnergy: the playtest flag refills instead
+          // of draining, so the server copy never silently starves out sits.
+          save.energy = DEBUG.unlimitedEnergy ? ENERGY_MAX : Math.max(0, save.energy - DUEL_ENERGY_COST[mode])
           ctx.persistSave(seat.address)
           ctx.pushSave(seat.address)
         }
@@ -186,6 +200,7 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
       duel.rewards = rewards
       duel.ladder = topLadder(mode)
       duelWait = 10
+      duel.resetIn = duelWait
       publishDuel()
     }
 
@@ -199,7 +214,7 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
         // 1v1 needs a valid champion; 4v4 needs the full party (clients also gate).
         if (mode === '1v1' ? heroes.length !== 1 : heroes.length < 4) return
         // Not enough energy: refuse the seat (clients also gate this).
-        if (save.energy < DUEL_ENERGY_COST[mode]) return
+        if (!DEBUG.unlimitedEnergy && save.energy < DUEL_ENERGY_COST[mode]) return
         const seat: DuelSeat = { address: sender, name: ctx.nameFor(sender), ready: false, heroes }
         duel.seats.push(seat)
         publishDuel()
@@ -229,7 +244,16 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
     engine.addSystem((dt) => {
       if (duel.phase === 'done') {
         duelWait -= dt
-        if (duelWait <= 0) duelReset()
+        if (duelWait <= 0) {
+          duelReset()
+          return
+        }
+        // Tick the spectators' reopen countdown once per whole second.
+        const secs = Math.ceil(duelWait)
+        if (secs !== duel.resetIn) {
+          duel.resetIn = secs
+          publishDuel()
+        }
         return
       }
       if (duel.phase !== 'battle' || !duel.battle) return

@@ -13,10 +13,11 @@ import {
   tradeOffer,
   tradeSides
 } from '../mp/session'
+import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { HeroPickStrip, TravelerPlate } from './panels'
 import { cream, danger, gold, good, muted, panelDim } from './theme'
-import { Digits, Face, GameLogo, Img, MpBackdrop, NameTag, Notice } from './widgets'
+import { Digits, Face, Img, MenuTitle, MpBackdrop, NameTag, Notice } from './widgets'
 
 // ---- multiplayer: trade + rift -------------------------------------------------
 
@@ -36,7 +37,12 @@ function TradeSide(props: { mine: boolean }) {
       {banner ? (
         <UiEntity
           uiTransform={{ width: 44, height: 235, alignItems: 'center', justifyContent: 'center', margin: { right: 2 } }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: banner.src }, color: Color4.White() }}
+          uiBackground={{
+            textureMode: 'stretch',
+            texture: { src: banner.src },
+            uvs: banner.uvs,
+            color: Color4.White()
+          }}
         >
           <NameTag name={name} w={22} tint={props.mine ? gold : cream} />
         </UiEntity>
@@ -44,7 +50,9 @@ function TradeSide(props: { mine: boolean }) {
       <UiEntity
         uiTransform={{ width: cardW, height: cardH, alignItems: 'center', justifyContent: 'center' }}
         uiBackground={
-          card ? { textureMode: 'stretch', texture: { src: card.src }, color: Color4.White() } : { color: panelDim }
+          card
+            ? { textureMode: 'stretch', texture: { src: card.src }, uvs: card.uvs, color: Color4.White() }
+            : { color: panelDim }
         }
       >
         {offer ? (
@@ -61,14 +69,29 @@ function TradeSide(props: { mine: boolean }) {
       </UiEntity>
       {lock ? (
         <UiEntity
-          uiTransform={{ width: 64, height: 190, margin: { left: 4 } }}
-          uiBackground={{
-            textureMode: 'stretch',
-            texture: { src: lock.src },
-            color: props.mine || locked ? Color4.White() : Color4.create(1, 1, 1, 0.45)
+          uiTransform={{
+            width: 64,
+            height: 190,
+            margin: { left: 4 },
+            alignItems: 'center',
+            justifyContent: 'center'
           }}
-          onMouseDown={props.mine && offer ? () => tradeLock(!locked) : undefined}
-        />
+          onMouseDown={props.mine && offer ? press('trade:lock', () => tradeLock(!locked)) : undefined}
+        >
+          <UiEntity
+            uiTransform={{
+              width: 64 - pressShrink('trade:lock', 64),
+              height: 190 - pressShrink('trade:lock', 190),
+              pointerFilter: 'none'
+            }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: lock.src },
+              uvs: lock.uvs,
+              color: pressTint('trade:lock', props.mine || locked ? Color4.White() : Color4.create(1, 1, 1, 0.45))
+            }}
+          />
+        </UiEntity>
       ) : null}
     </UiEntity>
   )
@@ -122,9 +145,6 @@ export function TradeScreen() {
       }}
     >
       <MpBackdrop k="map-trade" />
-      <UiEntity uiTransform={{ width: 120, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <Img k="trade-title" w={110} tint={Color4.White()} margin={0} />
-      </UiEntity>
       {trade.table ? (
         <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', justifyContent: 'center' }}>
           <TradeSide mine={true} />
@@ -138,7 +158,12 @@ export function TradeScreen() {
                 height: 78,
                 pointerFilter: 'none'
               }}
-              uiBackground={{ textureMode: 'stretch', texture: { src: swap.src }, color: Color4.White() }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: swap.src },
+                uvs: swap.uvs,
+                color: Color4.White()
+              }}
             />
           ) : null}
         </UiEntity>
@@ -149,7 +174,7 @@ export function TradeScreen() {
         <HeroPickStrip hint="offer-card" selectedUid={sides.mine?.uid} onPick={(uid) => tradeOffer(uid)} />
       ) : null}
       <Notice />
-      <GameLogo />
+      <MenuTitle k="trade-title" />
     </UiEntity>
   )
 }
@@ -175,20 +200,40 @@ export function TradeInviteToast() {
       <Img k="wants-trade" w={20} tint={cream} margin={6} />
       <UiEntity
         uiTransform={{ width: 60, height: 130, alignItems: 'center', justifyContent: 'center', margin: 4 }}
-        uiBackground={{ color: good }}
-        onMouseDown={() => {
+        onMouseDown={press('trade:accept', () => {
           tradeAccept()
           if (game.phase === 'home') open('trade')
-        }}
+        })}
       >
-        <Img k="accept" w={22} tint={cream} />
+        <UiEntity
+          uiTransform={{
+            width: 60 - pressShrink('trade:accept', 60),
+            height: 130 - pressShrink('trade:accept', 130),
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerFilter: 'none'
+          }}
+          uiBackground={{ color: pressTint('trade:accept', good) }}
+        >
+          <Img k="accept" w={22} tint={cream} />
+        </UiEntity>
       </UiEntity>
       <UiEntity
         uiTransform={{ width: 60, height: 130, alignItems: 'center', justifyContent: 'center', margin: 4 }}
-        uiBackground={{ color: danger }}
-        onMouseDown={() => tradeDecline()}
+        onMouseDown={press('trade:decline', () => tradeDecline())}
       >
-        <Img k="decline" w={22} tint={cream} />
+        <UiEntity
+          uiTransform={{
+            width: 60 - pressShrink('trade:decline', 60),
+            height: 130 - pressShrink('trade:decline', 130),
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerFilter: 'none'
+          }}
+          uiBackground={{ color: pressTint('trade:decline', danger) }}
+        >
+          <Img k="decline" w={22} tint={cream} />
+        </UiEntity>
       </UiEntity>
     </UiEntity>
   )

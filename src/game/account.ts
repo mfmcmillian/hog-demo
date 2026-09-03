@@ -49,10 +49,11 @@ export function resetAccount() {
   game.storySeen = {}
   game.pendingRun = undefined
   game.finalWon = false
+  game.owFlags = []
+  game.owItems = []
   game.creditsAt = 0
   game.welcomeTalk = false
   game.fightTalk = 0
-  game.dropTalk = false
   game.run = undefined
   game.battle = undefined
   game.pendingPack = ''

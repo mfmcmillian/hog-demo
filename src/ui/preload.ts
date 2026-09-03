@@ -1,10 +1,16 @@
 import { AssetLoad, engine, executeTask } from '@dcl/sdk/ecs'
 import { boot } from '../game/boot'
 import { HERO_IDS } from '../game/familiars'
+import { OW_REALMS, OwRealmId } from '../game/owdefs'
+import { owRealmId } from '../game/overworld'
 import { STORIES } from '../game/stories'
-import { allFxSrcs, allSheetSrcs, campfireSheet, sheetSrcOf } from './flipbook'
-import { allHallSrcs, cardBackArt, hallSrc } from './halls'
+import { game } from '../game/store'
+import { Phase } from '../game/types'
+import { allFxSrcs, campfireSheet, sheetSrcOf } from './flipbook'
+import { hallSrc } from './halls'
 import { LABELS } from './labels.gen'
+import { INTRO_LABELS } from './labels.intro.gen'
+import { OW_LABELS } from './labels.ow.gen'
 
 const BOOT_SRCS = [
   'images/boot/keyart-a.png',
@@ -14,20 +20,6 @@ const BOOT_SRCS = [
   'images/boot/bar-fill-a.png',
   'images/boot/bar-head-a.png',
   'images/boot/spin-ring-a.png'
-]
-
-const EXTRA = [
-  ...BOOT_SRCS,
-  'images/maps/home-b.png',
-  'images/maps/shop-b.png',
-  'images/packs/ember-a.png',
-  'images/packs/vow-a.png',
-  'images/packs/crown-a.png',
-  'images/hud/crown.png',
-  'images/ads/koa-c.png',
-  'images/ads/decentracraft-c.png',
-  'sounds/fx/rift-c.mp3',
-  cardBackArt().src
 ]
 
 function uniq(srcs: string[]): string[] {
@@ -41,36 +33,185 @@ function uniq(srcs: string[]): string[] {
   return out
 }
 
-// The main intro plays the moment a NEW player clears the gate, so its first
-// page (art + VO) rides in the boot-first fetch; the remaining pages chain at
-// the head of the deferred warm and land while page 1 narrates. Road/final/
-// epilogue story art stays on-demand - it is mid-game, never boot-adjacent.
+function labelSrcs(keys: string[]): string[] {
+  return keys.map((key) => LABELS[key]?.src ?? '')
+}
+
 const INTRO_PAGES = STORIES.main
 const INTRO_FIRST = [INTRO_PAGES[0].art, INTRO_PAGES[0].vo]
-const INTRO_REST = INTRO_PAGES.slice(1).flatMap((page) => [page.art, page.vo])
+const INTRO_FIRST_LABELS = Object.entries(INTRO_LABELS)
+  .filter(([key]) => key.startsWith('intro-1'))
+  .map(([, info]) => info.src)
 
-// The boot gate waits for these only: boot art, the intro's first page, every
-// label/portrait the start + home screens draw, the three starter sheets and
-// halls, and the campfire (visible the moment a returning player lands on
-// home). Skill, reveal, and villager FX warm in the deferred pass right after
-// the gate - the earliest any of them can appear is the oath clash, a few
-// taps in. LABELS already covers the inspect and party halls.
+// Chrome + the screens a new or returning player hits in the first seconds.
+// Everything else binds when its phase mounts, plus a one-tap warm set.
+const CHROME_KEYS = ['pad-disc', 'btn-back', 'btn-action', 'screen-frame', 'continue', 'skip']
+const START_KEYS = ['oath-select', 'select', 'sel-arrow-left', 'sel-arrow-right', 'oath-banner', 'swear-your-oath']
+const HOME_KEYS = [
+  'icon-bolt',
+  'icon-coins',
+  'dot',
+  'players-online',
+  'map-home',
+  'home-shop',
+  'home-trade',
+  'home-rift',
+  'home-fuse',
+  'home-overworld',
+  'shop',
+  'trade',
+  'fuse',
+  'village',
+  'fire-grows',
+  'fire-line1',
+  'fire-line2',
+  'fire-line3',
+  'fire-line4',
+  'btn-party',
+  'btn-map',
+  'btn-go',
+  'btn-settings',
+  'btn-event',
+  'fest-panel',
+  'no-travelers'
+]
+// The village is the boot landing, so its whole cast rides in the critical set.
+const OW_BASE_KEYS = [
+  'player-walk',
+  'elder-walk',
+  'fisher-walk',
+  'child-walk',
+  'ow-chest',
+  'ow-sign',
+  'ow-rock',
+  'ow-hole',
+  'ow-gate',
+  'map-overworld',
+  'map-hut',
+  'intro-d1' // page 2 of the elder's plaza welcome
+]
+
+const EXTRA = [
+  ...BOOT_SRCS,
+  'images/maps/home-b.png',
+  'images/ads/koa-c.png',
+  'images/ads/decentracraft-c.png',
+  campfireSheet()
+]
+
 export const CRITICAL_SRCS = uniq([
   ...BOOT_SRCS,
   ...INTRO_FIRST,
-  ...Object.values(LABELS).map((info) => info.src),
+  ...INTRO_FIRST_LABELS,
+  ...labelSrcs([...CHROME_KEYS, ...START_KEYS, ...HOME_KEYS, ...OW_BASE_KEYS]),
   ...HERO_IDS.map((id) => sheetSrcOf(id) ?? ''),
   ...HERO_IDS.map((id) => hallSrc(id)),
-  campfireSheet(),
   ...EXTRA
 ])
 
-// Full set: the rest of the intro, collectible sheets, the rest of the halls,
-// and the chest-open flipbooks warm in the background after the gate opens.
-export const PRELOAD_SRCS = uniq([...CRITICAL_SRCS, ...INTRO_REST, ...allHallSrcs(), ...allSheetSrcs(), ...allFxSrcs()])
+function realmSrcs(id: OwRealmId): string[] {
+  const realm = OW_REALMS[id]
+  const keys = [realm.map, realm.nameKey ?? '', 'player-walk', 'ow-chest', 'ow-sign', 'ow-rock', 'ow-hole', 'ow-gate']
+  for (const npc of realm.npcs ?? []) keys.push(npc.sheet)
+  return uniq([...labelSrcs(keys), ...Object.values(OW_LABELS).map((info) => info.src)])
+}
 
-// INTRO_REST leads the deferred queue so intro pages 2+ land during page 1.
-const DEFERRED_SRCS = uniq([...INTRO_REST, ...PRELOAD_SRCS]).filter((src) => CRITICAL_SRCS.indexOf(src) < 0)
+function ownedSheetSrcs(): string[] {
+  return uniq(game.collection.map((owned) => sheetSrcOf(owned.defId) ?? ''))
+}
+
+function battleSrcs(): string[] {
+  const ids = [
+    ...game.party.filter(Boolean).map((uid) => game.collection.find((owned) => owned.uid === uid)?.defId ?? ''),
+    ...(game.battle?.you.map((unit) => unit.defId) ?? []),
+    ...(game.battle?.foe.map((unit) => unit.defId) ?? [])
+  ]
+  return uniq([
+    ...ids.map((id) => sheetSrcOf(id) ?? ''),
+    ...ids.map((id) => hallSrc(id)),
+    ...allFxSrcs(),
+    ...labelSrcs(['map-clash-q1', 'map-clash-q3', 'map-clash-q4', 'map-clash-q6', 'win', 'lose', 'xp'])
+  ])
+}
+
+function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
+  if (phase === 'overworld' || phase === 'overworld-next') {
+    const here = owRealmId()
+    const next = OW_REALMS[here].exits.map((exit) => exit.to)
+    return uniq([
+      ...realmSrcs(here),
+      ...next.flatMap(realmSrcs),
+      ...labelSrcs(['need-item', 'sealed', 'clear-road', 'recruit-first'])
+    ])
+  }
+  switch (phase) {
+    case 'intro':
+      return uniq([...INTRO_FIRST, ...INTRO_FIRST_LABELS, ...labelSrcs(['continue', 'skip'])])
+    case 'start':
+      return uniq([
+        ...labelSrcs(START_KEYS),
+        ...HERO_IDS.map((id) => sheetSrcOf(id) ?? ''),
+        ...HERO_IDS.map((id) => hallSrc(id))
+      ])
+    case 'home':
+      return uniq([...labelSrcs(HOME_KEYS), campfireSheet(), ...ownedSheetSrcs()])
+    case 'party':
+    case 'fuse':
+    case 'allies':
+      return uniq([...ownedSheetSrcs(), ...game.collection.map((owned) => hallSrc(owned.defId)), hallSrc('inspect')])
+    case 'shop':
+      return labelSrcs(['map-shop', 'shop-title', 'ember', 'pack-vow', 'crown'])
+    case 'trade':
+    case 'rift':
+    case 'festival':
+    case 'settings':
+    case 'quest':
+    case 'levels':
+      return []
+    case 'battle':
+    case 'banner':
+    case 'report':
+    case 'heroCard':
+      return battleSrcs()
+    case 'credits':
+      return []
+    default:
+      return []
+  }
+}
+
+const NEIGHBORS: Record<string, Phase[]> = {
+  intro: ['start'],
+  start: ['overworld'],
+  home: ['overworld', 'party', 'settings', 'festival', 'shop', 'quest'],
+  overworld: ['home', 'battle', 'party', 'shop', 'fuse', 'trade', 'rift'],
+  quest: ['levels', 'home'],
+  levels: ['battle', 'overworld'],
+  party: ['home', 'overworld'],
+  fuse: ['home', 'overworld'],
+  shop: ['home', 'overworld'],
+  allies: ['home'],
+  battle: ['report', 'banner'],
+  banner: ['report'],
+  report: ['home', 'overworld', 'heroCard'],
+  heroCard: ['overworld', 'home'],
+  trade: ['home', 'overworld'],
+  rift: ['home', 'overworld'],
+  settings: ['home'],
+  festival: ['home'],
+  credits: ['overworld']
+}
+
+/** Hidden tiles bind only what the current screen (and one tap away) draws.
+ * The screen's own Img/uiBackground still fetch anything we missed; PhaseFade
+ * covers the first 400ms. This is what keeps decoded GPU memory flat. */
+export function bindSrcs(): string[] {
+  if (!boot.ready) return CRITICAL_SRCS
+  const phase = game.phase
+  const srcs = [...labelSrcs(CHROME_KEYS), ...phaseSrcs(phase)]
+  for (const next of NEIGHBORS[phase] ?? []) srcs.push(...phaseSrcs(next))
+  return uniq(srcs)
+}
 
 boot.total = CRITICAL_SRCS.length
 
@@ -108,22 +249,6 @@ export function startPreload() {
       )
     }
     if (!boot.artAt) boot.artAt = Date.now()
-
-    // Critical art has landed; warm combat sheets, halls, and chest FX in
-    // the background. Nothing gates on these.
-    const lateHolder = engine.addEntity()
-    AssetLoad.create(lateHolder, { assets: DEFERRED_SRCS })
-    for (let i = 0; i < DEFERRED_SRCS.length; i += chunk) {
-      await Promise.all(
-        DEFERRED_SRCS.slice(i, i + chunk).map(async (src) => {
-          try {
-            await fetch(src)
-          } catch {
-            // Same as above: the hidden tiles still bind it eventually.
-          }
-        })
-      )
-    }
   })
 
   let waited = 0
@@ -131,8 +256,6 @@ export function startPreload() {
     if (boot.ready) return
     waited += dt
     boot.gate = Math.min(1, waited / 2.2)
-    // Wait for the save answer too (8s cap) so a returning player never
-    // taps through to the oath screen a beat before their save lands.
     const saveSettled = boot.saveKnown || waited >= 8
     if (boot.loaded >= boot.total && waited >= 2.2 && saveSettled) markFilled()
     else if (waited >= 22) markFilled()

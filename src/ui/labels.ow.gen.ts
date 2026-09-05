@@ -66,6 +66,8 @@ export const OW_LABELS: Record<string, LabelInfo> = {
   'ow-mother-2a': { src: 'images/labels/ow-mother-2a.png', w: 57, h: 562 },
   'ow-mother-2b': { src: 'images/labels/ow-mother-2b.png', w: 57, h: 607 },
   'ow-mother-3a': { src: 'images/labels/ow-mother-3a.png', w: 57, h: 669 },
+  'ow-boy-2a': { src: 'images/labels/ow-boy-2a.png', w: 57, h: 362 },
+  'ow-boy-2b': { src: 'images/labels/ow-boy-2b.png', w: 57, h: 141 },
   'ow-rook-fisher-1a': { src: 'images/labels/ow-rook-fisher-1a.png', w: 57, h: 625 },
   'ow-rook-fisher-1b': { src: 'images/labels/ow-rook-fisher-1b.png', w: 57, h: 804 },
   'ow-rook-boy-1a': { src: 'images/labels/ow-rook-boy-1a.png', w: 57, h: 663 },

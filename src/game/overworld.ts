@@ -28,6 +28,7 @@ import {
   owLedgeDir,
   owLockAt,
   owNpcAt,
+  owNpcPresent,
   owSignAt,
   owSpawnByKey,
   owWalkable
@@ -223,7 +224,7 @@ export function walkable(gx: number, gy: number): boolean {
   if (gx < 0 || gy < 0 || gx >= maxX || gy >= maxY) return false
   const cx = coarse(gx)
   const cy = coarse(gy)
-  if (!owWalkable(realmId, cx, cy)) return false
+  if (!owWalkable(realmId, cx, cy, hasOwFlag)) return false
   if (lockClosed(cx, cy)) return false
   if (blockAt(cx, cy)) return false
   const exit = owExitAt(realmId, cx, cy)
@@ -232,10 +233,10 @@ export function walkable(gx: number, gy: number): boolean {
 }
 
 function canPlaceBlock(gx: number, gy: number): boolean {
-  if (!owWalkable(realmId, gx, gy)) return false
+  if (!owWalkable(realmId, gx, gy, hasOwFlag)) return false
   if (lockClosed(gx, gy)) return false
   if (blockAt(gx, gy)) return false
-  if (owNpcAt(realmId, gx, gy) || owChestAt(realmId, gx, gy) || owSignAt(realmId, gx, gy)) return false
+  if (owChestAt(realmId, gx, gy) || owSignAt(realmId, gx, gy)) return false
   if (owExitAt(realmId, gx, gy)) return false
   return true
 }
@@ -528,7 +529,7 @@ function tileAhead(): { gx: number; gy: number } {
 
 function tryNpcTalk(): boolean {
   const ahead = tileAhead()
-  const npc = owNpcAt(realmId, ahead.gx, ahead.gy)
+  const npc = owNpcAt(realmId, ahead.gx, ahead.gy, hasOwFlag)
   if (!npc) return false
   const key = `${realmId}:${coarse(ow.gx)},${coarse(ow.gy)}:${npc.id}`
   if (talkedFrom === key) return false
@@ -604,11 +605,13 @@ function tileRect(px: number, py: number, size: number, cell = TILE): { left: nu
 }
 
 export function owNpcRects(size: number): { id: string; sheet: string; left: number; top: number }[] {
-  return (OW_REALMS[realmId].npcs ?? []).map((npc) => ({
-    id: npc.id,
-    sheet: npc.sheet,
-    ...tileRect(npc.gx, npc.gy, size)
-  }))
+  return (OW_REALMS[realmId].npcs ?? [])
+    .filter((npc) => owNpcPresent(npc, hasOwFlag))
+    .map((npc) => ({
+      id: npc.id,
+      sheet: npc.sheet,
+      ...tileRect(npc.gx, npc.gy, size)
+    }))
 }
 
 export function owChestRects(size: number): { id: string; open: boolean; left: number; top: number }[] {

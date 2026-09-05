@@ -61,7 +61,29 @@ export type OwExit = {
 }
 /** `sheet` = labels.gen key of the 4x4 walk sheet drawn on the map (cell 0)
  * and used as the talk portrait. `talk` = OW_TALKS id ('elder' picks by state). */
-export type OwNpc = { gx: number; gy: number; id: string; talk: string; sheet: string }
+export type OwNpc = {
+  gx: number
+  gy: number
+  id: string
+  talk: string
+  sheet: string
+  /** Story placement: only here while this owFlag is set / until it is set
+   * (the lost boy stands on the green, then by his mother's hearth). */
+  needFlag?: string
+  hideFlag?: string
+}
+
+/** Is this NPC standing here for a player whose story flags `has` reads?
+ * Without a reader (the server has no per-player story) a conditional NPC
+ * counts as absent, so its tile stays walkable for everyone: the client is
+ * the one that blocks it while the NPC is drawn. */
+export function owNpcPresent(npc: OwNpc, has?: (flag: string) => boolean): boolean {
+  if (!npc.needFlag && !npc.hideFlag) return true
+  if (!has) return false
+  if (npc.needFlag && !has(npc.needFlag)) return false
+  if (npc.hideFlag && has(npc.hideFlag)) return false
+  return true
+}
 export type OwSign = { gx: number; gy: number; talk: string }
 export type OwChest = { gx: number; gy: number; id: string; loot: { coins?: number; item?: string } }
 /** Pushable stone. Resets on re-enter; a switch under it opens locks. */
@@ -152,15 +174,16 @@ function hut(
   town: OwRealmId,
   door: { gx: number; gy: number },
   npc: Omit<OwNpc, 'gx' | 'gy'>,
-  more: Pick<OwRealm, 'tint' | 'chests'> = {}
+  more: Pick<OwRealm, 'tint' | 'chests' | 'npcs'> = {}
 ): OwRealm {
+  const { npcs = [], ...rest } = more
   return {
     map: 'map-hut',
     rows: HUT_ROWS,
     exits: [{ gx: 4, gy: 12, to: town, sx: door.gx, sy: door.gy + 1, facing: 'down' }],
     monsters: [],
-    npcs: [{ ...HUT_HOST, ...npc }],
-    ...more
+    npcs: [{ ...HUT_HOST, ...npc }, ...npcs],
+    ...rest
   }
 }
 
@@ -217,7 +240,8 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
     npcs: [
       { gx: 4, gy: 2, id: 'elder', talk: 'elder', sheet: 'elder-walk' },
       { gx: 7, gy: 13, id: 'fisher', talk: 'fisher', sheet: 'fisher-walk' },
-      { gx: 2, gy: 10, id: 'boy', talk: 'boy', sheet: 'child-walk' }
+      // Lost until his mother has thanked you; then he is home (hut-mother).
+      { gx: 2, gy: 10, id: 'boy', talk: 'boy', sheet: 'child-walk', hideFlag: 'boy-reward' }
     ],
     // Beside the spine's mouth, not on the pier lane (every trip to the
     // fisher crossed it).
@@ -243,7 +267,11 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
     'village',
     DOOR_MR,
     { id: 'mother', talk: 'mother', sheet: 'woman-walk' },
-    { tint: { r: 0.88, g: 0.86, b: 1 } }
+    {
+      tint: { r: 0.88, g: 0.86, b: 1 },
+      // The rescued boy, by the bed foot once the side quest has paid out.
+      npcs: [{ gx: 2, gy: 7, id: 'boy-home', talk: 'boy-home', sheet: 'child-walk', needFlag: 'boy-reward' }]
+    }
   ),
   'hall-inn': hut(
     'village',
@@ -700,10 +728,10 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
   }
 }
 
-export function owWalkable(realm: OwRealmId, gx: number, gy: number): boolean {
+export function owWalkable(realm: OwRealmId, gx: number, gy: number, has?: (flag: string) => boolean): boolean {
   if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return false
   // NPCs occupy their tile: you stop on the square in front and talk.
-  if (OW_REALMS[realm].npcs?.some((npc) => npc.gx === gx && npc.gy === gy)) return false
+  if (owNpcAt(realm, gx, gy, has)) return false
   return OW_REALMS[realm].rows[gy].charAt(gx) === '.'
 }
 
@@ -718,8 +746,8 @@ export function owExitAt(realm: OwRealmId, gx: number, gy: number): OwExit | und
   return OW_REALMS[realm].exits.find((exit) => exit.gx === gx && exit.gy === gy)
 }
 
-export function owNpcAt(realm: OwRealmId, gx: number, gy: number): OwNpc | undefined {
-  return OW_REALMS[realm].npcs?.find((npc) => npc.gx === gx && npc.gy === gy)
+export function owNpcAt(realm: OwRealmId, gx: number, gy: number, has?: (flag: string) => boolean): OwNpc | undefined {
+  return OW_REALMS[realm].npcs?.find((npc) => npc.gx === gx && npc.gy === gy && owNpcPresent(npc, has))
 }
 
 export function owSignAt(realm: OwRealmId, gx: number, gy: number): OwSign | undefined {

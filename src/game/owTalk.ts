@@ -106,6 +106,7 @@ export const OW_TALKS: Record<string, OwTalk> = {
   'mother-ask': { face: 'woman-walk', pages: [{ lines: ['ow-mother-1a', 'ow-mother-1b'] }] },
   'mother-thanks': { face: 'woman-walk', pages: [{ lines: ['ow-mother-2a', 'ow-mother-2b'] }], then: 'reward:boy' },
   'mother-done': { face: 'woman-walk', pages: [{ lines: ['ow-mother-3a'] }] },
+  'boy-home': { face: 'child-walk', pages: [{ lines: ['ow-boy-2a', 'ow-boy-2b'] }] },
   // Rookhaven, the Act 2 town beyond Crow Road.
   'rook-fisher': { face: 'fisher-walk', pages: [{ lines: ['ow-rook-fisher-1a', 'ow-rook-fisher-1b'] }] },
   'rook-boy': { face: 'child-walk', pages: [{ lines: ['ow-rook-boy-1a', 'ow-rook-boy-1b'] }] },

@@ -83,6 +83,9 @@ $lines = [ordered]@{
   'ow-mother-2a'      = 'YOU FOUND HIM? BLESS YOU.'
   'ow-mother-2b'      = 'TAKE THIS. IT WAS HIS FATHER''S.'
   'ow-mother-3a'      = 'HE''S HOME. THANK YOU, TRAVELER.'
+  # The boy, home again (hut-mother once 'boy-reward' is set).
+  'ow-boy-2a'         = 'I DIDN''T EVEN CRY.'
+  'ow-boy-2b'         = 'MUCH.'
   # Rookhaven.
   'ow-rook-fisher-1a' = 'THE LAKE HERE FREEZES BY DUSK.'
   'ow-rook-fisher-1b' = 'NOTHING BITES. NOTHING HAS FOR YEARS.'

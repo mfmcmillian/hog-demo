@@ -2,6 +2,13 @@ package-lock.json
 *.js
 node_modules
 bin/
+# Build output (sdk-commands build writes it from assets/scene/main.composite).
+main.crdt
+# Scratch: crops for image prompts, snapshots pulled from the worlds server.
+_crop-*.png
+*-crop-*.png
+about.json
+entity.json
 .DS_Store
 **/.DS_Store
 npm-debug.log*

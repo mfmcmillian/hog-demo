@@ -21,8 +21,10 @@ $fontPx = 39 * $scale
 $font = New-Object System.Drawing.Font('Segoe UI', $fontPx, [System.Drawing.FontStyle]::Regular, [System.Drawing.GraphicsUnit]::Pixel)
 
 $lines = [ordered]@{
-  'continue' = 'Tap to continue'
-  'skip'     = 'Tap to skip'
+  'continue'  = 'Tap to continue'
+  'skip'      = 'Tap to skip'
+  # Fuse screen with no fusable pair in the collection (fuse.tsx).
+  'fuse-none' = 'No heroes eligible to fuse'
 }
 
 foreach ($kv in $lines.GetEnumerator()) {

@@ -190,20 +190,27 @@ export function FuseScreen() {
         }}
       >
         <Img k="party-bench-plate" w={38} tint={Color4.White()} margin={2} />
-        <PagedColumn
-          show={canPage}
-          leftK="party-arrow-l"
-          rightK="party-arrow-r"
-          boxW={60}
-          boxH={48}
-          imgW={54}
-          onLeft={tap(() => shiftBench(-1))}
-          onRight={tap(() => shiftBench(1))}
-        >
-          {page.map(({ owned, i }) => (
-            <FuseHeroTile key={owned.defId} owned={owned} index={i} />
-          ))}
-        </PagedColumn>
+        {faces.length === 0 ? (
+          // Nothing holds a pair: say so instead of listing cards that can't fuse.
+          <UiEntity uiTransform={{ width: 108, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+            <Img k="fuse-none" w={34} tint={muted} margin={0} />
+          </UiEntity>
+        ) : (
+          <PagedColumn
+            show={canPage}
+            leftK="party-arrow-l"
+            rightK="party-arrow-r"
+            boxW={60}
+            boxH={48}
+            imgW={54}
+            onLeft={tap(() => shiftBench(-1))}
+            onRight={tap(() => shiftBench(1))}
+          >
+            {page.map(({ owned, i }) => (
+              <FuseHeroTile key={owned.defId} owned={owned} index={i} />
+            ))}
+          </PagedColumn>
+        )}
       </UiEntity>
       <Notice />
       <MenuTitle k="fuse-banner" />

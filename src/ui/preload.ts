@@ -177,7 +177,12 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
     case 'party':
     case 'fuse':
     case 'allies':
-      return uniq([...ownedSheetSrcs(), ...game.collection.map((owned) => hallSrc(owned.defId)), hallSrc('inspect')])
+      return uniq([
+        ...ownedSheetSrcs(),
+        ...game.collection.map((owned) => hallSrc(owned.defId)),
+        hallSrc('inspect'),
+        ...labelSrcs(['fuse-none'])
+      ])
     case 'shop':
       return labelSrcs(['map-shop', 'shop-title', 'ember', 'pack-vow', 'crown'])
     case 'trade':

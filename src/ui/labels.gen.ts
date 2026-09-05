@@ -35,6 +35,7 @@ export const LABELS: Record<string, LabelInfo> = {
   'recruit-first': { src: 'images/labels/recruit-first.png', w: 32, h: 287 },
   'no-coin': { src: 'images/labels/no-coin.png', w: 51, h: 276 },
   'fuse-rule': { src: 'images/labels/fuse-rule.png', w: 51, h: 408 },
+  'fuse-none': { src: 'images/labels/fuse-none.png', w: 114, h: 940 },
   'road-failed': { src: 'images/labels/road-failed.png', w: 51, h: 347 },
   recruited: { src: 'images/labels/recruited.png', w: 32, h: 160 },
   fused: { src: 'images/labels/fused.png', w: 51, h: 114 },

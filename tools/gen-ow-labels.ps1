@@ -76,9 +76,11 @@ $lines = [ordered]@{
   'ow-hunter-1b'      = 'BRING FOUR. NEVER WALK ALONE.'
   'ow-mother-1a'      = 'HAVE YOU SEEN MY BOY?'
   'ow-mother-1b'      = 'HE RUNS OFF TO THE GREEN.'
+  # Innkeepers put you to bed (talk closes -> home); merchants open the shop.
   'ow-inn-1a'         = 'AN OGRE HOLDS THE ROAD TO THE MOOR GATE.'
-  'ow-inn-1b'         = 'REST FIRST. THE CHEST IS YOURS.'
+  'ow-inn-1b'         = 'SLEEP HERE. YOU WAKE AT HOME.'
   'ow-merchant-1a'    = 'PACKS FROM THE CAPITAL, FRESH SEALED.'
+  'ow-merchant-1b'    = 'HAVE A LOOK.'
   # Lost-boy side quest.
   'ow-mother-2a'      = 'YOU FOUND HIM? BLESS YOU.'
   'ow-mother-2b'      = 'TAKE THIS. IT WAS HIS FATHER''S.'
@@ -110,7 +112,7 @@ $lines = [ordered]@{
   'ow-seer-thanks-1a' = 'THE WELL RUNS CLEAR. I CAN SEE AGAIN.'
   'ow-seer-thanks-1b' = 'TAKE THE ABBOT''S CARD. YOU EARNED IT.'
   'ow-seer-done-1a'   = 'GO HOME. THE ELDER WILL WANT YOU.'
-  'ow-rook-inn-1a'    = 'COLD ROAD. REST YOUR COMPANY HERE.'
+  'ow-rook-inn-1a'    = 'COLD ROAD. REST YOUR COMPANY.'
 }
 
 $strips = [ordered]@{}

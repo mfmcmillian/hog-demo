@@ -10,7 +10,8 @@ export type OwTalkPage = { lines: string[] }
  * labels.gen walk-sheet key whose standing cell fills the frame; omitted =
  * portrait-less band (signs, coin finds). */
 /** `then`: what happens when the talk closes. 'reward:<quest>' hands out a
- * side-quest prize. Handled in nav.ts (runOwTalkThen). */
+ * side-quest prize; 'shop' opens the pack shop (back returns to the map);
+ * 'home' is the innkeeper's bed. Handled in nav.ts (runOwTalkThen). */
 export type OwTalk = { face?: string; pages: OwTalkPage[]; then?: string }
 
 export const OW_TALKS: Record<string, OwTalk> = {
@@ -99,8 +100,9 @@ export const OW_TALKS: Record<string, OwTalk> = {
   // Cottage hosts: one hint page each.
   weaver: { face: 'woman-walk', pages: [{ lines: ['ow-weaver-1a', 'ow-weaver-1b'] }] },
   hunter: { face: 'man-walk', pages: [{ lines: ['ow-hunter-1a', 'ow-hunter-1b'] }] },
-  merchant: { face: 'man-walk', pages: [{ lines: ['ow-merchant-1a'] }] },
-  inn: { face: 'man-walk', pages: [{ lines: ['ow-inn-1a', 'ow-inn-1b'] }] },
+  // The merchant is the pack shop; the innkeeper's bed is the way home.
+  merchant: { face: 'man-walk', pages: [{ lines: ['ow-merchant-1a', 'ow-merchant-1b'] }], then: 'shop' },
+  inn: { face: 'man-walk', pages: [{ lines: ['ow-inn-1a', 'ow-inn-1b'] }], then: 'home' },
   // Lost-boy side quest: ask -> find him on the green -> come back for his
   // father's card -> done.
   'mother-ask': { face: 'woman-walk', pages: [{ lines: ['ow-mother-1a', 'ow-mother-1b'] }] },
@@ -123,7 +125,7 @@ export const OW_TALKS: Record<string, OwTalk> = {
   },
   'widow-done': { face: 'woman-walk', pages: [{ lines: ['ow-widow-done-1a'] }] },
   'rook-warden': { face: 'man-walk', pages: [{ lines: ['ow-rook-warden-1a', 'ow-rook-warden-1b'] }] },
-  'rook-merchant': { face: 'man-walk', pages: [{ lines: ['ow-rook-merchant-1a'] }] },
+  'rook-merchant': { face: 'man-walk', pages: [{ lines: ['ow-rook-merchant-1a', 'ow-merchant-1b'] }], then: 'shop' },
   'rook-seer': { face: 'woman-walk', pages: [{ lines: ['ow-rook-seer-1a', 'ow-rook-seer-1b'] }] },
   // Quest 'well': with the queen down, the seer names the mist's true
   // source, the well down the west road; the abbot's card is her thanks.
@@ -134,7 +136,7 @@ export const OW_TALKS: Record<string, OwTalk> = {
     then: 'reward:well'
   },
   'seer-done': { face: 'woman-walk', pages: [{ lines: ['ow-seer-done-1a'] }] },
-  'rook-inn': { face: 'man-walk', pages: [{ lines: ['ow-rook-inn-1a'] }] }
+  'rook-inn': { face: 'man-walk', pages: [{ lines: ['ow-rook-inn-1a', 'ow-inn-1b'] }], then: 'home' }
 }
 
 let talkId = ''
@@ -185,6 +187,28 @@ export function npcTalkId(talk: string): string {
       return 'boy'
     default:
       return talk
+  }
+}
+
+/** Does this NPC have story business with you right now? Drives the '!'
+ * marker over their head (owNpcRects). Only the quest folk ever qualify;
+ * hint-givers and townsfolk stay unmarked. */
+export function npcQuestPending(talk: string): boolean {
+  switch (talk) {
+    case 'elder':
+      if (!hasOwFlag('elder-met')) return true // the very first talk
+      if (bossSlain('moor-ogre') && !hasOwFlag('gate-reward')) return true // the ogre's card
+      return hasOwFlag('well-reward') && !hasOwFlag('hall-reward') // sends you to the door / the regent's card
+    case 'rook-widow':
+      return !hasOwFlag('widow-reward')
+    case 'rook-seer':
+      return hasOwFlag('widow-reward') && !hasOwFlag('well-reward')
+    case 'mother':
+      return !hasOwFlag('boy-reward')
+    case 'boy':
+      return !hasOwFlag('boy-found')
+    default:
+      return false
   }
 }
 

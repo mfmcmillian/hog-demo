@@ -55,9 +55,14 @@ const PHASE_TIP: { [P in Phase]?: TipId } = {
   rift: 'friendzone'
 }
 
+/** The pack shop was opened from a merchant's hut: back returns to the map
+ * where you stood, not to the home screen. */
+let shopFromOverworld = false
+
 export function open(phase: Phase) {
   game.phase = phase
   game.selectedSlot = -1
+  shopFromOverworld = false // the home-screen shop goes back home
   resetMenu()
   if (phase === 'quest') game.cursor = Math.min(game.cleared, ROADS.length - 1)
   if (phase === 'rift') playRift()
@@ -85,10 +90,22 @@ export function openOverworld() {
   lockNav()
 }
 
-/** What a closed talk leaves behind: a quest prize (owQuests table). */
+/** What a closed talk leaves behind: a quest prize (owQuests table), the
+ * merchant's shop, or the innkeeper's bed (home). */
 export function runOwTalkThen(then: string) {
   if (!then) return
   const [kind, arg] = then.split(':')
+  if (kind === 'shop') {
+    open('shop')
+    shopFromOverworld = true
+    lockNav()
+    return
+  }
+  if (kind === 'home') {
+    goHome()
+    lockNav()
+    return
+  }
   if (kind !== 'reward') return
   const quest = owQuest(arg)
   if (!quest || questRewarded(quest.id)) return
@@ -297,7 +314,10 @@ export function back() {
   if (!isBootReady()) return
   if (owTalkActive()) {
     playCancel()
-    runOwTalkThen(dismissOwTalk())
+    // Cancelling still pays a quest prize, but doesn't walk you into the
+    // shop or put you to bed: those need the talk read through.
+    const then = dismissOwTalk()
+    if (then.startsWith('reward:')) runOwTalkThen(then)
     lockNav()
     return
   }
@@ -364,6 +384,12 @@ export function back() {
   if (game.phase === 'shop' && game.pendingPack) {
     if (game.chestOpening) return // the chest is already opening
     cancelPack()
+    lockNav()
+    return
+  }
+  if (game.phase === 'shop' && shopFromOverworld) {
+    shopFromOverworld = false
+    resumeOverworld()
     lockNav()
     return
   }

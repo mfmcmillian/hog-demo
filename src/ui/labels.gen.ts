@@ -125,6 +125,7 @@ export const LABELS: Record<string, LabelInfo> = {
   'ow-gate': { src: 'images/chars/ow-gate-a.png', w: 512, h: 512 },
   'ow-lamp': { src: 'images/chars/ow-lamp-b.png', w: 512, h: 512 },
   'ow-key': { src: 'images/chars/ow-key-b.png', w: 512, h: 512 },
+  'ow-quest': { src: 'images/chars/ow-quest-a.png', w: 128, h: 128 },
   'fog-a': { src: 'images/fx/fog-b.png', w: 512, h: 512 },
   'map-hut': { src: 'images/maps/hut-a.jpg', w: 1152, h: 648 },
   'woman-walk': { src: 'images/chars/woman-walk-a.png', w: 512, h: 512 },

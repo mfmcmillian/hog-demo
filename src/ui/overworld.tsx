@@ -220,7 +220,9 @@ export function OverworldScreen() {
                 uvs: cellUvs(0),
                 color: Color4.White()
               }}
-            />
+            >
+              {npc.quest ? <QuestMarker /> : null}
+            </UiEntity>
           )
         })}
         {owMonsterRects(monsterDrawSize).map((mon) => {
@@ -440,6 +442,27 @@ function Overhead() {
         uvs: over.uvs,
         color: tint ? Color4.create(tint.r, tint.g, tint.b, 1) : Color4.White()
       }}
+    />
+  )
+}
+
+/** The '!' over an NPC with story business: bobs over their head (physically
+ * up = stage -x), nested in the NPC quad so it moves with them. */
+function QuestMarker() {
+  const mark = LABELS['ow-quest']
+  if (!mark) return null
+  const size = 46
+  const bob = Math.sin(getIdleTime() * 3) * 4
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: -size * 0.7 - bob, top: (AVATAR - size) / 2 },
+        width: size,
+        height: size,
+        pointerFilter: 'none'
+      }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: mark.src }, uvs: mark.uvs, color: Color4.White() }}
     />
   )
 }

@@ -33,7 +33,7 @@ import {
   owSpawnByKey,
   owWalkable
 } from './owdefs'
-import { grantOwItem, hasOwFlag, hasOwItem, npcTalkId, owTalkActive, setOwFlag, startOwTalk } from './owTalk'
+import { grantOwItem, hasOwFlag, hasOwItem, npcQuestPending, npcTalkId, owTalkActive, setOwFlag, startOwTalk } from './owTalk'
 import { game } from './store'
 
 // Pokemon-style overworld: 9x16 tile grids over pre-rotated backdrops
@@ -604,12 +604,14 @@ function tileRect(px: number, py: number, size: number, cell = TILE): { left: nu
   return { left: stageX - size / 2 - 10, top: stageY - size / 2 }
 }
 
-export function owNpcRects(size: number): { id: string; sheet: string; left: number; top: number }[] {
+/** `quest`: draw the '!' marker — this NPC has story business with you. */
+export function owNpcRects(size: number): { id: string; sheet: string; quest: boolean; left: number; top: number }[] {
   return (OW_REALMS[realmId].npcs ?? [])
     .filter((npc) => owNpcPresent(npc, hasOwFlag))
     .map((npc) => ({
       id: npc.id,
       sheet: npc.sheet,
+      quest: npcQuestPending(npc.talk),
       ...tileRect(npc.gx, npc.gy, size)
     }))
 }

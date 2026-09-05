@@ -122,6 +122,7 @@ function realmSrcs(id: OwRealmId): string[] {
     'ow-gate',
     'ow-lamp',
     'ow-key',
+    'ow-quest',
     realm.over ?? '',
     realm.fog ? 'fog-a' : ''
   ]

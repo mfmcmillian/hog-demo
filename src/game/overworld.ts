@@ -273,8 +273,10 @@ function monsterOn(gx: number, gy: number): { key: string; id: string } | undefi
 /** Contact! The roamer brings its whole pack (spawn def) into the fight.
  * False when the fight can't start (no party) so walking stays possible. */
 function triggerWildBattle(mon: { key: string; id: string }): boolean {
-  const pack = owSpawnByKey(mon.key)?.pack ?? []
-  if (!startWildBattle([mon.id, ...pack])) return false
+  const spawn = owSpawnByKey(mon.key)
+  const pack = spawn?.pack ?? []
+  const kind = spawn?.boss ? 'boss' : spawn?.guard ? 'guard' : 'roam'
+  if (!startWildBattle([mon.id, ...pack], kind)) return false
   wildReturn = { realm: realmId, gx: coarse(ow.gx), gy: coarse(ow.gy), facing: ow.facing, key: mon.key, id: mon.id }
   padDir = ''
   return true

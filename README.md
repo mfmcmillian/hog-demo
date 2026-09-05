@@ -27,6 +27,10 @@ Everything is designed phone-first. Hold the phone portrait and the whole game �
 
 ## Features
 
+### Walk the overworld
+
+Clear the first Road and Antrom Green opens: a top-down world you walk tile by tile with the other players in the scene. Ten hand-painted realms — two villages (one under snow), wilds and a fen, a crow-haunted road, the Moor Gate, four dungeons — with villagers to talk to, chests to find, and a five-quest storyline paid in cards. Every monster you fell has a chance to leave its own card behind (roamers rarely, path guards more often, and the warlords once you have beaten the story and they stand again). Dungeons are real puzzles: push stones onto marks to open gates, find the key for a sealed door, hop one-way ledges, and walk under the painting's own arches. The world is shared — any player's kill clears a blocked path for everyone — but the warlords at the end of each act are yours to fell. Finish the line and the credits roll; the warlords stand again for another run, this time dropping their own cards.
+
 ### Raid with friends
 
 <img src="docs/img/hog-raid.webp" alt="A party of heroes battling a colossal ogre boss" width="640" />
@@ -94,5 +98,6 @@ Open the Decentraland preview, hold the phone portrait (or narrow the window), a
 
 - **Decentraland SDK7** scene with an authoritative multiplayer server (`src/server`) — saves, trades, festivals, and raids are validated server-side.
 - **React-ECS UI**: the entire game is a screen-space UI rendered over a minimal 3D shell, tuned for portrait phones.
-- **Hand-built art pipeline**: every screen, button, and label is pre-rendered imagery; combat uses sprite-sheet flipbooks for hero attack animations.
+- **Hand-built art pipeline**: every screen, button, and label is pre-rendered imagery; combat uses sprite-sheet flipbooks for hero attack animations. Overworld maps are painted from ASCII collision layouts (`tools/render-ow-layout.ps1` → painting → `tools/process-ow-map.ps1`), and each dungeon puzzle is verified solvable by a BFS solver before it ships.
+- **Energy is uncapped in this build**: there is no regen timer yet, so the energy bar never blocks play.
 - Deployed to the Decentraland World <code>hogdemo.dcl.eth</code>.

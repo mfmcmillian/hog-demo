@@ -3,6 +3,7 @@ import { buildBattle, stepBattle } from './combat'
 import { COLLECTIBLE_HEROES, DEBUG, OATH_DROP_ID } from './debug'
 import { BOSS_IDS, getDef, grantXp, makeOwned, pickWeighted, rarityWeight, rollDef, rollDefOf, xpProgress } from './familiars'
 import { goHome, resetMenu, revealAcquisition } from './menu'
+import { questCycle } from './owQuests'
 import { partyUnits } from './party'
 import { clearFloor, resetRunRewards, roadStarOf } from './progress'
 import { FLOORS, ROADS, dropStarsFor, floorCoins, floorFoes, floorScale, starScale } from './quests'
@@ -58,12 +59,19 @@ export function startOathClash() {
 const RARITY_SCALE: Record<Rarity, number> = { common: 0, uncommon: 0.25, rare: 0.55, epic: 0.95, legendary: 1.4, mythic: 1.8 }
 const RARITY_COINS: Record<Rarity, number> = { common: 8, uncommon: 14, rare: 22, epic: 36, legendary: 52, mythic: 70 }
 
-/** Overworld monster contact: a free roaming fight, no energy, no card drop.
- * MMBN-style packs: the roamer plus its spawn's `pack` all take the field.
- * Difficulty scales with roads cleared AND the toughest foe's rarity; coins
- * sum over the whole pack. Returns false (and shows the recruit notice)
- * when there is no party to field. */
-export function startWildBattle(foeIds: string[]): boolean {
+/** Chance a felled overworld monster leaves its own card behind. Roamers are
+ * the grind, guards hold a path so they pay better, and a warlord only drops
+ * on the coins run (its first card is the quest reward, see owQuests). */
+const WILD_DROP: Record<WildKind, number> = { roam: 0.15, guard: 0.35, boss: 0.6 }
+export type WildKind = 'roam' | 'guard' | 'boss'
+
+/** Overworld monster contact: a free roaming fight, no energy. MMBN-style
+ * packs: the roamer plus its spawn's `pack` all take the field. Difficulty
+ * scales with roads cleared AND the toughest foe's rarity; coins sum over
+ * the whole pack. A win may drop the leader's own card (WILD_DROP), 1-star,
+ * revealed on the way back to the map. Returns false (and shows the recruit
+ * notice) when there is no party to field. */
+export function startWildBattle(foeIds: string[], kind: WildKind = 'roam'): boolean {
   if (partyUnits().length === 0) {
     game.notice = 'recruit-first'
     return false
@@ -78,6 +86,12 @@ export function startWildBattle(foeIds: string[]): boolean {
   const scale = 1 + game.cleared * 0.4 + Math.max(...rarities.map((rarity) => RARITY_SCALE[rarity]))
   game.battle = buildBattle(partyUnits(), foeIds, ally, scale)
   game.battle.coins = rarities.reduce((sum, rarity) => sum + RARITY_COINS[rarity], 0) + game.cleared * 6
+  const mayDrop = kind !== 'boss' || questCycle() > 0
+  if (mayDrop && Math.random() < WILD_DROP[kind]) {
+    const drop = makeOwned(foeIds[0])
+    game.battle.dropId = drop.defId
+    game.pendingDrop = drop
+  }
   enterBattlePhase()
   return true
 }

@@ -1,6 +1,5 @@
 import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
-import { open } from '../game/nav'
 import { game } from '../game/store'
 import {
   getMyName,
@@ -126,7 +125,7 @@ function TradePartnerList() {
           <Img k="invite" w={24} tint={gold} />
         </TravelerPlate>
       ))}
-      {trade.closed ? <Img k="cancelled" w={20} tint={danger} margin={8} /> : null}
+      {trade.closed ? <Img k={trade.closed} w={20} tint={danger} margin={8} /> : null}
     </UiEntity>
   )
 }
@@ -171,7 +170,12 @@ export function TradeScreen() {
         <TradePartnerList />
       )}
       {trade.table ? (
-        <HeroPickStrip hint="offer-card" selectedUid={sides.mine?.uid} onPick={(uid) => tradeOffer(uid)} />
+        <HeroPickStrip
+          hint="offer-card"
+          empty="trade-none"
+          selectedUid={sides.mine?.uid}
+          onPick={(uid) => tradeOffer(uid)}
+        />
       ) : null}
       <Notice />
       <MenuTitle k="trade-title" />
@@ -182,7 +186,10 @@ export function TradeScreen() {
 /** Incoming trade invite toast; rendered over every screen. */
 export function TradeInviteToast() {
   const invite = trade.invite
-  if (!invite || game.phase === 'battle' || game.phase === 'rift' || game.phase === 'start') return null
+  const p = game.phase
+  if (!invite || p === 'battle' || p === 'banner' || p === 'report' || p === 'rift' || p === 'start' || p === 'intro' || p === 'credits') {
+    return null
+  }
   return (
     <UiEntity
       uiTransform={{
@@ -200,10 +207,8 @@ export function TradeInviteToast() {
       <Img k="wants-trade" w={20} tint={cream} margin={6} />
       <UiEntity
         uiTransform={{ width: 60, height: 130, alignItems: 'center', justifyContent: 'center', margin: 4 }}
-        onMouseDown={press('trade:accept', () => {
-          tradeAccept()
-          if (game.phase === 'home') open('trade')
-        })}
+        // The table state that follows pulls us onto the trade screen (tickTrade).
+        onMouseDown={press('trade:accept', () => tradeAccept())}
       >
         <UiEntity
           uiTransform={{

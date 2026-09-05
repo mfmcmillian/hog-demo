@@ -61,11 +61,14 @@ export const OW_LABELS: Record<string, LabelInfo> = {
   'ow-mother-1a': { src: 'images/labels/ow-mother-1a.png', w: 57, h: 483 },
   'ow-mother-1b': { src: 'images/labels/ow-mother-1b.png', w: 57, h: 544 },
   'ow-inn-1a': { src: 'images/labels/ow-inn-1a.png', w: 57, h: 913 },
-  'ow-inn-1b': { src: 'images/labels/ow-inn-1b.png', w: 57, h: 615 },
+  'ow-inn-1b': { src: 'images/labels/ow-inn-1b.png', w: 57, h: 677 },
   'ow-merchant-1a': { src: 'images/labels/ow-merchant-1a.png', w: 57, h: 784 },
+  'ow-merchant-1b': { src: 'images/labels/ow-merchant-1b.png', w: 57, h: 275 },
   'ow-mother-2a': { src: 'images/labels/ow-mother-2a.png', w: 57, h: 562 },
   'ow-mother-2b': { src: 'images/labels/ow-mother-2b.png', w: 57, h: 607 },
   'ow-mother-3a': { src: 'images/labels/ow-mother-3a.png', w: 57, h: 669 },
+  'ow-boy-2a': { src: 'images/labels/ow-boy-2a.png', w: 57, h: 362 },
+  'ow-boy-2b': { src: 'images/labels/ow-boy-2b.png', w: 57, h: 141 },
   'ow-rook-fisher-1a': { src: 'images/labels/ow-rook-fisher-1a.png', w: 57, h: 625 },
   'ow-rook-fisher-1b': { src: 'images/labels/ow-rook-fisher-1b.png', w: 57, h: 804 },
   'ow-rook-boy-1a': { src: 'images/labels/ow-rook-boy-1a.png', w: 57, h: 663 },
@@ -87,7 +90,7 @@ export const OW_LABELS: Record<string, LabelInfo> = {
   'ow-seer-thanks-1a': { src: 'images/labels/ow-seer-thanks-1a.png', w: 57, h: 766 },
   'ow-seer-thanks-1b': { src: 'images/labels/ow-seer-thanks-1b.png', w: 57, h: 777 },
   'ow-seer-done-1a': { src: 'images/labels/ow-seer-done-1a.png', w: 57, h: 734 },
-  'ow-rook-inn-1a': { src: 'images/labels/ow-rook-inn-1a.png', w: 57, h: 774 }
+  'ow-rook-inn-1a': { src: 'images/labels/ow-rook-inn-1a.png', w: 57, h: 429 }
 }
 
 Object.assign(LABELS, OW_LABELS)

@@ -20,7 +20,7 @@ import { advanceOwTalk, dismissOwTalk, owTalkActive, setOwFlag } from './owTalk'
 import { leaveHeroCard, leaveResult, openLevels, startFloor } from './roads'
 import { cancelPack, openPendingChest, requestPack } from './shop'
 import { findOwned, game } from './store'
-import { advanceTip, dismissTip, maybeStartTip, tipShowing } from './tutorial'
+import { advanceTip, dismissTip, maybeStartTip, questingUnlocked, tipShowing } from './tutorial'
 import { PARTY_SIZE, Phase, TipId } from './types'
 
 export const MENU_WINDOW = 4
@@ -55,9 +55,14 @@ const PHASE_TIP: { [P in Phase]?: TipId } = {
   rift: 'friendzone'
 }
 
+/** A home screen opened from inside a cottage (the merchant's shop, the
+ * inn's bench): back returns to the map where you stood, not to home. */
+let screenFromOverworld: Phase | '' = ''
+
 export function open(phase: Phase) {
   game.phase = phase
   game.selectedSlot = -1
+  screenFromOverworld = '' // opened from the home screen: back goes home
   resetMenu()
   if (phase === 'quest') game.cursor = Math.min(game.cleared, ROADS.length - 1)
   if (phase === 'rift') playRift()
@@ -72,6 +77,11 @@ export function open(phase: Phase) {
 /** The home village button: resume the map where you left it this session,
  * or spawn on the plaza the first time. */
 export function openOverworld() {
+  // Locked until the Moor Gate road is cleared (see tutorial.questingUnlocked).
+  if (!questingUnlocked()) {
+    game.notice = 'clear-road'
+    return
+  }
   if (!owVisited()) {
     open('overworld')
     return
@@ -80,10 +90,17 @@ export function openOverworld() {
   lockNav()
 }
 
-/** What a closed talk leaves behind: a quest prize (owQuests table). */
+/** What a closed talk leaves behind: a quest prize (owQuests table), or a
+ * home screen the host keeps (merchant -> shop, innkeeper -> party bench). */
 export function runOwTalkThen(then: string) {
   if (!then) return
   const [kind, arg] = then.split(':')
+  if (kind === 'shop' || kind === 'party') {
+    open(kind)
+    screenFromOverworld = kind
+    lockNav()
+    return
+  }
   if (kind !== 'reward') return
   const quest = owQuest(arg)
   if (!quest || questRewarded(quest.id)) return
@@ -292,7 +309,10 @@ export function back() {
   if (!isBootReady()) return
   if (owTalkActive()) {
     playCancel()
-    runOwTalkThen(dismissOwTalk())
+    // Cancelling still pays a quest prize, but doesn't open the host's
+    // screen: that needs the talk read through.
+    const then = dismissOwTalk()
+    if (then.startsWith('reward:')) runOwTalkThen(then)
     lockNav()
     return
   }
@@ -359,6 +379,12 @@ export function back() {
   if (game.phase === 'shop' && game.pendingPack) {
     if (game.chestOpening) return // the chest is already opening
     cancelPack()
+    lockNav()
+    return
+  }
+  if (game.phase === screenFromOverworld) {
+    screenFromOverworld = ''
+    resumeOverworld()
     lockNav()
     return
   }

@@ -14,8 +14,11 @@ function fuseUnits(): OwnedFamiliar[] {
   return out
 }
 
+/** The bench on the fuse screen: only faces that can fuse right now (two
+ * copies at some rank below max). Nothing eligible = an empty list, and the
+ * screen says so instead of showing cards that can't be used. */
 export function fuseFaces(): OwnedFamiliar[] {
-  return bestPerFace(fuseUnits())
+  return bestPerFace(fuseUnits()).filter((owned) => fusableRank(owned.defId) !== undefined)
 }
 
 function fuseAtRank(defId: string, stars: number): OwnedFamiliar[] {
@@ -27,11 +30,16 @@ export function fuseCount(defId: string, stars: number): number {
   return fuseAtRank(defId, stars).length
 }
 
-function nextFuseRank(defId: string): number {
+/** Lowest rank of this face holding a fusable pair, if any. */
+function fusableRank(defId: string): number | undefined {
   for (let stars = 1; stars < MAX_STARS; stars++) {
     if (fuseCount(defId, stars) >= 2) return stars
   }
-  return 1
+  return undefined
+}
+
+function nextFuseRank(defId: string): number {
+  return fusableRank(defId) ?? 1
 }
 
 function autoFillFuse() {

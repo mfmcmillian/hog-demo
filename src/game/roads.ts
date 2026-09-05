@@ -228,12 +228,13 @@ export function leaveHeroCard() {
   game.starBurstFrom = 0
   game.starBurstTo = 0
   if (acquired) {
-    if (back === 'home') seatInParty(acquired.uid)
+    if (back === 'home' || back === 'trade') seatInParty(acquired.uid)
     game.reveal = undefined
     game.dropBack = 'home'
     // The questline's last card rolls the credits (endCredits goes home).
     if (back === 'credits') game.creditsAt = Date.now()
-    closeOverlay(back === 'home' ? 'leaveResult' : back)
+    // Trade's card ceremony goes home, not back to the empty hall.
+    closeOverlay(back === 'home' ? 'leaveResult' : back === 'trade' ? 'home' : back)
     if (back === 'fuse') prepareFuse()
     return
   }

@@ -58,10 +58,35 @@ export type OwExit = {
   needFlag?: string
   /** Zelda gate: must own this key item (see game.owItems). */
   needItem?: string
+  /** Wide door: walking into any of these blocked tiles (a cottage's whole
+   * front) enters as if you had stepped onto the exit tile itself. */
+  also?: { gx: number; gy: number }[]
 }
 /** `sheet` = labels.gen key of the 4x4 walk sheet drawn on the map (cell 0)
  * and used as the talk portrait. `talk` = OW_TALKS id ('elder' picks by state). */
-export type OwNpc = { gx: number; gy: number; id: string; talk: string; sheet: string }
+export type OwNpc = {
+  gx: number
+  gy: number
+  id: string
+  talk: string
+  sheet: string
+  /** Story placement: only here while this owFlag is set / until it is set
+   * (the lost boy stands on the green, then by his mother's hearth). */
+  needFlag?: string
+  hideFlag?: string
+}
+
+/** Is this NPC standing here for a player whose story flags `has` reads?
+ * Without a reader (the server has no per-player story) a conditional NPC
+ * counts as absent, so its tile stays walkable for everyone: the client is
+ * the one that blocks it while the NPC is drawn. */
+export function owNpcPresent(npc: OwNpc, has?: (flag: string) => boolean): boolean {
+  if (!npc.needFlag && !npc.hideFlag) return true
+  if (!has) return false
+  if (npc.needFlag && !has(npc.needFlag)) return false
+  if (npc.hideFlag && has(npc.hideFlag)) return false
+  return true
+}
 export type OwSign = { gx: number; gy: number; talk: string }
 export type OwChest = { gx: number; gy: number; id: string; loot: { coins?: number; item?: string } }
 /** Pushable stone. Resets on re-enter; a switch under it opens locks. */
@@ -152,26 +177,29 @@ function hut(
   town: OwRealmId,
   door: { gx: number; gy: number },
   npc: Omit<OwNpc, 'gx' | 'gy'>,
-  more: Pick<OwRealm, 'tint' | 'chests'> = {}
+  more: Pick<OwRealm, 'tint' | 'chests' | 'npcs'> = {}
 ): OwRealm {
+  const { npcs = [], ...rest } = more
   return {
     map: 'map-hut',
     rows: HUT_ROWS,
     exits: [{ gx: 4, gy: 12, to: town, sx: door.gx, sy: door.gy + 1, facing: 'down' }],
     monsters: [],
-    npcs: [{ ...HUT_HOST, ...npc }],
-    ...more
+    npcs: [{ ...HUT_HOST, ...npc }, ...npcs],
+    ...rest
   }
 }
 
 // Town door tiles: the walkable square at the foot of each cottage lot.
 // Stepping onto it fades into that home; leaving drops you on the lane below.
+// Each lot is two tiles wide, so the other front tile (`also`) enters too:
+// walking into the house anywhere along its front is going in, not a bump.
 // Both towns share the village painting, so the lots line up.
-const DOOR_TL = { gx: 2, gy: 4 }
-const DOOR_TR = { gx: 6, gy: 4 }
-const DOOR_ML = { gx: 2, gy: 8 }
-const DOOR_MR = { gx: 6, gy: 8 }
-const DOOR_BL = { gx: 2, gy: 12 }
+const DOOR_TL = { gx: 2, gy: 4, also: [{ gx: 1, gy: 4 }] }
+const DOOR_TR = { gx: 6, gy: 4, also: [{ gx: 7, gy: 4 }] }
+const DOOR_ML = { gx: 2, gy: 8, also: [{ gx: 1, gy: 8 }] }
+const DOOR_MR = { gx: 6, gy: 8, also: [{ gx: 7, gy: 8 }] }
+const DOOR_BL = { gx: 2, gy: 12, also: [{ gx: 1, gy: 12 }] }
 
 // Village painting collision, shared by every town on that art: cottage
 // lots, pines, and the pond are '#'; lanes, lawns, and the five doors '.'.
@@ -189,7 +217,7 @@ const TOWN_ROWS = [
   '#.......#', // 10 south green (boy at 2,10)
   '###...###', // 11 bottom-left house (1-2); lake 6-8
   '##....###', // 12 inn door (2,12); chest 5,12
-  '#......##', // 13 bottom lane (sign 5,13); pier 6,13; fisher in his boat 7,13
+  '#......##', // 13 bottom lane (sign 3,13); pier 6,13; fisher in his boat 7,13
   '####.####', // 14 spine off the map
   '#########' // 15
 ]
@@ -217,9 +245,12 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
     npcs: [
       { gx: 4, gy: 2, id: 'elder', talk: 'elder', sheet: 'elder-walk' },
       { gx: 7, gy: 13, id: 'fisher', talk: 'fisher', sheet: 'fisher-walk' },
-      { gx: 2, gy: 10, id: 'boy', talk: 'boy', sheet: 'child-walk' }
+      // Lost until his mother has thanked you; then he is home (hut-mother).
+      { gx: 2, gy: 10, id: 'boy', talk: 'boy', sheet: 'child-walk', hideFlag: 'boy-reward' }
     ],
-    signs: [{ gx: 5, gy: 13, talk: 'sign-wilds' }],
+    // Beside the spine's mouth, not on the pier lane (every trip to the
+    // fisher crossed it).
+    signs: [{ gx: 3, gy: 13, talk: 'sign-wilds' }],
     chests: [{ gx: 5, gy: 12, id: 'chest-village-lake', loot: { coins: 20 } }]
   },
   // Village homes: quest rooms (a host with a hint, sometimes a chest or a
@@ -241,7 +272,11 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
     'village',
     DOOR_MR,
     { id: 'mother', talk: 'mother', sheet: 'woman-walk' },
-    { tint: { r: 0.88, g: 0.86, b: 1 } }
+    {
+      tint: { r: 0.88, g: 0.86, b: 1 },
+      // The rescued boy, by the bed foot once the side quest has paid out.
+      npcs: [{ gx: 2, gy: 7, id: 'boy-home', talk: 'boy-home', sheet: 'child-walk', needFlag: 'boy-reward' }]
+    }
   ),
   'hall-inn': hut(
     'village',
@@ -698,10 +733,10 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
   }
 }
 
-export function owWalkable(realm: OwRealmId, gx: number, gy: number): boolean {
+export function owWalkable(realm: OwRealmId, gx: number, gy: number, has?: (flag: string) => boolean): boolean {
   if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return false
   // NPCs occupy their tile: you stop on the square in front and talk.
-  if (OW_REALMS[realm].npcs?.some((npc) => npc.gx === gx && npc.gy === gy)) return false
+  if (owNpcAt(realm, gx, gy, has)) return false
   return OW_REALMS[realm].rows[gy].charAt(gx) === '.'
 }
 
@@ -716,8 +751,14 @@ export function owExitAt(realm: OwRealmId, gx: number, gy: number): OwExit | und
   return OW_REALMS[realm].exits.find((exit) => exit.gx === gx && exit.gy === gy)
 }
 
-export function owNpcAt(realm: OwRealmId, gx: number, gy: number): OwNpc | undefined {
-  return OW_REALMS[realm].npcs?.find((npc) => npc.gx === gx && npc.gy === gy)
+/** The door whose front you just walked into: an exit listing this blocked
+ * tile in `also` (see DOOR_TL). */
+export function owDoorInto(realm: OwRealmId, gx: number, gy: number): OwExit | undefined {
+  return OW_REALMS[realm].exits.find((exit) => exit.also?.some((tile) => tile.gx === gx && tile.gy === gy))
+}
+
+export function owNpcAt(realm: OwRealmId, gx: number, gy: number, has?: (flag: string) => boolean): OwNpc | undefined {
+  return OW_REALMS[realm].npcs?.find((npc) => npc.gx === gx && npc.gy === gy && owNpcPresent(npc, has))
 }
 
 export function owSignAt(realm: OwRealmId, gx: number, gy: number): OwSign | undefined {

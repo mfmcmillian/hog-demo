@@ -10,6 +10,7 @@ export function setupPresence(
     loadOnArrive: (address: string) => void
     sessions: Map<string, TradeSession>
     closeTrade: (session: TradeSession, reason: 'declined' | 'cancelled' | 'left' | 'failed') => void
+    dropInvites: (address: string) => void
     invites: Map<string, { from: string; at: number }>
     rift: RiftPub
     publishRift: () => void
@@ -35,7 +36,7 @@ export function setupPresence(
       // Departures: void their trade, free their lobby seat, clear their tile.
       const session = hooks.sessions.get(address)
       if (session) hooks.closeTrade(session, 'left')
-      hooks.invites.delete(address)
+      hooks.dropInvites(address)
       hooks.dropOwPlayer(address)
       if (hooks.rift.phase === 'lobby' && hooks.rift.seats.some((seat) => seat.address === address)) {
         hooks.rift.seats = hooks.rift.seats.filter((seat) => seat.address !== address)

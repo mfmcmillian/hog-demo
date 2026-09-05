@@ -6,7 +6,7 @@ import { open, openOverworld } from '../game/nav'
 import { ElderTalk } from './elderTalk'
 import { goRoad } from '../game/roads'
 import { findOwned, game } from '../game/store'
-import { goPointerShowing, partyPointerShowing } from '../game/tutorial'
+import { goPointerShowing, partyPointerShowing, questingPointerShowing, questingUnlocked } from '../game/tutorial'
 import { duelSeatCount, getMyName, presentPlayers } from '../mp/session'
 import { riftView } from '../mp/views'
 import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs } from './flipbook'
@@ -73,6 +73,8 @@ function HomePoi(props: {
   size: number
   /** Players seated inside; >0 shows a green presence dot by the label. */
   badge?: number
+  /** Not yet earned: drawn dark under the road padlock (same look as a locked road plate). */
+  locked?: boolean
   onTap?: () => void
 }) {
   const info = LABELS[props.k]
@@ -82,6 +84,8 @@ function HomePoi(props: {
   const plateW = 22
   const plateH = plate ? Math.round((plateW * plate.h) / plate.w) : 0
   const plateTop = Math.max(0, Math.round((drawn - plateH) / 2))
+  const tint = props.locked ? Color4.create(0.42, 0.38, 0.48, 1) : Color4.White()
+  const lockW = Math.round(drawn * 0.5)
   return (
     <UiEntity
       uiTransform={{
@@ -103,9 +107,24 @@ function HomePoi(props: {
           textureMode: 'stretch',
           texture: { src: info.src },
           uvs: info.uvs,
-          color: Color4.White()
+          color: tint
         }}
       />
+      {props.locked ? (
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { left: Math.round((drawn - lockW) / 2), top: Math.round((drawn - lockW) / 2) },
+            width: lockW,
+            height: lockW,
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerFilter: 'none'
+          }}
+        >
+          <Img k="road-lock" w={lockW} tint={Color4.White()} margin={0} />
+        </UiEntity>
+      ) : null}
       {plate ? (
         <UiEntity
           uiTransform={{
@@ -121,7 +140,7 @@ function HomePoi(props: {
             textureMode: 'stretch',
             texture: { src: plate.src },
             uvs: plate.uvs,
-            color: cream
+            color: props.locked ? tint : cream
           }}
         />
       ) : null}
@@ -198,8 +217,23 @@ function HomeField() {
         onTap={() => open('rift')}
       />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />
-      {/* The quest map: resumes where you left it this session. */}
-      <HomePoi k="home-overworld" label="questing" left="30%" top="8%" size={130} onTap={() => openOverworld()} />
+      {/* The quest map: locked until the Moor Gate road is cleared, then
+          resumes where you left it this session. */}
+      <HomePoi
+        k="home-overworld"
+        label="questing"
+        left="30%"
+        top="8%"
+        size={130}
+        locked={!questingUnlocked()}
+        onTap={() => openOverworld()}
+      />
+      {questingPointerShowing() ? (
+        // Freshly unlocked: aim the pointer at the POI's center — 30% of the
+        // 735 field + half of 130 across, 8% of the 720 Stage + 65 down —
+        // with the cursor tip's 13/66 offset. Last child so it draws on top.
+        <TutPointer left={285 - 13} top={123 - 66} />
+      ) : null}
     </UiEntity>
   )
 }

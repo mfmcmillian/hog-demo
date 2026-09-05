@@ -27,12 +27,14 @@ import {
   owExitAt,
   owLedgeDir,
   owLockAt,
+  owDoorInto,
   owNpcAt,
+  owNpcPresent,
   owSignAt,
   owSpawnByKey,
   owWalkable
 } from './owdefs'
-import { grantOwItem, hasOwFlag, hasOwItem, npcTalkId, owTalkActive, setOwFlag, startOwTalk } from './owTalk'
+import { grantOwItem, hasOwFlag, hasOwItem, npcQuestPending, npcTalkId, owTalkActive, setOwFlag, startOwTalk } from './owTalk'
 import { game } from './store'
 
 // Pokemon-style overworld: 9x16 tile grids over pre-rotated backdrops
@@ -111,8 +113,15 @@ function publishCoarse(gx: number, gy: number, facing: OwDir): void {
 }
 
 /** Set the local avatar down on a coarse tile (exits / spawn) and tell the room. */
+/** Signs read this visit (`gx,gy`): a sign fires the first time you step on
+ * it after entering a realm, then stays quiet, so a post on a lane you
+ * walk both ways (the pier, a chapel run) doesn't stop you every pass.
+ * Leaving and coming back re-arms it, like the stones. */
+let signsRead = new Set<string>()
+
 function resetPuzzles() {
   blockPos = (OW_REALMS[realmId].blocks ?? []).map((block) => ({ gx: block.gx, gy: block.gy }))
+  signsRead = new Set()
 }
 
 function blockAt(gx: number, gy: number): { gx: number; gy: number } | undefined {
@@ -216,7 +225,7 @@ export function walkable(gx: number, gy: number): boolean {
   if (gx < 0 || gy < 0 || gx >= maxX || gy >= maxY) return false
   const cx = coarse(gx)
   const cy = coarse(gy)
-  if (!owWalkable(realmId, cx, cy)) return false
+  if (!owWalkable(realmId, cx, cy, hasOwFlag)) return false
   if (lockClosed(cx, cy)) return false
   if (blockAt(cx, cy)) return false
   const exit = owExitAt(realmId, cx, cy)
@@ -225,10 +234,10 @@ export function walkable(gx: number, gy: number): boolean {
 }
 
 function canPlaceBlock(gx: number, gy: number): boolean {
-  if (!owWalkable(realmId, gx, gy)) return false
+  if (!owWalkable(realmId, gx, gy, hasOwFlag)) return false
   if (lockClosed(gx, gy)) return false
   if (blockAt(gx, gy)) return false
-  if (owNpcAt(realmId, gx, gy) || owChestAt(realmId, gx, gy) || owSignAt(realmId, gx, gy)) return false
+  if (owChestAt(realmId, gx, gy) || owSignAt(realmId, gx, gy)) return false
   if (owExitAt(realmId, gx, gy)) return false
   return true
 }
@@ -273,8 +282,10 @@ function monsterOn(gx: number, gy: number): { key: string; id: string } | undefi
 /** Contact! The roamer brings its whole pack (spawn def) into the fight.
  * False when the fight can't start (no party) so walking stays possible. */
 function triggerWildBattle(mon: { key: string; id: string }): boolean {
-  const pack = owSpawnByKey(mon.key)?.pack ?? []
-  if (!startWildBattle([mon.id, ...pack])) return false
+  const spawn = owSpawnByKey(mon.key)
+  const pack = spawn?.pack ?? []
+  const kind = spawn?.boss ? 'boss' : spawn?.guard ? 'guard' : 'roam'
+  if (!startWildBattle([mon.id, ...pack], kind)) return false
   wildReturn = { realm: realmId, gx: coarse(ow.gx), gy: coarse(ow.gy), facing: ow.facing, key: mon.key, id: mon.id }
   padDir = ''
   return true
@@ -326,6 +337,14 @@ function tryStep(dir: OwDir): boolean {
   if (!walkable(nx, ny)) {
     if (tryHop(dir, nx, ny)) return true
     if (!tryPush(dir) || !walkable(nx, ny)) {
+      // The rest of a cottage front counts as its door: fade in from here.
+      const door = owDoorInto(realmId, coarse(nx), coarse(ny))
+      if (door && !gateReason(door)) {
+        fade.dir = 1
+        fade.t = 0
+        fade.exit = door
+        return true
+      }
       const exit = owExitAt(realmId, coarse(nx), coarse(ny))
       if (exit) postGateNotice(exit)
       else if (lockClosed(coarse(nx), coarse(ny)) && !game.notice) {
@@ -500,11 +519,13 @@ function tryChest(): boolean {
 
 function trySign(): boolean {
   const sign = owSignAt(realmId, coarse(ow.gx), coarse(ow.gy))
-  if (sign && startOwTalk(sign.talk)) {
-    padDir = ''
-    return true
-  }
-  return false
+  if (!sign) return false
+  const at = `${sign.gx},${sign.gy}`
+  if (signsRead.has(at)) return false
+  if (!startOwTalk(sign.talk)) return false
+  signsRead.add(at)
+  padDir = ''
+  return true
 }
 
 /** The coarse tile the avatar is facing — the square "in front". */
@@ -517,7 +538,7 @@ function tileAhead(): { gx: number; gy: number } {
 
 function tryNpcTalk(): boolean {
   const ahead = tileAhead()
-  const npc = owNpcAt(realmId, ahead.gx, ahead.gy)
+  const npc = owNpcAt(realmId, ahead.gx, ahead.gy, hasOwFlag)
   if (!npc) return false
   const key = `${realmId}:${coarse(ow.gx)},${coarse(ow.gy)}:${npc.id}`
   if (talkedFrom === key) return false
@@ -592,12 +613,16 @@ function tileRect(px: number, py: number, size: number, cell = TILE): { left: nu
   return { left: stageX - size / 2 - 10, top: stageY - size / 2 }
 }
 
-export function owNpcRects(size: number): { id: string; sheet: string; left: number; top: number }[] {
-  return (OW_REALMS[realmId].npcs ?? []).map((npc) => ({
-    id: npc.id,
-    sheet: npc.sheet,
-    ...tileRect(npc.gx, npc.gy, size)
-  }))
+/** `quest`: draw the '!' marker — this NPC has story business with you. */
+export function owNpcRects(size: number): { id: string; sheet: string; quest: boolean; left: number; top: number }[] {
+  return (OW_REALMS[realmId].npcs ?? [])
+    .filter((npc) => owNpcPresent(npc, hasOwFlag))
+    .map((npc) => ({
+      id: npc.id,
+      sheet: npc.sheet,
+      quest: npcQuestPending(npc.talk),
+      ...tileRect(npc.gx, npc.gy, size)
+    }))
 }
 
 export function owChestRects(size: number): { id: string; open: boolean; left: number; top: number }[] {

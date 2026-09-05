@@ -22,7 +22,7 @@ param(
   [Parameter(Mandatory = $true)][string]$name,
   [Parameter(Mandatory = $true)][string[]]$rows,
   [string[]]$over = @(),
-  [string]$assets = "$env:USERPROFILE\.cursor\projects\c-Users-matth-hog-demo\assets"
+  [string]$assets = $(if ($env:HOG_RAW_ASSETS) { $env:HOG_RAW_ASSETS } else { "$env:USERPROFILE\.cursor\projects\c-Users-${env:USERNAME}-hog-demo\assets" })
 )
 
 if ($rows.Count -ne 16) { throw "expected 16 rows, got $($rows.Count)" }

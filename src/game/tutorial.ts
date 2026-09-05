@@ -1,3 +1,4 @@
+import { hasOwFlag } from './owTalk'
 import { benchUnits, partyUnits } from './party'
 import { game } from './store'
 import { TipId } from './types'
@@ -103,6 +104,26 @@ export function goPointerShowing(): boolean {
  */
 export function partyPointerShowing(): boolean {
   if (game.phase !== 'home' || game.freshUids.length === 0) return false
+  return homeClear()
+}
+
+/**
+ * The questing area opens once the Moor Gate road is cleared: that first
+ * boss pays the guaranteed legendary, so the player walks into Antrom Green
+ * with a real party. Until then the home POI sits dark under a lock.
+ */
+export function questingUnlocked(): boolean {
+  return game.cleared >= 1
+}
+
+/**
+ * Pointer on the questing POI the first time it is open and the hall has no
+ * undiscovered cards left to look at (the party pointer goes first). Clears
+ * itself when the player steps onto the map (enterOverworld sets the flag).
+ */
+export function questingPointerShowing(): boolean {
+  if (game.phase !== 'home' || !questingUnlocked()) return false
+  if (game.freshUids.length > 0 || hasOwFlag('guide-village')) return false
   return homeClear()
 }
 

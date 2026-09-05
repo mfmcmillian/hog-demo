@@ -10,8 +10,8 @@ export type OwTalkPage = { lines: string[] }
  * labels.gen walk-sheet key whose standing cell fills the frame; omitted =
  * portrait-less band (signs, coin finds). */
 /** `then`: what happens when the talk closes. 'reward:<quest>' hands out a
- * side-quest prize; 'shop' opens the pack shop (back returns to the map);
- * 'home' is the innkeeper's bed. Handled in nav.ts (runOwTalkThen). */
+ * side-quest prize; 'shop' / 'party' open that home screen with back
+ * returning to the map (merchant, innkeeper). Handled in nav.ts. */
 export type OwTalk = { face?: string; pages: OwTalkPage[]; then?: string }
 
 export const OW_TALKS: Record<string, OwTalk> = {
@@ -100,9 +100,9 @@ export const OW_TALKS: Record<string, OwTalk> = {
   // Cottage hosts: one hint page each.
   weaver: { face: 'woman-walk', pages: [{ lines: ['ow-weaver-1a', 'ow-weaver-1b'] }] },
   hunter: { face: 'man-walk', pages: [{ lines: ['ow-hunter-1a', 'ow-hunter-1b'] }] },
-  // The merchant is the pack shop; the innkeeper's bed is the way home.
+  // The merchant is the pack shop; the innkeeper keeps the bench (party screen).
   merchant: { face: 'man-walk', pages: [{ lines: ['ow-merchant-1a', 'ow-merchant-1b'] }], then: 'shop' },
-  inn: { face: 'man-walk', pages: [{ lines: ['ow-inn-1a', 'ow-inn-1b'] }], then: 'home' },
+  inn: { face: 'man-walk', pages: [{ lines: ['ow-inn-1a', 'ow-inn-1b'] }], then: 'party' },
   // Lost-boy side quest: ask -> find him on the green -> come back for his
   // father's card -> done.
   'mother-ask': { face: 'woman-walk', pages: [{ lines: ['ow-mother-1a', 'ow-mother-1b'] }] },
@@ -136,7 +136,7 @@ export const OW_TALKS: Record<string, OwTalk> = {
     then: 'reward:well'
   },
   'seer-done': { face: 'woman-walk', pages: [{ lines: ['ow-seer-done-1a'] }] },
-  'rook-inn': { face: 'man-walk', pages: [{ lines: ['ow-rook-inn-1a', 'ow-inn-1b'] }], then: 'home' }
+  'rook-inn': { face: 'man-walk', pages: [{ lines: ['ow-rook-inn-1a', 'ow-inn-1b'] }], then: 'party' }
 }
 
 let talkId = ''

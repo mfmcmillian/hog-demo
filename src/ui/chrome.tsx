@@ -66,8 +66,12 @@ function PadHit(props: { dir: OwDir; top: number; left: number }) {
   )
 }
 
-function Dpad() {
+/** `ghost`: the overworld pad sits over the painting, so the disc is mostly
+ * see-through at rest and firms up only while a direction is held. */
+function Dpad(props: { ghost?: boolean } = {}) {
   const disc = LABELS['pad-disc']
+  const held = owPadDir() !== ''
+  const alpha = props.ghost ? (held ? 0.7 : 0.38) : 1
   return (
     <UiEntity uiTransform={{ width: PAD, height: PAD }}>
       {disc ? (
@@ -83,7 +87,7 @@ function Dpad() {
             textureMode: 'stretch',
             texture: { src: disc.src },
             uvs: disc.uvs,
-            color: Color4.White()
+            color: Color4.create(1, 1, 1, alpha)
           }}
         />
       ) : null}
@@ -113,7 +117,7 @@ export function OverworldHud() {
           padding: { top: 4 }
         }}
       >
-        <Dpad />
+        <Dpad ghost />
       </UiEntity>
     </ScreenInsetArea>
   )

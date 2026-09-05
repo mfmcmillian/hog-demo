@@ -20,7 +20,7 @@ import { advanceOwTalk, dismissOwTalk, owTalkActive, setOwFlag } from './owTalk'
 import { leaveHeroCard, leaveResult, openLevels, startFloor } from './roads'
 import { cancelPack, openPendingChest, requestPack } from './shop'
 import { findOwned, game } from './store'
-import { advanceTip, dismissTip, maybeStartTip, tipShowing } from './tutorial'
+import { advanceTip, dismissTip, maybeStartTip, questingUnlocked, tipShowing } from './tutorial'
 import { PARTY_SIZE, Phase, TipId } from './types'
 
 export const MENU_WINDOW = 4
@@ -72,6 +72,11 @@ export function open(phase: Phase) {
 /** The home village button: resume the map where you left it this session,
  * or spawn on the plaza the first time. */
 export function openOverworld() {
+  // Locked until the Moor Gate road is cleared (see tutorial.questingUnlocked).
+  if (!questingUnlocked()) {
+    game.notice = 'clear-road'
+    return
+  }
   if (!owVisited()) {
     open('overworld')
     return

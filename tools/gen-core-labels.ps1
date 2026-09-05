@@ -25,6 +25,11 @@ $lines = [ordered]@{
   'skip'      = 'Tap to skip'
   # Fuse screen with no fusable pair in the collection (fuse.tsx).
   'fuse-none' = 'No heroes eligible to fuse'
+  # Trade hall: empty picker, and why a table or invite closed.
+  'trade-none' = 'Nothing you can trade'
+  'declined'   = 'They declined'
+  'left'       = 'They left'
+  'failed'     = "Couldn't trade"
 }
 
 foreach ($kv in $lines.GetEnumerator()) {

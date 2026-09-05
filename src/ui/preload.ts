@@ -186,6 +186,31 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
     case 'shop':
       return labelSrcs(['map-shop', 'shop-title', 'ember', 'pack-vow', 'crown'])
     case 'trade':
+      return uniq([
+        ...labelSrcs([
+          'map-trade',
+          'trade-title',
+          'trade-name',
+          'trade-card',
+          'trade-swap',
+          'trade-lock-off',
+          'trade-lock-on',
+          'invite',
+          'waiting',
+          'accept',
+          'decline',
+          'no-travelers',
+          'offer-card',
+          'cancelled',
+          'declined',
+          'left',
+          'failed',
+          'wants-trade',
+          'trade-none',
+          'empty-seat'
+        ]),
+        ...ownedSheetSrcs()
+      ])
     case 'rift':
     case 'festival':
     case 'settings':
@@ -207,7 +232,7 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
 const NEIGHBORS: Record<string, Phase[]> = {
   intro: ['start'],
   start: ['home'],
-  home: ['overworld', 'party', 'settings', 'festival', 'shop', 'quest'],
+  home: ['overworld', 'party', 'settings', 'festival', 'shop', 'quest', 'trade', 'fuse', 'rift'],
   // The questing area only leads home or into a fight (and back via report).
   overworld: ['home', 'battle'],
   quest: ['levels', 'home'],

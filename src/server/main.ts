@@ -45,6 +45,7 @@ export function startServer(): void {
     loadOnArrive: savesApi.loadOnArrive,
     sessions: tradesApi.sessions,
     closeTrade: tradesApi.closeTrade,
+    dropInvites: tradesApi.dropInvites,
     invites: tradesApi.invites,
     rift: riftApi.rift,
     publishRift: riftApi.publishRift,

@@ -1,7 +1,7 @@
-import { openHeroCard } from '../game/menu'
+import { openHeroCard, resetMenu } from '../game/menu'
 import { game } from '../game/store'
 import { maybeStartTip } from '../game/tutorial'
-import type { OwnedFamiliar } from '../game/types'
+import type { OwnedFamiliar, Phase } from '../game/types'
 import { getMyAddress } from './identity'
 import { TradeMsg, TradeTable, TradeUpdate } from './protocol'
 import { room } from './transport'
@@ -72,6 +72,21 @@ export function tradeSides(): {
   }
 }
 
+/** Screens a live table must not interrupt: fights, ceremonies, the Rift,
+ * and the intro/credits. The pull waits (tickTrade) until they end. */
+const BUSY: Phase[] = ['battle', 'banner', 'report', 'heroCard', 'rift', 'start', 'intro', 'credits']
+
+/** Per frame: a live table pulls both parties onto the trade screen as soon
+ * as they are free — from the home menus, the overworld, wherever they
+ * accepted from. Without this an accept from the map left the other side
+ * waiting at a table the acceptor never saw. */
+export function tickTrade(): void {
+  if (!trade.table || game.phase === 'trade' || BUSY.includes(game.phase)) return
+  game.phase = 'trade'
+  resetMenu()
+  maybeStartTip('trade')
+}
+
 export function setupTradeClient(): void {
   room.onMessage('tradeUpdate', (data) => {
     if (!getMyAddress() || data.address.toLowerCase() !== getMyAddress()) return
@@ -89,12 +104,6 @@ export function setupTradeClient(): void {
       trade.table = update.table
       trade.sentTo = ''
       trade.closed = ''
-      // Pull both parties onto the table unless they are mid-fight.
-      const p = game.phase
-      if (p === 'home' || p === 'quest' || p === 'party' || p === 'fuse' || p === 'shop' || p === 'allies') {
-        game.phase = 'trade'
-        maybeStartTip('trade')
-      }
       return
     }
     if (update.type === 'done') {
@@ -106,6 +115,12 @@ export function setupTradeClient(): void {
         game.reveal = received
         openHeroCard(received.uid, 'trade')
       }
+      return
+    }
+    // 'closed' with nothing of mine open: the inviter withdrew before I
+    // answered — drop the toast quietly rather than flag a cancelled trade.
+    if (!trade.table && !trade.sentTo) {
+      trade.invite = undefined
       return
     }
     trade.table = undefined

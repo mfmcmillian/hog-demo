@@ -27,7 +27,8 @@ export {
   tradeInvite,
   tradeLock,
   tradeOffer,
-  tradeSides
+  tradeSides,
+  tickTrade
 } from './tradeClient'
 
 // riftView / festView / gift live in ./views (leaf) so audio and FX modules

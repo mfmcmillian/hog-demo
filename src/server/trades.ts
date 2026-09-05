@@ -1,8 +1,12 @@
+import { engine } from '@dcl/sdk/ecs'
 import { isNftHero, nextUid } from '../game/familiars'
 import { OwnedFamiliar } from '../game/types'
 import { TradeMsg, TradeTable, TradeUpdate } from '../mp/protocol'
 import { room } from '../mp/transport'
 import { ServerCtx } from './ctx'
+
+/** Unanswered invites die so the sender is not left on "waiting" forever. */
+const INVITE_TTL_S = 45
 
 export type TradeSession = { a: string; b: string; offerA?: OwnedFamiliar; offerB?: OwnedFamiliar; lockA: boolean; lockB: boolean }
 
@@ -10,6 +14,7 @@ export function setupTrades(ctx: ServerCtx): {
   sessions: Map<string, TradeSession>
   invites: Map<string, { from: string; at: number }>
   closeTrade: (session: TradeSession, reason: 'declined' | 'cancelled' | 'left' | 'failed') => void
+  dropInvites: (address: string) => void
 } {
   // --- Trading ---------------------------------------------------------------
   const sessions = new Map<string, TradeSession>() // both addresses -> same object
@@ -17,6 +22,24 @@ export function setupTrades(ctx: ServerCtx): {
 
   function sendTrade(address: string, update: TradeUpdate): void {
     room.send('tradeUpdate', { address, json: JSON.stringify(update) })
+  }
+
+  /** Pull back every invite this player has out; the invitees' toasts close. */
+  function withdrawInvites(from: string): void {
+    for (const [target, invite] of [...invites]) {
+      if (invite.from !== from) continue
+      invites.delete(target)
+      sendTrade(target, { type: 'closed', reason: 'cancelled' })
+    }
+  }
+
+  /** Someone left the scene: drop their outgoing toast and tell whoever invited them. */
+  function dropInvites(address: string): void {
+    withdrawInvites(address)
+    const incoming = invites.get(address)
+    if (!incoming) return
+    invites.delete(address)
+    sendTrade(incoming.from, { type: 'closed', reason: 'left' })
   }
 
   function tableOf(session: TradeSession): TradeTable {
@@ -97,9 +120,24 @@ export function setupTrades(ctx: ServerCtx): {
 
     if (msg.type === 'invite') {
       const target = typeof msg.to === 'string' ? msg.to.toLowerCase() : ''
-      if (!target || target === sender) return
-      if (!ctx.present.has(target) || sessions.has(sender) || sessions.has(target)) return
-      if (!ctx.isSaveReady(sender) || !ctx.isSaveReady(target)) return
+      // Tell the sender why it did not land — silent drop left them waiting.
+      if (
+        !target ||
+        target === sender ||
+        !ctx.present.has(target) ||
+        sessions.has(sender) ||
+        sessions.has(target) ||
+        !ctx.isSaveReady(sender) ||
+        !ctx.isSaveReady(target)
+      ) {
+        sendTrade(sender, { type: 'closed', reason: 'failed' })
+        return
+      }
+      // One invite out at a time; a newer invite to a busy target bumps the
+      // older inviter (they hear 'declined' instead of waiting forever).
+      withdrawInvites(sender)
+      const standing = invites.get(target)
+      if (standing && standing.from !== sender) sendTrade(standing.from, { type: 'closed', reason: 'declined' })
       invites.set(target, { from: sender, at: Date.now() })
       sendTrade(target, { type: 'invite', from: sender, name: ctx.nameFor(sender) })
       return
@@ -108,7 +146,11 @@ export function setupTrades(ctx: ServerCtx): {
       const invite = invites.get(sender)
       if (!invite || invite.from !== (msg.from ?? '').toLowerCase()) return
       invites.delete(sender)
-      if (sessions.has(sender) || sessions.has(invite.from) || !ctx.present.has(invite.from)) return
+      if (sessions.has(sender) || sessions.has(invite.from) || !ctx.present.has(invite.from)) {
+        sendTrade(sender, { type: 'closed', reason: 'failed' })
+        sendTrade(invite.from, { type: 'closed', reason: 'failed' })
+        return
+      }
       const fresh: TradeSession = { a: invite.from, b: sender, lockA: false, lockB: false }
       sessions.set(fresh.a, fresh)
       sessions.set(fresh.b, fresh)
@@ -122,12 +164,20 @@ export function setupTrades(ctx: ServerCtx): {
       sendTrade(invite.from, { type: 'closed', reason: 'declined' })
       return
     }
-    if (!session) return
+    if (!session) {
+      // Backing out while the invite is still unanswered pulls it back.
+      if (msg.type === 'cancel') withdrawInvites(sender)
+      return
+    }
     const mine = session.a === sender ? 'A' : 'B'
 
     if (msg.type === 'offer') {
       const save = ctx.saves.get(sender)
-      const card = msg.uid ? save?.collection.find((owned) => owned.uid === msg.uid && !owned.isHero) : undefined
+      // Same rule as executeTrade, applied up front so a bad offer is refused
+      // instead of failing the whole trade at the lock.
+      const card = msg.uid
+        ? save?.collection.find((owned) => owned.uid === msg.uid && !owned.isHero && !isNftHero(owned.defId))
+        : undefined
       if (msg.uid && !card) return
       if (mine === 'A') session.offerA = card
       else session.offerB = card
@@ -149,5 +199,15 @@ export function setupTrades(ctx: ServerCtx): {
     if (msg.type === 'cancel') closeTrade(session, 'cancelled')
   })
 
-  return { sessions, invites, closeTrade }
+  engine.addSystem(() => {
+    const cutoff = Date.now() - INVITE_TTL_S * 1000
+    for (const [target, invite] of [...invites]) {
+      if (invite.at > cutoff) continue
+      invites.delete(target)
+      sendTrade(target, { type: 'closed', reason: 'cancelled' })
+      sendTrade(invite.from, { type: 'closed', reason: 'declined' })
+    }
+  })
+
+  return { sessions, invites, closeTrade, dropInvites }
 }

@@ -6,7 +6,7 @@ import { OwnedFamiliar } from '../game/types'
 import { dropRaySheet, revealBurstSheet, sparksSheet } from './flipbook'
 import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS, LabelInfo } from './labels.gen'
-import { cream, gold, panelDim } from './theme'
+import { cream, gold, muted, panelDim } from './theme'
 import { Face, Img, NameTag, SlotChrome } from './widgets'
 
 function tradeables(): OwnedFamiliar[] {
@@ -40,6 +40,8 @@ function pickerPool(withHero: boolean): OwnedFamiliar[] {
 /** Physical bottom strip of party-bench style hero tiles; tap = pick, arrows page. */
 export function HeroPickStrip(props: {
   hint: string
+  /** Shown in place of the tiles when the pool is empty (trade: no spare cards). */
+  empty?: string
   selectedUid?: string
   onPick: (uid: string) => void
   withHero?: boolean
@@ -55,6 +57,11 @@ export function HeroPickStrip(props: {
       <UiEntity uiTransform={{ width: 26, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
         <Img k={props.hint} w={18} tint={gold} margin={0} />
       </UiEntity>
+      {pool.length === 0 && props.empty ? (
+        <UiEntity uiTransform={{ width: 108, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+          <Img k={props.empty} w={34} tint={muted} margin={0} />
+        </UiEntity>
+      ) : (
       <PagedColumn
         show={canPage}
         leftK="sel-arrow-left"
@@ -82,6 +89,7 @@ export function HeroPickStrip(props: {
           )
         })}
       </PagedColumn>
+      )}
     </UiEntity>
   )
 }

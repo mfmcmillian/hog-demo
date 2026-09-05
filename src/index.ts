@@ -22,7 +22,7 @@ export async function main() {
   const { createShell } = await import('./scene/shell')
   const { tickFlipbook } = await import('./ui/flipbook')
   const { setupUi } = await import('./ui/screens')
-  const { initMultiplayerSession } = await import('./mp/session')
+  const { initMultiplayerSession, tickTrade } = await import('./mp/session')
   const { initNftHeroes } = await import('./game/nftHeroes')
 
   const CROWN = { tex: { $case: 'texture' as const, texture: { src: 'images/hud/crown.png' } } }
@@ -55,6 +55,7 @@ export async function main() {
   engine.addSystem((dt) => {
     tickBattle(dt)
     tickOverworld(dt)
+    tickTrade()
     tickFlipbook(dt)
     tickAudio()
   })

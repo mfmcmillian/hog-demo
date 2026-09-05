@@ -111,8 +111,15 @@ function publishCoarse(gx: number, gy: number, facing: OwDir): void {
 }
 
 /** Set the local avatar down on a coarse tile (exits / spawn) and tell the room. */
+/** Signs read this visit (`gx,gy`): a sign fires the first time you step on
+ * it after entering a realm, then stays quiet, so a post on a lane you
+ * walk both ways (the pier, a chapel run) doesn't stop you every pass.
+ * Leaving and coming back re-arms it, like the stones. */
+let signsRead = new Set<string>()
+
 function resetPuzzles() {
   blockPos = (OW_REALMS[realmId].blocks ?? []).map((block) => ({ gx: block.gx, gy: block.gy }))
+  signsRead = new Set()
 }
 
 function blockAt(gx: number, gy: number): { gx: number; gy: number } | undefined {
@@ -502,11 +509,13 @@ function tryChest(): boolean {
 
 function trySign(): boolean {
   const sign = owSignAt(realmId, coarse(ow.gx), coarse(ow.gy))
-  if (sign && startOwTalk(sign.talk)) {
-    padDir = ''
-    return true
-  }
-  return false
+  if (!sign) return false
+  const at = `${sign.gx},${sign.gy}`
+  if (signsRead.has(at)) return false
+  if (!startOwTalk(sign.talk)) return false
+  signsRead.add(at)
+  padDir = ''
+  return true
 }
 
 /** The coarse tile the avatar is facing — the square "in front". */

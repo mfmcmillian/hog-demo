@@ -189,7 +189,7 @@ const TOWN_ROWS = [
   '#.......#', // 10 south green (boy at 2,10)
   '###...###', // 11 bottom-left house (1-2); lake 6-8
   '##....###', // 12 inn door (2,12); chest 5,12
-  '#......##', // 13 bottom lane (sign 5,13); pier 6,13; fisher in his boat 7,13
+  '#......##', // 13 bottom lane (sign 3,13); pier 6,13; fisher in his boat 7,13
   '####.####', // 14 spine off the map
   '#########' // 15
 ]
@@ -219,7 +219,9 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       { gx: 7, gy: 13, id: 'fisher', talk: 'fisher', sheet: 'fisher-walk' },
       { gx: 2, gy: 10, id: 'boy', talk: 'boy', sheet: 'child-walk' }
     ],
-    signs: [{ gx: 5, gy: 13, talk: 'sign-wilds' }],
+    // Beside the spine's mouth, not on the pier lane (every trip to the
+    // fisher crossed it).
+    signs: [{ gx: 3, gy: 13, talk: 'sign-wilds' }],
     chests: [{ gx: 5, gy: 12, id: 'chest-village-lake', loot: { coins: 20 } }]
   },
   // Village homes: quest rooms (a host with a hint, sometimes a chest or a

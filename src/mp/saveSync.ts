@@ -1,6 +1,6 @@
 import { boot } from '../game/boot'
 import { applyDebugGrants } from '../game/debug'
-import { goVillage } from '../game/overworld'
+import { goHome } from '../game/menu'
 import { game } from '../game/store'
 import { SeenStoryId, STORY_IDS, TipId } from '../game/types'
 import { getMyAddress } from './identity'
@@ -188,8 +188,8 @@ export function setupSaveSync(): void {
         }
       } else if (game.phase === 'start' || game.phase === 'intro') {
         applySave(save)
-        // Returning player: skip the story and oath ceremony, straight to the village.
-        if (save.heroUid) goVillage()
+        // Returning player: skip the story and oath ceremony, straight to the hall.
+        if (save.heroUid) goHome()
       } else {
         // Save arrived after the player already started playing; folding it
         // in keeps live cards (like a mid-battle drop) alive.

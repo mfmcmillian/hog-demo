@@ -35,7 +35,9 @@ export const INTRO_LABELS: Record<string, LabelInfo> = {
   'intro-f6': { src: 'images/labels/intro-f6.png', w: 57, h: 596 },
   'intro-f7': { src: 'images/labels/intro-f7.png', w: 57, h: 747 },
   'intro-f8': { src: 'images/labels/intro-f8.png', w: 57, h: 824 },
-  'intro-d1': { src: 'images/labels/intro-d1.png', w: 57, h: 702 }
+  'intro-d1': { src: 'images/labels/intro-d1.png', w: 57, h: 702 },
+  'intro-d2': { src: 'images/labels/intro-d2.png', w: 57, h: 656 },
+  'intro-d3': { src: 'images/labels/intro-d3.png', w: 57, h: 388 }
 }
 
 Object.assign(LABELS, INTRO_LABELS)

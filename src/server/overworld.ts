@@ -40,6 +40,7 @@ export function setupOverworld(ctx: ServerCtx): { dropOwPlayer: (address: string
   const monsters: SrvMonster[] = []
   for (const realm of Object.keys(OW_REALMS) as OwRealmId[]) {
     for (const spawn of OW_REALMS[realm].monsters) {
+      if (spawn.boss) continue // warlords are personal: each client draws its own
       monsters.push({
         key: `${realm}:${spawn.gx},${spawn.gy}`,
         id: spawn.id,
@@ -160,11 +161,10 @@ export function setupOverworld(ctx: ServerCtx): { dropOwPlayer: (address: string
       const nx = monster.gx + OW_DX[dir]
       const ny = monster.gy + OW_DY[dir]
       const realm = monster.realm as OwRealmId
-      // Stay on walkable ground, off exit and landmark-door tiles, and
+      // Stay on walkable ground, off exit tiles and warlord posts, and
       // don't stack monsters.
       if (!owWalkable(realm, nx, ny) || owExitAt(realm, nx, ny)) continue
-      const gate = OW_REALMS[realm].roadGate
-      if (gate && gate.gx === nx && gate.gy === ny) continue
+      if (OW_REALMS[realm].monsters.some((spawn) => spawn.boss && spawn.gx === nx && spawn.gy === ny)) continue
       if (OW_REALMS[realm].chests?.some((chest) => chest.gx === nx && chest.gy === ny)) continue
       if (OW_REALMS[realm].npcs?.some((npc) => npc.gx === nx && npc.gy === ny)) continue
       if (monsters.some((other) => other !== monster && other.alive && other.realm === monster.realm && other.gx === nx && other.gy === ny)) continue

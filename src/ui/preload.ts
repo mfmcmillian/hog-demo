@@ -7,6 +7,7 @@ import { STORIES } from '../game/stories'
 import { game } from '../game/store'
 import { Phase } from '../game/types'
 import { allFxSrcs, campfireSheet, sheetSrcOf } from './flipbook'
+import { RAY_SRC, SPARKS_SRC } from './fx/reveal'
 import { hallSrc } from './halls'
 import { LABELS } from './labels.gen'
 import { INTRO_LABELS } from './labels.intro.gen'
@@ -61,7 +62,7 @@ const HOME_KEYS = [
   'shop',
   'trade',
   'fuse',
-  'village',
+  'questing',
   'fire-grows',
   'fire-line1',
   'fire-line2',
@@ -75,7 +76,7 @@ const HOME_KEYS = [
   'fest-panel',
   'no-travelers'
 ]
-// The village is the boot landing, so its whole cast rides in the critical set.
+// The map is one tap from home, so the village cast rides in the critical set.
 const OW_BASE_KEYS = [
   'player-walk',
   'elder-walk',
@@ -87,8 +88,7 @@ const OW_BASE_KEYS = [
   'ow-hole',
   'ow-gate',
   'map-overworld',
-  'map-hut',
-  'intro-d1' // page 2 of the elder's plaza welcome
+  'map-hut'
 ]
 
 const EXTRA = [
@@ -111,9 +111,27 @@ export const CRITICAL_SRCS = uniq([
 
 function realmSrcs(id: OwRealmId): string[] {
   const realm = OW_REALMS[id]
-  const keys = [realm.map, realm.nameKey ?? '', 'player-walk', 'ow-chest', 'ow-sign', 'ow-rock', 'ow-hole', 'ow-gate']
+  const keys = [
+    realm.map,
+    realm.nameKey ?? '',
+    'player-walk',
+    'ow-chest',
+    'ow-sign',
+    'ow-rock',
+    'ow-hole',
+    'ow-gate',
+    'ow-lamp',
+    'ow-key',
+    realm.over ?? '',
+    realm.fog ? 'fog-a' : ''
+  ]
   for (const npc of realm.npcs ?? []) keys.push(npc.sheet)
-  return uniq([...labelSrcs(keys), ...Object.values(OW_LABELS).map((info) => info.src)])
+  // Ledge landings puff the sparks sheet; decor reuses the fx flipbooks.
+  const fx = [SPARKS_SRC]
+  for (const decor of realm.decor ?? []) {
+    fx.push(decor.fx === 'brazier' ? campfireSheet() : decor.fx === 'wisp' ? SPARKS_SRC : RAY_SRC)
+  }
+  return uniq([...labelSrcs(keys), ...fx, ...Object.values(OW_LABELS).map((info) => info.src)])
 }
 
 function ownedSheetSrcs(): string[] {
@@ -141,7 +159,7 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
     return uniq([
       ...realmSrcs(here),
       ...next.flatMap(realmSrcs),
-      ...labelSrcs(['need-item', 'sealed', 'clear-road', 'recruit-first'])
+      ...labelSrcs(['need-item', 'sealed', 'recruit-first'])
     ])
   }
   switch (phase) {
@@ -182,24 +200,25 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
 
 const NEIGHBORS: Record<string, Phase[]> = {
   intro: ['start'],
-  start: ['overworld'],
+  start: ['home'],
   home: ['overworld', 'party', 'settings', 'festival', 'shop', 'quest'],
-  overworld: ['home', 'battle', 'party', 'shop', 'fuse', 'trade', 'rift'],
+  // The questing area only leads home or into a fight (and back via report).
+  overworld: ['home', 'battle'],
   quest: ['levels', 'home'],
-  levels: ['battle', 'overworld'],
-  party: ['home', 'overworld'],
-  fuse: ['home', 'overworld'],
-  shop: ['home', 'overworld'],
+  levels: ['battle'],
+  party: ['home'],
+  fuse: ['home'],
+  shop: ['home'],
   allies: ['home'],
   battle: ['report', 'banner'],
   banner: ['report'],
   report: ['home', 'overworld', 'heroCard'],
-  heroCard: ['overworld', 'home'],
-  trade: ['home', 'overworld'],
-  rift: ['home', 'overworld'],
+  heroCard: ['overworld', 'home', 'credits'],
+  trade: ['home'],
+  rift: ['home'],
   settings: ['home'],
   festival: ['home'],
-  credits: ['overworld']
+  credits: ['home']
 }
 
 /** Hidden tiles bind only what the current screen (and one tap away) draws.

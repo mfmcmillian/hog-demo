@@ -37,14 +37,15 @@ export type OwRealmId =
   | 'rook-seer'
   | 'rook-inn'
   | 'crypt'
+  | 'well'
+  | 'hall'
 
 export const OW_DX: Record<OwDir, number> = { down: 0, left: -1, right: 1, up: 0 }
 export const OW_DY: Record<OwDir, number> = { down: 1, left: 0, right: 0, up: -1 }
 
 // Stepping onto (gx,gy) fades the screen and drops the player at (sx,sy)
 // in the target realm, keeping their facing so a held direction carries on.
-// `need` = roads cleared required (the Snorlax pattern): a locked exit shows
-// the clear-road notice instead of fading (see tickOverworld).
+// Locked exits are unwalkable and show a notice on the bump (see tryStep).
 export type OwExit = {
   gx: number
   gy: number
@@ -52,7 +53,9 @@ export type OwExit = {
   sx: number
   sy: number
   facing: OwDir
-  need?: number
+  /** Story gate: this owFlag must be set (quest-complete flags, never
+   * slain flags, so nothing re-locks when the warlords return). */
+  needFlag?: string
   /** Zelda gate: must own this key item (see game.owItems). */
   needItem?: string
 }
@@ -60,40 +63,62 @@ export type OwExit = {
  * and used as the talk portrait. `talk` = OW_TALKS id ('elder' picks by state). */
 export type OwNpc = { gx: number; gy: number; id: string; talk: string; sheet: string }
 export type OwSign = { gx: number; gy: number; talk: string }
-/** Landing here opens a menu screen in place (rift at the stone circle). */
-export type OwPortal = { gx: number; gy: number; opens: string }
 export type OwChest = { gx: number; gy: number; id: string; loot: { coins?: number; item?: string } }
 /** Pushable stone. Resets on re-enter; a switch under it opens locks. */
 export type OwBlock = { gx: number; gy: number }
 /** Floor plate. Open while any block sits on it. */
 export type OwSwitch = { gx: number; gy: number }
-/** Sealed tile. Walkable only while a block rests on `needSwitch`. */
-export type OwLock = { gx: number; gy: number; needSwitch: { gx: number; gy: number } }
+/** Sealed tile. Opens (and stays open, via an owFlag) once every plate in
+ * `needSwitch` holds a block at the same time, or, for a keyed door, once
+ * `needItem` is owned. */
+export type OwLock = { gx: number; gy: number; needSwitch?: { gx: number; gy: number }[]; needItem?: string }
 // `guard` = trainer-block pattern: never wanders, so on a single-file trail
 // the only way past is through the fight (respawns like any roamer).
 // `pack` = MMBN-style group encounter: these foes join the fight alongside
 // the map sprite (the leader). Only the leader roams; the pack is implied.
-export type OwMonsterSpawn = { id: string; gx: number; gy: number; guard?: boolean; pack?: string[] }
+// `boss` = quest warlord: personal, not shared. The server never spawns it;
+// each client draws it from this def until its own slain flag is set (see
+// owQuests.ts). Bosses stand still like guards.
+export type OwMonsterSpawn = { id: string; gx: number; gy: number; guard?: boolean; boss?: boolean; pack?: string[] }
+
+/** Ledge tiles (Pokemon one-way): the char is the only direction you may
+ * cross it, and crossing is a hop that lands on the tile beyond. Solid to
+ * everything else (roamers, stones, the other three directions). */
+const LEDGE_DIR: Record<string, OwDir> = { v: 'down', '^': 'up', '<': 'left', '>': 'right' }
 
 export type OwRealm = {
   map: string // labels.gen key for the pre-rotated backdrop
-  rows: string[] // '#' blocked, '.' walkable; row = gy, column = gx
+  /** Row = gy, column = gx. Legend `# . v ^ < > o`: '#' wall, '.' floor,
+   * 'v' '^' '<' '>' ledge hop-through in that direction (see LEDGE_DIR).
+   * 'o' never appears here: it is the overhead mask handed to
+   * `tools/process-ow-map.ps1 -over` that cuts `<name>-over.png` (the
+   * `over` layer below) out of the painting. Workflow, one realm at a time:
+   * author rows -> `tools/render-ow-layout.ps1` diagram -> paint from it ->
+   * `process-ow-map.ps1` -> check `assets/<name>-map-grid.png` -> wire. */
+  rows: string[]
   exits: OwExit[]
   monsters: OwMonsterSpawn[]
   /** Optional map tint so a reused backdrop still reads as a new place. */
   tint?: { r: number; g: number; b: number }
   /** labels.gen key of the area-name strip; shown as a toast on entry. */
   nameKey?: string
-  /** Warlord landmark door: landing here opens the road's floor-select. */
-  roadGate?: { gx: number; gy: number; road: number }
+  /** labels.gen key of the overhead cut (arches, canopy, bridges): the
+   * painting's own pixels drawn above every sprite so you walk under them. */
+  over?: string
+  /** Ambient flipbooks on tiles, drawn between the backdrop and the sprites. */
+  decor?: OwDecor[]
+  /** Drifting fog alpha (0 = none), drawn above the sprites, under `over`. */
+  fog?: number
   npcs?: OwNpc[]
   signs?: OwSign[]
   chests?: OwChest[]
-  portals?: OwPortal[]
   blocks?: OwBlock[]
   switches?: OwSwitch[]
   locks?: OwLock[]
 }
+
+/** `fx`: brazier = campfire loop, wisp = ember sparks, shaft = light rays. */
+export type OwDecor = { gx: number; gy: number; fx: 'brazier' | 'wisp' | 'shaft' }
 
 export const OW_SPAWN_GX = 4
 export const OW_SPAWN_GY = 8 // village plaza center
@@ -152,7 +177,7 @@ const DOOR_BL = { gx: 2, gy: 12 }
 // lots, pines, and the pond are '#'; lanes, lawns, and the five doors '.'.
 const TOWN_ROWS = [
   '#########', // 0  border pines
-  '###...###', // 1  stone circle (rift portal at its heart, 4,1)
+  '###...###', // 1  stone circle
   '##.....##', // 2  circle lawn (elder at 4,2)
   '###...###', // 3  top houses only (1-2 and 6-7)
   '##.....##', // 4  top house doors (2,4) and (6,4)
@@ -173,13 +198,15 @@ const TOWN_ROWS = [
 export const OW_REALMS: Record<OwRealmId, OwRealm> = {
   village: {
     map: 'map-overworld',
+    nameKey: 'ow-antrom',
     rows: TOWN_ROWS,
     // Where the art's roads visibly leave the map: the spine's south end
     // fades to the wilds (Act 1), the west road's edge gap to Crow Road
-    // (Act 2, gated on the first road clear). Five cottage doors fade inside.
+    // (Act 2, opens once the elder has paid for the Moor Ogre). Five cottage
+    // doors fade inside.
     exits: [
       { gx: 4, gy: 14, to: 'wilds', sx: 7, sy: 13, facing: 'left' },
-      { gx: 0, gy: 9, to: 'crow', sx: 7, sy: 14, facing: 'left', need: 1 },
+      { gx: 0, gy: 9, to: 'crow', sx: 7, sy: 14, facing: 'left', needFlag: 'gate-reward' },
       { ...DOOR_TL, to: 'hut-weaver', ...HUT_SPAWN },
       { ...DOOR_TR, to: 'hut-hunter', ...HUT_SPAWN },
       { ...DOOR_ML, to: 'hut-merchant', ...HUT_SPAWN },
@@ -193,12 +220,10 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       { gx: 2, gy: 10, id: 'boy', talk: 'boy', sheet: 'child-walk' }
     ],
     signs: [{ gx: 5, gy: 13, talk: 'sign-wilds' }],
-    chests: [{ gx: 5, gy: 12, id: 'chest-village-lake', loot: { coins: 20 } }],
-    // The stone circle is the rift: step into its heart to meet other players.
-    portals: [{ gx: 4, gy: 1, opens: 'rift' }]
+    chests: [{ gx: 5, gy: 12, id: 'chest-village-lake', loot: { coins: 20 } }]
   },
-  // Village homes double as the menu (Zelda shops): each host's talk ends by
-  // opening a screen, and backing out of it lands you back in the room.
+  // Village homes: quest rooms (a host with a hint, sometimes a chest or a
+  // side quest). Menus live on the home screen, not behind these doors.
   'hut-weaver': hut('village', DOOR_TL, { id: 'weaver', talk: 'weaver', sheet: 'woman-walk' }),
   'hut-hunter': hut(
     'village',
@@ -228,12 +253,22 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
   // village painting under a cold moon; its own merchant and inn, and hosts
   // who talk about the Crow Lord instead of the fen.
   rookhaven: {
-    map: 'map-overworld',
+    map: 'map-rookhaven', // the village lots under snow, so TOWN_ROWS still fit
     nameKey: 'ow-rookhaven',
-    tint: { r: 0.66, g: 0.8, b: 1 },
+    fog: 0.2,
+    decor: [
+      { gx: 2, gy: 1, fx: 'brazier' },
+      { gx: 6, gy: 1, fx: 'brazier' }
+    ],
     rows: TOWN_ROWS,
+    // South spine back down Crow Road; the stone circle's north tile climbs
+    // into the Deep Woods, the Thorn Queen's court (Act 2 finale); the west
+    // road's edge gap descends to the Veiled Well (Act 3) once the widow
+    // has paid for the queen.
     exits: [
       { gx: 4, gy: 14, to: 'crow', sx: 4, sy: 2, facing: 'down' },
+      { gx: 4, gy: 1, to: 'deep', sx: 1, sy: 14, facing: 'up' },
+      { gx: 0, gy: 9, to: 'well', sx: 4, sy: 14, facing: 'up', needFlag: 'widow-reward' },
       { ...DOOR_TL, to: 'rook-widow', ...HUT_SPAWN },
       { ...DOOR_TR, to: 'rook-warden', ...HUT_SPAWN },
       { ...DOOR_ML, to: 'rook-merchant', ...HUT_SPAWN },
@@ -245,8 +280,7 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       { gx: 7, gy: 13, id: 'rook-fisher', talk: 'rook-fisher', sheet: 'fisher-walk' },
       { gx: 2, gy: 10, id: 'rook-boy', talk: 'rook-boy', sheet: 'child-walk' }
     ],
-    chests: [{ gx: 5, gy: 12, id: 'chest-rook-lake', loot: { coins: 20 } }],
-    portals: [{ gx: 4, gy: 1, opens: 'rift' }]
+    chests: [{ gx: 5, gy: 12, id: 'chest-rook-lake', loot: { coins: 20 } }]
   },
   'rook-widow': hut(
     'rookhaven',
@@ -300,12 +334,10 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       '#########' // 15
     ],
     // East end of the bottom lane returns to the village. The glade's north
-    // lip is the Act 1 trail (fen, needs the reed lamp). The west lip is the
-    // dusk woods, sealed until every road is cleared — not the obvious walk.
+    // lip is the Act 1 trail (fen, needs the reed lamp).
     exits: [
       { gx: 8, gy: 13, to: 'village', sx: 4, sy: 13, facing: 'up' },
-      { gx: 4, gy: 1, to: 'fen', sx: 4, sy: 14, facing: 'up', needItem: 'reed-lamp' },
-      { gx: 2, gy: 1, to: 'deep', sx: 7, sy: 13, facing: 'left', need: 4 }
+      { gx: 4, gy: 1, to: 'fen', sx: 4, sy: 14, facing: 'up', needItem: 'reed-lamp' }
     ],
     // Commons by the village lane, uncommons on the trails, a rare in the
     // glade. R1 eases into packs: singles near the village, pairs deeper in.
@@ -327,39 +359,57 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       { gx: 5, gy: 2, id: 'chest-wilds-lamp', loot: { item: 'reed-lamp' } }
     ]
   },
-  // Dusk woods: same trail art, cooler tint, rarer roamers. Reached from
-  // the north of the wilds glade. A third distinct map needs new backdrop art.
+  // Deep Woods (Act 2 finale): same trail art, cooler tint, rarer roamers.
+  // Climbed from Rookhaven's stone circle. The Thorn Queen keeps court in
+  // the inner glade; her card is the widow's thanks (owQuests 'widow').
   deep: {
-    map: 'map-wilds',
+    map: 'map-deep',
+    over: 'map-deep-over', // oak canopy over the two side trail mouths: -over row 7 'ooo###ooo', -floor 4,8
     nameKey: 'ow-deep',
-    tint: { r: 0.58, g: 0.48, b: 0.92 },
+    // Act 2 puzzle: two stones, two marks, a double lock. Rock B (3,11)
+    // slides east onto the first mark. Rock A (4,10) sits in the crossroad:
+    // pushing it north (the obvious move) strands it in the gate approach;
+    // it has to be pushed *down* onto the second mark, which means climbing
+    // the west trail, crossing the upper hub and coming back down the
+    // center. The east trail and the east stair are one-way ledges, so the
+    // loop only runs clockwise. Leaving the woods resets the stones.
+    // Rows authored against assets/deep-map-grid.png.
+    fog: 0.3,
     rows: [
-      '#########', // 0  border pines
-      '##.....##', // 1  inner glade
-      '##.....##', // 2
-      '##.....##', // 3
-      '##.###.##', // 4
-      '##.###.##', // 5
-      '##.###.##', // 6
-      '##.###.##', // 7
-      '##.....##', // 8
-      '##.###.##', // 9
-      '##.###.##', // 10
-      '##.###.##', // 11
-      '##.###.##', // 12
-      '##.......', // 13 lane back to the wilds (east edge)
-      '#########', // 14
+      '#########', // 0  border thorns
+      '###...###', // 1  queen's glade (thorn ring)
+      '###...###', // 2  queen at 4,2
+      '###...###', // 3  glade foot
+      '####.####', // 4  double lock: marks (4,11) and (5,11)
+      '####.####', // 5  gate approach — a stone pushed here is lost
+      '#.......#', // 6  upper hub
+      '#.##.##.#', // 7  west trail (climbs) / center (the stone road) / east trail; canopy over 1,7 and 7,7
+      '#.##.##.#', // 8
+      '#.##.##v#', // 9  east ledge: hop from (7,8) lands (7,10)
+      '#.##.##.#', // 10 rock A at 4,10
+      '#.......#', // 11 lower hub; rock B 3,11; marks 4,11 5,11
+      '#.#####v#', // 12 west stair | east ledge: hop from (7,11) lands (7,13)
+      '#.#####.#', // 13 torches; sign at 1,13
+      '........#', // 14 lane; exit at the west edge
       '#########' // 15
     ],
-    exits: [{ gx: 8, gy: 13, to: 'wilds', sx: 4, sy: 2, facing: 'down' }],
-    // Post-game big game: mostly fearsome solos, but the queen keeps court.
+    exits: [{ gx: 0, gy: 14, to: 'rookhaven', sx: 4, sy: 2, facing: 'down' }],
+    // Big game: a covenant holds the west trail (the only climb), howls
+    // roam the upper hub, and the queen waits in her glade with her guard.
     monsters: [
-      { id: 'oath-knight', gx: 4, gy: 2 }, // rare — inner glade
-      { id: 'night-covenant', gx: 6, gy: 6 }, // epic — east trail
-      { id: 'pale-howl', gx: 2, gy: 10, pack: ['pale-howl'] }, // howls come in twos
-      { id: 'moor-ogre', gx: 4, gy: 8 }, // epic — crossroad
-      { id: 'thorn-queen', gx: 3, gy: 3, pack: ['oath-knight', 'oath-knight'] } // legendary — royal guard
-    ]
+      { id: 'night-covenant', gx: 1, gy: 9, guard: true }, // epic — holds the west trail
+      { id: 'pale-howl', gx: 6, gy: 6, pack: ['pale-howl'] }, // howls come in twos
+      { id: 'oath-knight', gx: 3, gy: 1, pack: ['oath-knight'] }, // rare — glade patrol
+      { id: 'thorn-queen', gx: 4, gy: 2, boss: true, pack: ['oath-knight', 'oath-knight'] } // warlord — royal guard
+    ],
+    decor: [
+      { gx: 2, gy: 2, fx: 'wisp' },
+      { gx: 6, gy: 1, fx: 'wisp' }
+    ],
+    signs: [{ gx: 1, gy: 13, talk: 'sign-deep' }],
+    blocks: [{ gx: 4, gy: 10 }, { gx: 3, gy: 11 }],
+    switches: [{ gx: 4, gy: 11 }, { gx: 5, gy: 11 }],
+    locks: [{ gx: 4, gy: 4, needSwitch: [{ gx: 4, gy: 11 }, { gx: 5, gy: 11 }] }]
   },
   // Crow Road (Act 2): a single-file switchback through the dead forest, off
   // the village's west road. Rows authored against assets/crow-map-grid.png.
@@ -445,22 +495,26 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
   // Push the stone onto the mark to open the north lock; the sigil in the
   // chest beyond opens the gate. Reuses the fen painting under a cave tint.
   crypt: {
-    map: 'map-fen',
+    map: 'map-crypt',
+    over: 'map-crypt-over', // the gate arch, drawn over the avatar: -over row 5 '###ooo###', -floor 4,4
     nameKey: 'ow-crypt',
-    tint: { r: 0.62, g: 0.56, b: 0.72 },
+    // Act 1 puzzle, kept easy: one rock, one hole, the gate. The treasury's
+    // back stair (col 7) ends in a ledge that drops you into the chamber -
+    // the "found the loot, hop home" beat that teaches ledges for Act 2.
+    // Rows authored against assets/crypt-map-grid.png.
     rows: [
       '#########', // 0
       '####.####', // 1  exit to the Moor Gate (needs the sigil)
-      '###...###', // 2
-      '###...###', // 3  chests 2,3 sigil / 6,3 coins
-      '####.####', // 4
-      '####.####', // 5  iron gate — only north tile, cannot walk around
-      '##.....##', // 6
-      '##.....##', // 7
-      '##.....##', // 8  hole at 4,8
-      '##.....##', // 9
-      '##.....##', // 10 rock starts at 4,10 — push north onto the hole
-      '####.####', // 11
+      '##......#', // 2  treasury
+      '##......#', // 3  plinths: chests 2,3 sigil / 5,3 coins
+      '####.##.#', // 4  gate corridor | stair (7,4)
+      '####.##.#', // 5  the arch (walk under it) | stair (7,5)
+      '####.##v#', // 6  iron gate (4,6) | ledge: hop from (7,5) lands (7,7)
+      '##......#', // 7  chamber; ledge landing (7,7)
+      '##.....##', // 8
+      '##.....##', // 9  hole at 4,9
+      '##.....##', // 10
+      '##.....##', // 11 rock starts at 4,11 — push north onto the hole
       '####.####', // 12
       '####.####', // 13
       '####.####', // 14 entry from the fen
@@ -471,21 +525,25 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       { gx: 4, gy: 1, to: 'moorgate', sx: 4, sy: 14, facing: 'up', needItem: 'gate-sigil' }
     ],
     monsters: [],
-    signs: [{ gx: 2, gy: 10, talk: 'sign-crypt' }],
+    decor: [
+      { gx: 6, gy: 1, fx: 'shaft' },
+      { gx: 2, gy: 8, fx: 'shaft' }
+    ],
+    signs: [{ gx: 2, gy: 11, talk: 'sign-crypt' }],
     chests: [
       { gx: 2, gy: 3, id: 'chest-crypt-sigil', loot: { item: 'gate-sigil' } },
-      { gx: 6, gy: 3, id: 'chest-crypt-coins', loot: { coins: 20 } }
+      { gx: 5, gy: 3, id: 'chest-crypt-coins', loot: { coins: 20 } }
     ],
-    blocks: [{ gx: 4, gy: 10 }],
-    switches: [{ gx: 4, gy: 8 }],
-    locks: [{ gx: 4, gy: 5, needSwitch: { gx: 4, gy: 8 } }]
+    blocks: [{ gx: 4, gy: 11 }],
+    switches: [{ gx: 4, gy: 9 }],
+    locks: [{ gx: 4, gy: 6, needSwitch: [{ gx: 4, gy: 9 }] }]
   },
-  // Act 1 landmark — the Moor Gate: a straight brazier-lit approach to the
-  // warlord's door. Landing on the door tile opens road 1's floor-select.
+  // Act 1 finale — the Moor Gate: a straight brazier-lit approach to the
+  // warlord's door. The Moor Ogre himself holds the approach; his card is
+  // the elder's thanks (owQuests 'gate').
   moorgate: {
     map: 'map-moorgate',
     nameKey: 'ow-moorgate',
-    roadGate: { gx: 4, gy: 3, road: 0 },
     rows: [
       '#########', // 0  gate pillars
       '#########', // 1
@@ -504,13 +562,138 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       '####.####', // 14 entry from the fen
       '####.####' // 15 bottom mouth back to the fen
     ],
-    exits: [{ gx: 4, gy: 15, to: 'crypt', sx: 4, sy: 2, facing: 'down' }],
-    // The warlord's gatekeeper holds the single-file approach: the only way
-    // to the door is through him. Lesser roamers wander the stubs.
+    // The door itself opens into the Oath Hall (Act 4) once the seer has
+    // paid for the abbot; until then it is sealed.
+    exits: [
+      { gx: 4, gy: 15, to: 'crypt', sx: 4, sy: 2, facing: 'down' },
+      { gx: 4, gy: 3, to: 'hall', sx: 4, sy: 14, facing: 'up', needFlag: 'well-reward' }
+    ],
+    // The warlord holds the single-file approach: the only way to the door
+    // is through him. Lesser roamers wander the stubs.
     monsters: [
-      { id: 'moor-ogre', gx: 4, gy: 7, guard: true, pack: ['cinder-wight', 'cinder-wight'] }, // gatekeeper + retinue
+      { id: 'moor-ogre', gx: 4, gy: 7, boss: true, pack: ['cinder-wight', 'cinder-wight'] }, // warlord + retinue
       { id: 'cinder-wight', gx: 5, gy: 12 }, // common — east stub
       { id: 'ash-hound', gx: 3, gy: 10 } // common — west stub
+    ]
+  },
+  // Act 3 finale — the Veiled Well: the fen painting under a blood tint,
+  // read as a sunken abbey. A nave climbs to a cloister walk that rings the
+  // well shaft; the Crimson Abbot waits at its head. His card is the seer's
+  // thanks (owQuests 'well'). Reached down Rookhaven's west road.
+  well: {
+    map: 'map-well',
+    over: 'map-well-over', // the cloister arcade arches: -over rows 4-5 '#oo###oo#', -floor 4,9
+    nameKey: 'ow-well',
+    // Act 3 puzzle: the transept is one long row with a mark carved at each
+    // end. Three stones: one in the row, one at the top of each side
+    // passage. The row stone reaches either mark straight off; a passage
+    // stone has to be pushed up into the row first, and once it is there
+    // it can only travel away from its own side - so pushing the row stone
+    // west *before* raising the west spare leaves that spare useless (the
+    // east spare still saves the run). Both marks held at once opens the
+    // cloister. The abbot's door wants the bone key, kept in the east chapel
+    // behind the leech. Rows authored against assets/well-map-grid.png.
+    rows: [
+      '#########', // 0  altar wall
+      '###...###', // 1  sanctum: abbot at 4,1
+      '####.####', // 2  the abbot's door (bone key)
+      '##.....##', // 3  head of the cloister; door sign 6,3
+      '##.###.##', // 4  the well shaft (light falls down it); arcade arches over the walks
+      '##.###.##', // 5
+      '##.###.##', // 6
+      '##.....##', // 7  foot of the cloister; chest 6,7
+      '####.####', // 8  double lock: marks (0,9) and (8,9)
+      '.........', // 9  transept: mark 0,9 | row stone 3,9 | mark 8,9
+      '##.#.#.##', // 10 west spare 2,10 / center passage / east spare 6,10
+      '##.#.#.##', // 11
+      '##.#.#..#', // 12 leech holds 6,12; bone key chest in the chapel 7,12
+      '##.....##', // 13 lower transept; sign 5,13
+      '####.####', // 14 nave: spawn from Rookhaven
+      '####.####' // 15 mouth back up to Rookhaven
+    ],
+    exits: [{ gx: 4, gy: 15, to: 'rookhaven', sx: 1, sy: 9, facing: 'right' }],
+    // The q4 pool: veil sisters and leeches. A leech keeps the key.
+    monsters: [
+      { id: 'veil-sister', gx: 3, gy: 13, pack: ['veil-sister'] }, // sisters walk in pairs
+      { id: 'blood-leech', gx: 6, gy: 12, guard: true, pack: ['veil-sister'] }, // keeps the east chapel
+      { id: 'dusk-oracle', gx: 2, gy: 6 }, // rare — west walk
+      { id: 'crimson-abbot', gx: 4, gy: 1, boss: true, pack: ['veil-sister', 'veil-sister'] } // warlord + choir
+    ],
+    decor: [
+      { gx: 4, gy: 5, fx: 'shaft' },
+      { gx: 7, gy: 12, fx: 'wisp' }
+    ],
+    signs: [
+      { gx: 5, gy: 13, talk: 'sign-well' },
+      { gx: 6, gy: 3, talk: 'sign-well-door' }
+    ],
+    chests: [
+      { gx: 6, gy: 7, id: 'chest-well-coins', loot: { coins: 20 } },
+      { gx: 7, gy: 12, id: 'chest-well-key', loot: { item: 'bone-key' } }
+    ],
+    blocks: [{ gx: 3, gy: 9 }, { gx: 2, gy: 10 }, { gx: 6, gy: 10 }],
+    switches: [{ gx: 0, gy: 9 }, { gx: 8, gy: 9 }],
+    locks: [
+      { gx: 4, gy: 8, needSwitch: [{ gx: 0, gy: 9 }, { gx: 8, gy: 9 }] },
+      { gx: 4, gy: 2, needItem: 'bone-key' }
+    ]
+  },
+  // Act 4 finale — the Oath Hall: the Moor Gate painting under ash, the
+  // same straight approach now read as the regent's throne walk. The Ashen
+  // Regent holds the brazier landing; his card is the elder's thanks
+  // (owQuests 'hall'). Entered through the Moor Gate's door.
+  hall: {
+    map: 'map-hall',
+    over: 'map-hall-over', // the colonnade arch and the east arch: -over row 3 '###ooo###', row 6 '######ooo', -floor 4,9
+    nameKey: 'ow-hall',
+    // Act 4 puzzle, a sequence. The west alcove's stone onto its mark opens
+    // gate 1. Behind it the corridors form a loop around one stone at 4,6:
+    // push it up into the upper corridor, then walk the loop to its east
+    // side and drive it west onto the mark at 1,5 (east is a dead corner;
+    // stones reset when you leave and come back). That opens gate 2; the
+    // regent's door wants the oath key from the west col. The east col ends
+    // in a balcony with a ledge back down to the lower hall. Rows authored
+    // against assets/hall-map-grid.png.
+    rows: [
+      '#########', // 0  throne wall
+      '###...###', // 1  dais: regent at 4,1
+      '####.####', // 2  the regent's door (oath key)
+      '####.####', // 3  throne walk (colonnade arch overhead)
+      '####.####', // 4  gate 2: mark (1,5)
+      '#.......#', // 5  upper corridor; mark 1,5
+      '#.##.##.#', // 6  west col (oath key chest 1,6) / stone 4,6 / east col (arch)
+      '#.......#', // 7  lower corridor; braziers 1,7 / 5,7
+      '####.##.#', // 8  the walk down | east balcony 7,8 (brazier)
+      '####.##v#', // 9  gate 1: mark (2,11) | balcony ledge: hop from (7,8) lands (7,10)
+      '####....#', // 10 lower hall; sign 5,10
+      '##....###', // 11 west alcove: mark 2,11; stone 3,11; brazier 5,11
+      '####.####', // 12 approach; covenant holds it
+      '####...##', // 13 east alcove
+      '####.####', // 14 spawn from the Moor Gate door
+      '####.####' // 15 mouth back out to the gate
+    ],
+    exits: [{ gx: 4, gy: 15, to: 'moorgate', sx: 4, sy: 4, facing: 'down' }],
+    // The q6 pool: covenant, howls, knights. The covenant holds the approach.
+    monsters: [
+      { id: 'night-covenant', gx: 4, gy: 12, guard: true, pack: ['pale-howl'] }, // holds the approach
+      { id: 'pale-howl', gx: 5, gy: 13, pack: ['pale-howl'] }, // east alcove pair
+      { id: 'oath-knight', gx: 6, gy: 7 }, // rare — walks the loop
+      { id: 'ashen-regent', gx: 4, gy: 1, boss: true, pack: ['night-covenant', 'pale-howl'] } // warlord + court
+    ],
+    decor: [
+      { gx: 1, gy: 7, fx: 'brazier' },
+      { gx: 5, gy: 7, fx: 'brazier' },
+      { gx: 7, gy: 8, fx: 'brazier' },
+      { gx: 5, gy: 11, fx: 'brazier' }
+    ],
+    signs: [{ gx: 5, gy: 10, talk: 'sign-hall' }],
+    chests: [{ gx: 1, gy: 6, id: 'chest-hall-key', loot: { item: 'oath-key' } }],
+    blocks: [{ gx: 3, gy: 11 }, { gx: 4, gy: 6 }],
+    switches: [{ gx: 2, gy: 11 }, { gx: 1, gy: 5 }],
+    locks: [
+      { gx: 4, gy: 9, needSwitch: [{ gx: 2, gy: 11 }] },
+      { gx: 4, gy: 4, needSwitch: [{ gx: 1, gy: 5 }] },
+      { gx: 4, gy: 2, needItem: 'oath-key' }
     ]
   }
 }
@@ -520,6 +703,13 @@ export function owWalkable(realm: OwRealmId, gx: number, gy: number): boolean {
   // NPCs occupy their tile: you stop on the square in front and talk.
   if (OW_REALMS[realm].npcs?.some((npc) => npc.gx === gx && npc.gy === gy)) return false
   return OW_REALMS[realm].rows[gy].charAt(gx) === '.'
+}
+
+/** The one direction this ledge tile may be hopped in, or undefined if it is
+ * not a ledge. */
+export function owLedgeDir(realm: OwRealmId, gx: number, gy: number): OwDir | undefined {
+  if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return undefined
+  return LEDGE_DIR[OW_REALMS[realm].rows[gy].charAt(gx)]
 }
 
 export function owExitAt(realm: OwRealmId, gx: number, gy: number): OwExit | undefined {
@@ -538,10 +728,6 @@ export function owChestAt(realm: OwRealmId, gx: number, gy: number): OwChest | u
   return OW_REALMS[realm].chests?.find((chest) => chest.gx === gx && chest.gy === gy)
 }
 
-export function owPortalAt(realm: OwRealmId, gx: number, gy: number): OwPortal | undefined {
-  return OW_REALMS[realm].portals?.find((portal) => portal.gx === gx && portal.gy === gy)
-}
-
 export function owLockAt(realm: OwRealmId, gx: number, gy: number): OwLock | undefined {
   return OW_REALMS[realm].locks?.find((lock) => lock.gx === gx && lock.gy === gy)
 }
@@ -552,7 +738,21 @@ export function owSwitchAt(realm: OwRealmId, gx: number, gy: number): OwSwitch |
 
 /** Spawn def behind a shared-monster key (`realm:gx,gy` of the SPAWN tile),
  * so contact with a roamer can pull in its full pack. */
+/** Personal warlord key: never on the wire, only in the local mirror. */
+export function owBossKey(realm: OwRealmId, id: string): string {
+  return `boss:${realm}:${id}`
+}
+
+export function isOwBossKey(key: string): boolean {
+  return key.startsWith('boss:')
+}
+
+/** Spawn def behind a sync key: shared `realm:gx,gy` or personal `boss:realm:id`. */
 export function owSpawnByKey(key: string): OwMonsterSpawn | undefined {
+  if (isOwBossKey(key)) {
+    const [, realm, id] = key.split(':')
+    return OW_REALMS[realm as OwRealmId]?.monsters.find((spawn) => spawn.boss && spawn.id === id)
+  }
   const [realm, coords] = key.split(':')
   if (!coords || !OW_REALMS[realm as OwRealmId]) return undefined
   const [gx, gy] = coords.split(',').map(Number)

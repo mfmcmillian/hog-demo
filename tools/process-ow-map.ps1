@@ -4,19 +4,35 @@
 # collision-authoring grid overlay, and an optional area-name label strip
 # for signposts / the realm-entry toast.
 #
-#   assets/<name>-map-raw.png -> images/maps/<name>-a.jpg (648x1152 resize, rotate 90 CCW)
+#   assets/<name>-map-raw.png -> images/maps/<name>-<rev>.jpg (648x1152 resize, rotate 90 CCW)
 #                             -> assets/<name>-map-grid.png (9x16 red grid + tile indices)
 #   -label 'Crow Road'        -> images/labels/ow-<name>.png (white Segoe UI strip, pre-rotated)
+#   -over <16 rows>           -> images/maps/<name>-over-<rev>.png: the cells marked 'o'
+#                                cut out of the finished painting (6px feather) as an
+#                                alpha PNG. The game draws it above every sprite, so
+#                                an arch or canopy is the painting's own pixels and
+#                                the avatar disappears exactly where the art overhangs.
+#   -floor 'gx,gy'            -> with -over: sample that plain floor cell and drop
+#                                floor-coloured pixels from the cut, so only the
+#                                stonework / canopy itself is kept (cut-ow-over.py).
 #
 # Usage:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/process-ow-map.ps1 -name crow
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools/process-ow-map.ps1 -name crow -label 'Crow Road'
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools/process-ow-map.ps1 -name crypt -over '#########','#ooo.ooo#',...
 #
 # Prints the labels.gen.ts entry lines to paste.
 
 param(
   [Parameter(Mandatory = $true)][string]$name,
   [string]$label = '',
+  [string[]]$over = @(),
+  [string]$floor = '', # 'gx,gy' of a plain floor cell: -over keeps only non-floor pixels
+  # Output revision letter. The preview server hashes files by *path*, so the
+  # explorer keeps serving a cached texture after the file is regenerated in
+  # place: bump the letter (a -> b) whenever you repaint a realm that a client
+  # has already loaded, and point labels.gen.ts at the new name.
+  [string]$rev = 'a',
   [int]$quality = 82,
   [string]$assets = "$env:USERPROFILE\.cursor\projects\c-Users-matth-hog-demo\assets"
 )
@@ -45,6 +61,21 @@ function Load-Resized([string]$path, [int]$w, [int]$h) {
 
 # ---- map: resize to physical 648x1152 (9x16 tiles of 72 stage px), rotate CCW, JPG ----
 $map = Load-Resized $raw 648 1152
+
+# ---- overhead cut: 'o' cells of the portrait map, feathered, as an alpha PNG ----
+if ($over.Count -gt 0) {
+  if ($over.Count -ne 16) { throw "-over expects 16 rows, got $($over.Count)" }
+  # The per-pixel feather is numpy work: hand the resized portrait to
+  # cut-ow-over.py, which writes and quantizes images/maps/<name>-over.png.
+  $portrait = Join-Path $env:TEMP "$name-portrait.png"
+  $map.Save($portrait, [System.Drawing.Imaging.ImageFormat]::Png)
+  $extra = @()
+  if ($floor -ne '') { $extra = @('--floor', $floor) }
+  & python (Join-Path $PSScriptRoot 'cut-ow-over.py') $name $portrait --rev $rev @extra @over | Out-Host
+  if ($LASTEXITCODE -ne 0) { throw 'overhead cut failed' }
+  Remove-Item $portrait -ErrorAction SilentlyContinue
+}
+
 $map.RotateFlip([System.Drawing.RotateFlipType]::Rotate270FlipNone)
 # JPG has no alpha: flatten onto black so any transparent slop stays night-dark.
 $flat = New-Object System.Drawing.Bitmap($map.Width, $map.Height)
@@ -53,9 +84,9 @@ $g.Clear([System.Drawing.Color]::Black)
 $g.DrawImage($map, 0, 0, $map.Width, $map.Height)
 $g.Dispose()
 $map.Dispose()
-$mapOut = Join-Path $root "images\maps\$name-a.jpg"
+$mapOut = Join-Path $root "images\maps\$name-$rev.jpg"
 $flat.Save($mapOut, $jpegCodec, $jpegParams)
-Write-Host "  'map-$name': { src: 'images/maps/$name-a.jpg', w: $($flat.Width), h: $($flat.Height) },"
+Write-Host "  'map-$name': { src: 'images/maps/$name-$rev.jpg', w: $($flat.Width), h: $($flat.Height) },"
 $flat.Dispose()
 
 # ---- collision authoring aid: 9x16 grid + indices over the raw portrait map ----

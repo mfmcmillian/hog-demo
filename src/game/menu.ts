@@ -20,7 +20,6 @@ export function resetMenu() {
 export function goHome() {
   clampCleared()
   game.phase = 'home'
-  game.menuBack = 'home'
   game.selectedSlot = -1
   resetMenu()
 }

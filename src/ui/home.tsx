@@ -2,14 +2,16 @@ import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { playCancel, tap } from '../game/audio'
 import { openHeroCard } from '../game/menu'
-import { closePause, open } from '../game/nav'
+import { open, openOverworld } from '../game/nav'
+import { ElderTalk } from './elderTalk'
 import { goRoad } from '../game/roads'
 import { findOwned, game } from '../game/store'
-import { goPointerShowing } from '../game/tutorial'
+import { goPointerShowing, partyPointerShowing } from '../game/tutorial'
 import { duelSeatCount, getMyName, presentPlayers } from '../mp/session'
 import { riftView } from '../mp/views'
 import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs } from './flipbook'
 import { press, pressShrink, pressTint } from './fx/press'
+import { cardBackArt } from './halls'
 import { LABELS } from './labels.gen'
 import { ModalScrim, TalkPanel, TravelerPlate } from './panels'
 import { disarmRestart } from './settings'
@@ -71,42 +73,25 @@ function HomePoi(props: {
   size: number
   /** Players seated inside; >0 shows a green presence dot by the label. */
   badge?: number
-  /** Soft scale + gold halo so the POI reads as the place to go. */
-  pulse?: boolean
   onTap?: () => void
 }) {
   const info = LABELS[props.k]
   const plate = LABELS[props.label]
   if (!info) return null
-  const wave = props.pulse ? 0.5 + 0.5 * Math.sin(Date.now() / 420) : 0
-  const grow = Math.round(props.size * 0.1 * wave)
-  const drawn = props.size + grow
+  const drawn = props.size
   const plateW = 22
   const plateH = plate ? Math.round((plateW * plate.h) / plate.w) : 0
   const plateTop = Math.max(0, Math.round((drawn - plateH) / 2))
-  const halo = drawn + 22
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
         position: { left: props.left, top: props.top },
         width: drawn + plateW + 16,
-        height: Math.max(halo, plateH)
+        height: Math.max(drawn, plateH)
       }}
       onMouseDown={tap(props.onTap)}
     >
-      {props.pulse ? (
-        <UiEntity
-          uiTransform={{
-            positionType: 'absolute',
-            position: { left: -11 + grow / 2, top: -11 + grow / 2 },
-            width: halo,
-            height: halo,
-            pointerFilter: 'none'
-          }}
-          uiBackground={{ color: Color4.create(0.96, 0.78, 0.22, 0.16 + 0.28 * wave) }}
-        />
-      ) : null}
       <UiEntity
         uiTransform={{
           positionType: 'absolute',
@@ -118,7 +103,7 @@ function HomePoi(props: {
           textureMode: 'stretch',
           texture: { src: info.src },
           uvs: info.uvs,
-          color: props.pulse ? Color4.create(1, 0.9 + 0.1 * wave, 0.62 + 0.38 * wave, 1) : Color4.White()
+          color: Color4.White()
         }}
       />
       {plate ? (
@@ -136,7 +121,7 @@ function HomePoi(props: {
             textureMode: 'stretch',
             texture: { src: plate.src },
             uvs: plate.uvs,
-            color: props.pulse ? gold : cream
+            color: cream
           }}
         />
       ) : null}
@@ -213,9 +198,8 @@ function HomeField() {
         onTap={() => open('rift')}
       />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />
-      {/* Home is the pause menu: the village button steps back onto the map
-          tile the player paused on (never a respawn). */}
-      <HomePoi k="home-overworld" label="village" left="30%" top="8%" size={130} pulse onTap={() => closePause()} />
+      {/* The quest map: resumes where you left it this session. */}
+      <HomePoi k="home-overworld" label="questing" left="30%" top="8%" size={130} onTap={() => openOverworld()} />
     </UiEntity>
   )
 }
@@ -358,7 +342,7 @@ function HomeParty() {
   )
 }
 
-function NavBtn(props: { k: string; big?: boolean; badge?: number; onTap: () => void }) {
+function NavBtn(props: { k: string; big?: boolean; onTap: () => void }) {
   const w = props.big ? 118 : 78
   const id = `nav:${props.k}`
   return (
@@ -373,33 +357,6 @@ function NavBtn(props: { k: string; big?: boolean; badge?: number; onTap: () => 
       onMouseDown={press(id, tap(props.onTap))}
     >
       <Img k={props.k} w={w - pressShrink(id, w)} tint={pressTint(id)} margin={0} />
-      {props.badge ? (
-        // red notification: undiscovered cards, physical top-right of the button
-        <UiEntity
-          uiTransform={{
-            positionType: 'absolute',
-            position: { left: -4, top: -4 },
-            width: 34,
-            height: 34,
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerFilter: 'none'
-          }}
-        >
-          <UiEntity
-            uiTransform={{
-              positionType: 'absolute',
-              position: { left: 0, top: 0 },
-              width: '100%',
-              height: '100%',
-              pointerFilter: 'none'
-            }}
-          >
-            <Img k="dot" w={34} tint={Color4.create(0.85, 0.16, 0.12, 1)} margin={0} />
-          </UiEntity>
-          <Digits value={props.badge} w={16} tint={Color4.White()} tight />
-        </UiEntity>
-      ) : null}
     </UiEntity>
   )
 }
@@ -421,7 +378,7 @@ function HomeNav() {
         color: Color4.White()
       }}
     >
-      <NavBtn k="btn-party" badge={game.freshUids.length} onTap={() => open('party')} />
+      <NavBtn k="btn-party" onTap={() => open('party')} />
       <NavBtn k="btn-map" onTap={() => open('quest')} />
       <NavBtn k="btn-go" big onTap={() => goRoad()} />
       <NavBtn
@@ -443,6 +400,13 @@ function HomeNav() {
         // through.
         <TutPointer left={70 - 13} top={324 - 66} />
       ) : null}
+      {partyPointerShowing() ? (
+        // Undiscovered cards: same pointer, aimed at the party button. In
+        // this column-reverse rail it is the bottom button: 99px of centering
+        // slack + map (82) + GO (122) + settings (82) + event (82) puts its
+        // center at (70, 508).
+        <TutPointer left={70 - 13} top={508 - 66} />
+      ) : null}
     </UiEntity>
   )
 }
@@ -463,7 +427,40 @@ export function HomeScreen() {
       <HomeNav />
       <GameLogo />
       <OnlineRoster />
+      <DropTalk />
     </UiEntity>
+  )
+}
+
+/** After the oath clash: the elder teases the hound's card drop over the
+ * village, showing the card back so the reveal waits on the party bench. */
+function DropTalk() {
+  if (!game.dropTalk) return null
+  const back = cardBackArt()
+  const bob = Math.sin(Date.now() / 480) * 6
+  return (
+    <ElderTalk
+      lines={[{ k: 'intro-d1' }, { k: 'intro-d2' }, { k: 'intro-d3', tint: gold }]}
+      onTap={tap(() => {
+        game.dropTalk = false
+      })}
+    >
+      {/* the mystery card, face down over the upper phone-half */}
+      <UiEntity
+        uiTransform={{
+          positionType: 'absolute',
+          position: { left: '20%', top: `${34 + bob / 7.2}%` },
+          width: 300,
+          height: 150,
+          pointerFilter: 'none'
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: back.src },
+          color: Color4.White()
+        }}
+      />
+    </ElderTalk>
   )
 }
 

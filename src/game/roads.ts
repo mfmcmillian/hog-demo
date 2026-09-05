@@ -2,7 +2,7 @@ import { beginFloor } from './campaign'
 import { DEBUG } from './debug'
 import { prepareFuse } from './fuse'
 import { goHome, openHeroCard, resetMenu } from './menu'
-import { goVillage, returnFromWildBattle } from './overworld'
+import { returnFromWildBattle } from './overworld'
 import { partyUnits, seatInParty } from './party'
 import {
   clampCleared,
@@ -118,7 +118,6 @@ export function openLevels(index: number) {
   }
   game.roadPick = index
   game.phase = 'levels'
-  game.levelsBack = 'quest'
   resetMenu()
 }
 
@@ -193,8 +192,13 @@ export function leaveResult() {
     openLevels(dest.roadIndex)
     // openLevels refuses locked roads (possible after a mid-battle save
     // sync); don't strand the player on the report screen.
-    if (game.phase !== 'levels') goVillage()
+    if (game.phase !== 'levels') goHome()
     return
+  }
+  // First arrival at the hall: tease the hound's card drop so the player
+  // follows the badge to the party screen (where the card waits undiscovered).
+  if (oath && game.battle?.winner === 'you' && game.freshUids.length > 0) {
+    game.dropTalk = true
   }
   // Gates of Antrom is the campaign ending: the epilogue (then credits)
   // plays after every win. Card reveal detoured above.
@@ -204,9 +208,7 @@ export function leaveResult() {
     game.phase = 'intro'
     return
   }
-  // Everything else (oath clash, a lost wild fight) wakes on the village
-  // plaza; a first arrival gets the elder's welcome there (goVillage).
-  goVillage()
+  goHome()
 }
 
 function closeOverlay(then: Phase | 'leaveResult') {
@@ -229,6 +231,8 @@ export function leaveHeroCard() {
     if (back === 'home') seatInParty(acquired.uid)
     game.reveal = undefined
     game.dropBack = 'home'
+    // The questline's last card rolls the credits (endCredits goes home).
+    if (back === 'credits') game.creditsAt = Date.now()
     closeOverlay(back === 'home' ? 'leaveResult' : back)
     if (back === 'fuse') prepareFuse()
     return

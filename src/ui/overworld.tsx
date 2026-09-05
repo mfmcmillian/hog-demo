@@ -14,13 +14,17 @@ import {
   owAvatarRect,
   owBlockRects,
   owChestRects,
+  owDecorRects,
+  owDustRect,
   owFadeAlpha,
+  owFog,
   owHintRect,
   owLockRects,
   owMapKey,
   owMapTint,
   owMonsterRects,
   owNpcRects,
+  owOverKey,
   owRemoteRects,
   owSignRects,
   owSwitchRects,
@@ -28,7 +32,8 @@ import {
 } from '../game/overworld'
 import { Rarity } from '../game/types'
 import { owSlayToast } from '../mp/owClient'
-import { cellUvs, idlePoster } from './fx/sheets'
+import { campfireSheet, campfireUvs, dropRaySheet, loopSparksUvs, sparksSheet } from './flipbook'
+import { cellUvs, getIdleTime, idlePoster } from './fx/sheets'
 import { LABELS } from './labels.gen'
 import { cream } from './theme'
 import { Face, Img, NameTag, Notice } from './widgets'
@@ -94,6 +99,7 @@ export function OverworldScreen() {
         }
       >
         {DEBUG.showOwGrid ? <OwGrid /> : null}
+        <Decor />
         <PathLight />
         {holeSheet
           ? owSwitchRects(AVATAR).map((plate, i) => (
@@ -278,6 +284,7 @@ export function OverworldScreen() {
             <NameTag name={remote.name} w={11} tint={cream} />
           </UiEntity>
         ))}
+        <Dust />
         {sheet ? (
           <UiEntity
             uiTransform={{
@@ -295,6 +302,8 @@ export function OverworldScreen() {
             }}
           />
         ) : null}
+        <Fog />
+        <Overhead />
         {/* gate/recruit notices float over the map (cleared on the next step) */}
         <UiEntity
           uiTransform={{ positionType: 'absolute', position: { right: 60, top: '42%' }, pointerFilter: 'none' }}
@@ -320,44 +329,156 @@ export function OverworldScreen() {
   )
 }
 
-/** Soft lantern on the next story tile — chest, exit, switch, or gate. */
-function PathLight() {
-  const glow = owHintRect(56)
-  if (!glow) return null
-  const pulse = 0.4 + 0.35 * Math.sin(Date.now() / 260)
-  const shaft = 18
+/** Landing puff after a ledge hop: the sparks loop, dusted grey, fading. */
+function Dust() {
+  const puff = owDustRect(AVATAR)
+  if (!puff) return null
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
-        position: { left: glow.left, top: glow.top },
+        position: { left: puff.left + 14, top: puff.top },
+        width: AVATAR,
+        height: AVATAR,
+        pointerFilter: 'none'
+      }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src: sparksSheet() },
+        uvs: loopSparksUvs(),
+        color: Color4.create(0.85, 0.8, 0.7, 0.8 * puff.alpha)
+      }}
+    />
+  )
+}
+
+// Ambient decor reuses the fx flipbooks: brazier = campfire loop, wisp =
+// ember sparks, shaft = the epic-drop light rays slowed to a slow breath.
+const DECOR_SIZE = { brazier: 96, wisp: 110, shaft: 150 }
+const DECOR_TINT = {
+  brazier: Color4.White(),
+  wisp: Color4.create(0.55, 0.95, 0.75, 0.75),
+  shaft: Color4.create(1, 0.95, 0.75, 0.45)
+}
+
+function Decor() {
+  const rays = dropRaySheet()
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, pointerFilter: 'none' }}>
+      {owDecorRects(AVATAR).map((decor, i) => {
+        const size = DECOR_SIZE[decor.fx]
+        const grow = (size - AVATAR) / 2
+        const src = decor.fx === 'brazier' ? campfireSheet() : decor.fx === 'wisp' ? sparksSheet() : rays
+        const uvs =
+          decor.fx === 'brazier'
+            ? campfireUvs()
+            : decor.fx === 'wisp'
+              ? loopSparksUvs()
+              : cellUvs(Math.floor(getIdleTime() * 5) % 16)
+        return (
+          <UiEntity
+            key={`dc${i}`}
+            uiTransform={{
+              positionType: 'absolute',
+              position: { left: decor.left - grow, top: decor.top - grow },
+              width: size,
+              height: size,
+              pointerFilter: 'none'
+            }}
+            uiBackground={{ textureMode: 'stretch', texture: { src }, uvs, color: DECOR_TINT[decor.fx] }}
+          />
+        )
+      })}
+    </UiEntity>
+  )
+}
+
+/** Two drifting sheets of one tileable fog texture, above the sprites.
+ * Each shows a 60% window of the texture and slides it on a slow sine so
+ * the uvs never leave [0,1] (UI textures do not wrap). */
+function Fog() {
+  const alpha = owFog()
+  const fog = LABELS['fog-a']
+  if (alpha <= 0 || !fog) return null
+  const t = getIdleTime()
+  const layer = (phase: number, speed: number, a: number) => {
+    const u = 0.2 + 0.2 * Math.sin(t * speed + phase)
+    const v = 0.2 + 0.2 * Math.cos(t * speed * 0.7 + phase)
+    return (
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: MAP_W, height: MAP_H, pointerFilter: 'none' }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: fog.src },
+          uvs: [u, v, u, v + 0.6, u + 0.6, v + 0.6, u + 0.6, v],
+          color: Color4.create(1, 1, 1, a)
+        }}
+      />
+    )
+  }
+  return (
+    <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, pointerFilter: 'none' }}>
+      {layer(0, 0.11, alpha)}
+      {layer(2.1, 0.07, alpha * 0.7)}
+    </UiEntity>
+  )
+}
+
+/** The painting's own arches / canopy, cut out by process-ow-map.ps1 -over
+ * and drawn last so the avatar walks under them. */
+function Overhead() {
+  const key = owOverKey()
+  const over = key ? LABELS[key] : undefined
+  if (!over) return null
+  const tint = owMapTint()
+  return (
+    <UiEntity
+      uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: MAP_W, height: MAP_H, pointerFilter: 'none' }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src: over.src },
+        uvs: over.uvs,
+        color: tint ? Color4.create(tint.r, tint.g, tint.b, 1) : Color4.White()
+      }}
+    />
+  )
+}
+
+/** The guiding light: a gold wisp (the sparks flipbook) bobbing over the
+ * next story tile — chest, exit, switch, gate, or the person to talk to. */
+function PathLight() {
+  const glow = owHintRect(56)
+  if (!glow) return null
+  const t = getIdleTime()
+  const bob = Math.sin(t * 2.2) * 5 // physically up/down = landscape left/right
+  const pulse = 0.75 + 0.25 * Math.sin(t * 5)
+  const uvs = loopSparksUvs()
+  const src = sparksSheet()
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: glow.left - bob, top: glow.top },
         width: 56,
         height: 56,
-        alignItems: 'center',
-        justifyContent: 'center',
         pointerFilter: 'none'
       }}
     >
+      {/* halo: the same sprite, bigger and faint */}
       <UiEntity
-        uiTransform={{ width: 44, height: 44, pointerFilter: 'none' }}
-        uiBackground={{ color: Color4.create(1, 0.82, 0.35, 0.22 * pulse) }}
+        uiTransform={{ positionType: 'absolute', position: { left: -16, top: -16 }, width: 88, height: 88, pointerFilter: 'none' }}
+        uiBackground={{ textureMode: 'stretch', texture: { src }, uvs, color: Color4.create(1, 0.75, 0.3, 0.35 * pulse) }}
       />
       <UiEntity
-        uiTransform={{
-          positionType: 'absolute',
-          position: { left: 28 - shaft / 2, top: 28 - shaft / 2 },
-          width: shaft,
-          height: shaft,
-          pointerFilter: 'none'
-        }}
-        uiBackground={{ color: Color4.create(1, 0.9, 0.55, 0.55 + 0.4 * pulse) }}
+        uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: 56, height: 56, pointerFilter: 'none' }}
+        uiBackground={{ textureMode: 'stretch', texture: { src }, uvs, color: Color4.create(1, 0.92, 0.6, pulse) }}
       />
     </UiEntity>
   )
 }
 
-/** Gen-3-style area-name toast: the realm's name strip on a dark plate,
- * hanging by the physical top of the map for a beat after arriving. */
+/** Gen-3-style area badge: the realm's name strip on a dark plate by the
+ * physical top of the map — bright on arrival, then dim but always there. */
 function AreaToast() {
   const toast = owToast()
   if (!toast) return null

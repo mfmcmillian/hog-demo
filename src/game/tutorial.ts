@@ -90,7 +90,25 @@ export function goPointerShowing(): boolean {
   if (!game.tutSeen.party || game.tutSeen.go) return false
   // Saves that predate the flag: anyone with road progress knows GO already.
   if (game.cleared > 0) return false
-  return !game.fireTalk && !game.onlineOpen && !tipShowing()
+  // One pointer at a time: undiscovered cards send you to the hall first.
+  if (game.freshUids.length > 0) return false
+  return homeClear()
+}
+
+/**
+ * Animated pointer on the home party button while cards sit undiscovered in
+ * the hall (fresh drops, quest rewards). Replaces the old red count badge
+ * with the same nudge the GO button uses; clears itself when the party
+ * screen opens (open() empties freshUids).
+ */
+export function partyPointerShowing(): boolean {
+  if (game.phase !== 'home' || game.freshUids.length === 0) return false
+  return homeClear()
+}
+
+/** No home dialog or overlay holding the screen. */
+function homeClear(): boolean {
+  return !game.dropTalk && !game.fireTalk && !game.onlineOpen && !tipShowing()
 }
 
 /**

@@ -58,8 +58,10 @@ $lines = [ordered]@{
   'intro-f6' = 'A CAPTURED HERO IN ITS JAWS.'
   'intro-f7' = 'CUT IT DOWN, MAKE IT TO THE VILLAGE,'
   'intro-f8' = 'AND ADD THE FREED HERO TO YOUR PARTY.'
-  # page 2 of the elder's plaza welcome (see gen-ow-labels.ps1 'ow-guide-*')
+  # card-drop tease on arriving home after the oath clash
   'intro-d1' = 'THE HOUND DROPPED A HERO CARD.'
+  'intro-d2' = 'YOU HAVE REACHED THE VILLAGE -'
+  'intro-d3' = 'CHECK YOUR PARTY.'
 }
 
 # Page-1 strips pack first so they share atlas page 0, which rides in the

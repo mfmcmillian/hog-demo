@@ -1,9 +1,9 @@
 import { InputAction, inputSystem } from '@dcl/sdk/ecs'
 import { owMonsterOn, owRemoteMonsters, owRemotePlayers, sendOwMove, sendOwSlay } from '../mp/owClient'
+import { bossSlain, bossSlainFlag, questRewarded } from './owQuests'
 import { playBump, playChest } from './audio'
 import { startWildBattle } from './campaign'
 import { resetMenu } from './menu'
-import { clampCleared } from './progress'
 import {
   GRID_H,
   GRID_W,
@@ -13,23 +13,26 @@ import {
   OW_SPAWN_GX,
   OW_SPAWN_GY,
   OW_SUB,
+  OwDecor,
   OwDir,
   OwExit,
+  OwLock,
   OwRealmId,
   OW_STEP_S,
   MAP_H,
   TILE,
+  isOwBossKey,
+  owBossKey,
   owChestAt,
   owExitAt,
+  owLedgeDir,
   owLockAt,
   owNpcAt,
-  owPortalAt,
   owSignAt,
   owSpawnByKey,
   owWalkable
 } from './owdefs'
 import { grantOwItem, hasOwFlag, hasOwItem, npcTalkId, owTalkActive, setOwFlag, startOwTalk } from './owTalk'
-import { ROADS } from './quests'
 import { game } from './store'
 
 // Pokemon-style overworld: 9x16 tile grids over pre-rotated backdrops
@@ -50,6 +53,9 @@ const FACING_ROW: Record<OwDir, number> = { down: 0, left: 1, right: 2, up: 3 }
 const WALK_SEQ = [1, 3]
 const FRAME_S = OW_STEP_S / 2
 const TURN_S = 0.1 // turn-in-place beat before a step in a new direction
+const HOP_S = 0.46 // ledge hop: three subtiles in one arc
+const HOP_PX = 26 // arc height in stage px (physically upward)
+const DUST_S = 0.45 // landing puff
 
 export const ow = {
   gx: OW_SPAWN_GX * OW_SUB, // local subtile stood on (or stepped into)
@@ -60,8 +66,12 @@ export const ow = {
   facing: 'down' as OwDir,
   stride: 0, // which foot leads this hop; flips every step
   walkTime: 0, // wall-bump timer only: > 0 animates walking in place
-  turnT: 0 // remaining turn-in-place time; > 0 means turning, not walking
+  turnT: 0, // remaining turn-in-place time; > 0 means turning, not walking
+  hop: false // the step in flight is a ledge hop (arc, slower, thud on landing)
 }
+
+/** Landing puff after a hop: subtile it happened on and seconds left. */
+const dust = { gx: 0, gy: 0, t: 0 }
 
 // Direction currently held on the on-screen d-pad (see OverworldHud). The
 // tick also requires IA_POINTER to still be down, so a missed onMouseUp
@@ -86,7 +96,7 @@ const TOAST_FADE_S = 0.6
 let toastT = 0
 
 // Where to drop the player after a wild battle won on the current realm.
-let wildReturn: { realm: OwRealmId; gx: number; gy: number; facing: OwDir; key: string } | undefined
+let wildReturn: { realm: OwRealmId; gx: number; gy: number; facing: OwDir; key: string; id: string } | undefined
 
 function coarse(n: number): number {
   return Math.floor(n / OW_SUB)
@@ -114,14 +124,21 @@ function switchHeld(gx: number, gy: number): boolean {
 }
 
 function lockFlag(lock: { gx: number; gy: number }): string {
-  return `ow-lock:${realmId}:${lock.gx},${lock.gy}`
+  // Hyphens only: the server's save filter drops flags with other punctuation.
+  return `ow-lock-${realmId}-${lock.gx}-${lock.gy}`
+}
+
+/** Every plate this lock wants is holding a stone right now. */
+function lockSatisfied(lock: OwLock): boolean {
+  if (lock.needItem) return hasOwItem(lock.needItem)
+  return (lock.needSwitch ?? []).every((plate) => switchHeld(plate.gx, plate.gy))
 }
 
 function lockClosed(gx: number, gy: number): boolean {
   const lock = owLockAt(realmId, gx, gy)
   if (!lock) return false
   if (hasOwFlag(lockFlag(lock))) return false
-  return !switchHeld(lock.needSwitch.gx, lock.needSwitch.gy)
+  return !lockSatisfied(lock)
 }
 
 function placePlayer(gx: number, gy: number, facing: OwDir) {
@@ -132,6 +149,7 @@ function placePlayer(gx: number, gy: number, facing: OwDir) {
   ow.fx = sx
   ow.fy = sy
   ow.t = 1
+  ow.hop = false
   ow.facing = facing
   ow.stride = 0
   ow.walkTime = 0
@@ -140,31 +158,29 @@ function placePlayer(gx: number, gy: number, facing: OwDir) {
   sendOwMove(realmId, gx, gy, facing)
 }
 
+let visited = false
+
+/** Fresh entry from the home village button: spawn on the plaza. */
 export function enterOverworld() {
   realmId = 'village'
   padDir = ''
   fade.dir = 0
   fade.t = 0
   wildReturn = undefined
+  visited = true
+  toastT = TOAST_S // name the place you just walked into, same as a realm swap
   resetPuzzles()
   placePlayer(OW_SPAWN_GX, OW_SPAWN_GY, 'down')
-}
-
-/** The village is the hub: boot, a lost fight, and the credits all wake the
- * player on the plaza. Home is the pause menu over it (nav.back on the map). */
-export function goVillage(): void {
-  clampCleared()
-  game.phase = 'overworld'
-  game.menuBack = 'home'
-  game.selectedSlot = -1
-  resetMenu()
-  enterOverworld()
-  fade.dir = -1
-  // Fresh account's first look at the plaza: the elder's welcome, once.
-  if (game.cleared === 0 && !game.tutSeen.party && !hasOwFlag('guide-village')) {
+  // First time on the map: the elder explains walking and the light, once.
+  if (!hasOwFlag('guide-village')) {
     setOwFlag('guide-village')
     startOwTalk('guide-village')
   }
+}
+
+/** Been on the map this session (so the village button can resume in place). */
+export function owVisited(): boolean {
+  return visited
 }
 
 export function setPadDir(dir: OwDir | '') {
@@ -181,25 +197,17 @@ export function owRealmId(): OwRealmId {
 }
 
 /** Why this exit is shut, or '' if it is open. */
-function gateReason(exit: OwExit): 'need' | 'item' | '' {
-  if (exit.need && game.cleared < exit.need) return 'need'
+function gateReason(exit: OwExit): 'flag' | 'item' | '' {
+  if (exit.needFlag && !hasOwFlag(exit.needFlag)) return 'flag'
   if (exit.needItem && !hasOwItem(exit.needItem)) return 'item'
   return ''
 }
 
 function postGateNotice(exit: OwExit) {
   const why = gateReason(exit)
-  if (why === 'item') {
-    game.notice = exit.needItem === 'reed-lamp' ? 'need-item' : 'sealed'
-    playBump()
-    return
-  }
-  // Only the *next* road gate talks. Post-game locks (need: 4 while you are
-  // still on road 1) stay silent — that used to read as "kill the roamers."
-  if (why === 'need' && exit.need === game.cleared + 1) {
-    game.notice = 'clear-road'
-    playBump()
-  }
+  if (!why) return
+  game.notice = why === 'item' && exit.needItem === 'reed-lamp' ? 'need-item' : 'sealed'
+  playBump()
 }
 
 export function walkable(gx: number, gy: number): boolean {
@@ -221,7 +229,7 @@ function canPlaceBlock(gx: number, gy: number): boolean {
   if (lockClosed(gx, gy)) return false
   if (blockAt(gx, gy)) return false
   if (owNpcAt(realmId, gx, gy) || owChestAt(realmId, gx, gy) || owSignAt(realmId, gx, gy)) return false
-  if (owExitAt(realmId, gx, gy) || owPortalAt(realmId, gx, gy)) return false
+  if (owExitAt(realmId, gx, gy)) return false
   return true
 }
 
@@ -239,12 +247,27 @@ function tryPush(dir: OwDir): boolean {
   block.gy = ny
   const nowHeld = (OW_REALMS[realmId].switches ?? []).some((plate) => switchHeld(plate.gx, plate.gy))
   if (nowHeld) {
+    // A lock whose plates are all held stays open for good (save flag).
     for (const lock of OW_REALMS[realmId].locks ?? []) {
-      if (switchHeld(lock.needSwitch.gx, lock.needSwitch.gy)) setOwFlag(lockFlag(lock))
+      if (lock.needSwitch && lockSatisfied(lock)) setOwFlag(lockFlag(lock))
     }
     if (!wasHeld) playChest()
   }
   return true
+}
+
+/** This realm's warlords you have not felled yet (personal, from the def). */
+function localBosses(): { key: string; id: string; gx: number; gy: number }[] {
+  const out: { key: string; id: string; gx: number; gy: number }[] = []
+  for (const spawn of OW_REALMS[realmId].monsters) {
+    if (spawn.boss && !bossSlain(spawn.id)) out.push({ key: owBossKey(realmId, spawn.id), id: spawn.id, gx: spawn.gx, gy: spawn.gy })
+  }
+  return out
+}
+
+/** Whatever stands on a coarse tile: a shared roamer or your own warlord. */
+function monsterOn(gx: number, gy: number): { key: string; id: string } | undefined {
+  return owMonsterOn(realmId, gx, gy) ?? localBosses().find((boss) => boss.gx === gx && boss.gy === gy)
 }
 
 /** Contact! The roamer brings its whole pack (spawn def) into the fight.
@@ -252,22 +275,29 @@ function tryPush(dir: OwDir): boolean {
 function triggerWildBattle(mon: { key: string; id: string }): boolean {
   const pack = owSpawnByKey(mon.key)?.pack ?? []
   if (!startWildBattle([mon.id, ...pack])) return false
-  wildReturn = { realm: realmId, gx: coarse(ow.gx), gy: coarse(ow.gy), facing: ow.facing, key: mon.key }
+  wildReturn = { realm: realmId, gx: coarse(ow.gx), gy: coarse(ow.gy), facing: ow.facing, key: mon.key, id: mon.id }
   padDir = ''
   return true
 }
 
 /** Post-battle handoff from leaveResult: a won wild fight reports the slain
- * monster to the server and resumes the realm right where contact happened.
- * A loss falls through to the default blackout-home flow. */
+ * roamer to the server (or remembers the felled warlord in the save) and
+ * resumes the realm right where contact happened. A loss wakes you on the
+ * Antrom plaza — the questing area never drops you back to home. */
 export function returnFromWildBattle(): boolean {
   const stash = wildReturn
   wildReturn = undefined
   if (!stash) return false
-  if (game.battle?.winner !== 'you') return false
-  sendOwSlay(stash.key)
-  realmId = stash.realm
-  placePlayer(stash.gx, stash.gy, stash.facing)
+  if (game.battle?.winner === 'you') {
+    if (isOwBossKey(stash.key)) setOwFlag(bossSlainFlag(stash.id))
+    else sendOwSlay(stash.key)
+    realmId = stash.realm
+    placePlayer(stash.gx, stash.gy, stash.facing)
+  } else {
+    realmId = 'village'
+    resetPuzzles()
+    placePlayer(OW_SPAWN_GX, OW_SPAWN_GY, 'down')
+  }
   padDir = ''
   // Wake under a fade-in so the cut back from the report reads as a scene.
   fade.dir = -1
@@ -294,24 +324,48 @@ function tryStep(dir: OwDir): boolean {
   const nx = ow.gx + OW_DX[dir]
   const ny = ow.gy + OW_DY[dir]
   if (!walkable(nx, ny)) {
+    if (tryHop(dir, nx, ny)) return true
     if (!tryPush(dir) || !walkable(nx, ny)) {
       const exit = owExitAt(realmId, coarse(nx), coarse(ny))
       if (exit) postGateNotice(exit)
+      else if (lockClosed(coarse(nx), coarse(ny)) && !game.notice) {
+        // A shut door answers like a sealed exit: the sign nearby says why.
+        game.notice = 'sealed'
+        playBump()
+      }
       return false
     }
   }
+  beginStep(nx, ny, dir, false)
+  return true
+}
+
+/** Pokemon ledge: walking into a cliff lip from its open side jumps the
+ * whole ledge tile and lands on the tile beyond. Any other approach, or a
+ * blocked landing, is a plain bump. */
+function tryHop(dir: OwDir, nx: number, ny: number): boolean {
+  if (owLedgeDir(realmId, coarse(nx), coarse(ny)) !== dir) return false
+  // nx,ny is the ledge's near subtile; the far tile's near subtile is two on.
+  const lx = nx + OW_DX[dir] * OW_SUB
+  const ly = ny + OW_DY[dir] * OW_SUB
+  if (!walkable(lx, ly) || owLedgeDir(realmId, coarse(lx), coarse(ly))) return false
+  beginStep(lx, ly, dir, true)
+  return true
+}
+
+function beginStep(nx: number, ny: number, dir: OwDir, hop: boolean): void {
   ow.fx = ow.gx
   ow.fy = ow.gy
   ow.gx = nx
   ow.gy = ny
   ow.t = 0
+  ow.hop = hop
   ow.stride = ow.stride === 0 ? 1 : 0
   ow.walkTime = 0
   talkedFrom = ''
   // Walking away dismisses a floating notice (locked gate, recruit-first).
   game.notice = ''
   publishCoarse(nx, ny, dir)
-  return true
 }
 
 function heldKeyDir(): OwDir | '' {
@@ -367,11 +421,20 @@ export function tickOverworld(dt: number) {
   // Pokemon rule: a started step always finishes — no stopping or turning
   // between subtiles. Input is sampled only when grid-aligned, so releases
   // and direction changes take effect on landing (at most OW_STEP_S away).
+  if (dust.t > 0) dust.t -= dt
   if (ow.t < 1) {
-    ow.t = Math.min(1, ow.t + dt / OW_STEP_S)
+    ow.t = Math.min(1, ow.t + dt / (ow.hop ? HOP_S : OW_STEP_S))
     if (ow.t < 1) return
     ow.fx = ow.gx
     ow.fy = ow.gy
+    if (ow.hop) {
+      // Touch down: thud and a puff of dust under the feet.
+      ow.hop = false
+      playBump()
+      dust.gx = ow.gx
+      dust.gy = ow.gy
+      dust.t = DUST_S
+    }
     // Step just landed: an open exit fades. Shut gates are unwalkable, so
     // their notices fire on the bump in tryStep instead.
     const exit = owExitAt(realmId, coarse(ow.gx), coarse(ow.gy))
@@ -379,19 +442,6 @@ export function tickOverworld(dt: number) {
       fade.dir = 1
       fade.t = 0
       fade.exit = exit
-      return
-    }
-    // Warlord landmark door: standing at the gate opens its floor-select.
-    const gate = OW_REALMS[realmId].roadGate
-    if (gate && coarse(ow.gx) === gate.gx && coarse(ow.gy) === gate.gy) {
-      openRoadGate(gate.road)
-      return
-    }
-    // Menu portal (the rift at the stone circle): open the screen in place.
-    const portal = owPortalAt(realmId, coarse(ow.gx), coarse(ow.gy))
-    if (portal && openFromMap) {
-      padDir = ''
-      openFromMap(portal.opens)
       return
     }
     // Chests and signs fire on the landing tile. NPCs are blocked tiles:
@@ -402,7 +452,7 @@ export function tickOverworld(dt: number) {
   }
   // Grid-aligned: contact with a monster on this tile starts the fight
   // (covers both stepping onto one and one wandering onto us).
-  const mon = owMonsterOn(realmId, coarse(ow.gx), coarse(ow.gy))
+  const mon = monsterOn(coarse(ow.gx), coarse(ow.gy))
   if (mon && triggerWildBattle(mon)) return
   // Turning in place: hold the new facing's standing frame for a beat.
   if (ow.turnT > 0) {
@@ -428,6 +478,14 @@ export function tickOverworld(dt: number) {
   ow.walkTime = 0
 }
 
+/** Which talk a key item's chest opens with (owTalk.ts). */
+const CHEST_TALK: Record<string, string> = {
+  'reed-lamp': 'chest-lamp',
+  'gate-sigil': 'chest-key',
+  'bone-key': 'chest-bone',
+  'oath-key': 'chest-oath'
+}
+
 function tryChest(): boolean {
   const chest = owChestAt(realmId, coarse(ow.gx), coarse(ow.gy))
   if (!chest || hasOwFlag(chest.id)) return false
@@ -435,8 +493,7 @@ function tryChest(): boolean {
   if (chest.loot.coins) game.coins += chest.loot.coins
   if (chest.loot.item) grantOwItem(chest.loot.item)
   playChest()
-  const talk = chest.loot.item === 'reed-lamp' ? 'chest-lamp' : chest.loot.item ? 'chest-key' : 'chest-coins'
-  startOwTalk(talk)
+  startOwTalk((chest.loot.item && CHEST_TALK[chest.loot.item]) || 'chest-coins')
   padDir = ''
   return true
 }
@@ -470,32 +527,8 @@ function tryNpcTalk(): boolean {
   return true
 }
 
-// nav.ts registers its open-from-map routine here (importing nav directly
-// would be a cycle). It marks the back path so leaving the screen resumes
-// the map instead of going home.
-let openFromMap: ((phase: string) => void) | undefined
-export function setOwOpener(fn: (phase: string) => void): void {
-  openFromMap = fn
-}
-
-/** Landmark door reached on foot: open that road's floor-select in place.
- * Mirrors roads.openLevels (kept local to avoid an import cycle) but marks
- * the back path so leaving the screen steps back outside the gate. */
-function openRoadGate(road: number): void {
-  if (road > game.cleared || !ROADS[road]) {
-    game.notice = 'clear-road'
-    playBump()
-    return
-  }
-  game.roadPick = road
-  game.levelsBack = 'overworld'
-  game.phase = 'levels'
-  padDir = ''
-  resetMenu()
-}
-
-/** Back out of a landmark's floor-select: wake on the door tile facing away
- * from the gate, under a fade-in, without resetting position to spawn. */
+/** Back onto the map from a screen: wake where you stood, facing down,
+ * under a fade-in, without resetting position to spawn. */
 export function resumeOverworld(): void {
   game.phase = 'overworld'
   padDir = ''
@@ -518,12 +551,28 @@ export function owMapTint(): { r: number; g: number; b: number } | undefined {
   return OW_REALMS[realmId].tint
 }
 
-/** Area-name toast on realm entry: label key + fade-out alpha, or nothing. */
+/** labels.gen key of the overhead cut drawn above everything, if any. */
+export function owOverKey(): string | undefined {
+  return OW_REALMS[realmId].over
+}
+
+/** Ambient flipbook decor for the realm, in tile space. */
+export function owDecorRects(size: number): { fx: OwDecor['fx']; left: number; top: number }[] {
+  return (OW_REALMS[realmId].decor ?? []).map((decor) => ({ fx: decor.fx, ...tileRect(decor.gx, decor.gy, size) }))
+}
+
+/** Fog alpha for the realm (0 = none). */
+export function owFog(): number {
+  return OW_REALMS[realmId].fog ?? 0
+}
+
+/** Area name for the badge by the map's physical top: bright for a beat on
+ * arrival (the Gen-3 toast), then it stays dim so you always know where you
+ * are. Interiors have no name, so the badge hides in a hut. */
 export function owToast(): { key: string; alpha: number } | undefined {
-  if (toastT <= 0) return undefined
   const key = OW_REALMS[realmId].nameKey
   if (!key) return undefined
-  return { key, alpha: Math.min(1, toastT / TOAST_FADE_S) }
+  return { key, alpha: Math.max(0.42, Math.min(1, toastT / TOAST_FADE_S)) }
 }
 
 /** 0..1 black overlay strength for the realm-swap fade. */
@@ -572,7 +621,7 @@ export function owSwitchRects(size: number): { pressed: boolean; left: number; t
     pressed:
       switchHeld(plate.gx, plate.gy) ||
       (OW_REALMS[realmId].locks ?? []).some(
-        (lock) => lock.needSwitch.gx === plate.gx && lock.needSwitch.gy === plate.gy && hasOwFlag(lockFlag(lock))
+        (lock) => hasOwFlag(lockFlag(lock)) && (lock.needSwitch ?? []).some((need) => need.gx === plate.gx && need.gy === plate.gy)
       ),
     ...tileRect(plate.gx, plate.gy, size)
   }))
@@ -592,52 +641,104 @@ export function owHintRect(size: number): { left: number; top: number } | undefi
   return tileRect(tile.gx, tile.gy, size)
 }
 
+/** Follows the questline (owQuests): Act 1 south to the Moor Gate and back
+ * to the elder; Act 2 west up Crow Road to Rookhaven and north to the queen;
+ * Act 3 down Rookhaven's west road to the well; Act 4 back south through
+ * the Moor Gate's door. Each act ends at its giver. */
 function hintTile(): { gx: number; gy: number } | undefined {
   if (realmId === 'village') {
-    // Fresh account: the inn first (its bench is the party tutorial), then the roads.
-    if (!game.tutSeen.party) return OW_REALMS.village.exits.find((exit) => exit.to === 'hall-inn')
-    if (game.cleared >= 1) return { gx: 0, gy: 9 }
+    if (!hasOwFlag('elder-met')) return { gx: 4, gy: 3 } // first: the elder, who says where to go
+    if (questRewarded('hall')) return undefined
+    if (bossSlain('ashen-regent')) return { gx: 4, gy: 2 } // the elder pays
+    if (questRewarded('well')) return { gx: 4, gy: 14 } // south again, to the door
+    if (questRewarded('gate')) return { gx: 0, gy: 9 }
+    if (bossSlain('moor-ogre')) return { gx: 4, gy: 2 } // the elder pays
     return { gx: 4, gy: 14 }
   }
-  // Onboarding inside the inn: the square before the innkeeper, then (party
-  // seated) the door back out.
-  if (realmId === 'hall-inn' && game.cleared === 0) {
-    return game.tutSeen.party ? OW_REALMS[realmId].exits[0] : { gx: 4, gy: 6 }
-  }
+  // The south chain (wilds -> fen -> crypt -> Moor Gate) is walked north for
+  // the ogre (Act 1) and for the hall door (Act 4); any other time you are
+  // down here the story is behind you, so every realm points back home.
+  const southBound = !bossSlain('moor-ogre') || (questRewarded('well') && !bossSlain('ashen-regent'))
   if (realmId === 'wilds') {
+    if (!southBound) return { gx: 8, gy: 13 } // home
     if (!hasOwItem('reed-lamp')) return { gx: 5, gy: 2 }
     return { gx: 4, gy: 1 }
   }
-  if (realmId === 'fen') return { gx: 3, gy: 1 }
+  if (realmId === 'fen') return southBound ? { gx: 3, gy: 1 } : { gx: 4, gy: 15 }
   if (realmId === 'crypt') {
-    const lock = OW_REALMS.crypt.locks?.[0]
-    if (lock && lockClosed(lock.gx, lock.gy)) return lock.needSwitch
-    if (!hasOwItem('gate-sigil')) return { gx: 2, gy: 3 }
+    if (!southBound) return { gx: 4, gy: 15 } // back down to the fen
+    return dungeonHint() ?? (hasOwItem('gate-sigil') ? { gx: 4, gy: 1 } : { gx: 2, gy: 3 })
+  }
+  if (realmId === 'moorgate') {
+    if (!bossSlain('moor-ogre')) return { gx: 4, gy: 7 }
+    if (questRewarded('well') && !bossSlain('ashen-regent')) return { gx: 4, gy: 3 } // the door
+    return { gx: 4, gy: 15 }
+  }
+  // Crow Road: up to Rookhaven for Acts 2-3, back to the village after the Well.
+  if (realmId === 'crow') return questRewarded('well') ? { gx: 8, gy: 14 } : { gx: 4, gy: 1 }
+  if (realmId === 'rookhaven') {
+    if (questRewarded('well')) return { gx: 4, gy: 14 } // home to the elder
+    if (bossSlain('crimson-abbot')) return { gx: 6, gy: 8 } // the seer's door
+    if (questRewarded('widow')) return { gx: 0, gy: 9 }
+    if (bossSlain('thorn-queen')) return { gx: 2, gy: 4 } // the widow's door
     return { gx: 4, gy: 1 }
   }
-  if (realmId === 'moorgate') return { gx: 4, gy: 3 }
-  if (realmId === 'crow') return { gx: 4, gy: 1 }
+  if (realmId === 'deep') return dungeonHint() ?? (bossSlain('thorn-queen') ? { gx: 0, gy: 14 } : { gx: 4, gy: 2 })
+  if (realmId === 'well') return dungeonHint() ?? (bossSlain('crimson-abbot') ? { gx: 4, gy: 15 } : { gx: 4, gy: 1 })
+  if (realmId === 'hall') return dungeonHint() ?? (bossSlain('ashen-regent') ? { gx: 4, gy: 15 } : { gx: 4, gy: 1 })
   return undefined
 }
 
-/** Avatar quad in stage px, relative to the map's top-left corner. */
+/** The next unsolved step of the realm's puzzles, in lock order: the first
+ * empty plate of a shut plate-lock, or the chest holding a shut door's key.
+ * Undefined once every lock is open (the caller then points at the boss). */
+function dungeonHint(): { gx: number; gy: number } | undefined {
+  const realm = OW_REALMS[realmId]
+  for (const lock of realm.locks ?? []) {
+    if (!lockClosed(lock.gx, lock.gy)) continue
+    if (lock.needItem) {
+      const chest = realm.chests?.find((c) => c.loot.item === lock.needItem)
+      if (chest && !hasOwFlag(chest.id)) return chest
+      return lock
+    }
+    return lock.needSwitch?.find((plate) => !switchHeld(plate.gx, plate.gy)) ?? lock
+  }
+  return undefined
+}
+
+/** Avatar quad in stage px, relative to the map's top-left corner. A hop
+ * in flight lifts the quad along a sine arc (physically upward = stage -x). */
 export function owAvatarRect(size: number): { left: number; top: number } {
   const px = ow.fx + (ow.gx - ow.fx) * ow.t
   const py = ow.fy + (ow.gy - ow.fy) * ow.t
-  return tileRect(px, py, size, TILE / OW_SUB)
+  const rect = tileRect(px, py, size, TILE / OW_SUB)
+  if (ow.hop && ow.t < 1) rect.left -= Math.sin(ow.t * Math.PI) * HOP_PX
+  return rect
 }
 
-/** The shared wilds monsters of the current realm, placed for the UI.
- * `sizeOf` lets rarer roamers draw larger without changing the tile grid. */
+/** Landing puff: quad + fade alpha while it lasts, else undefined. */
+export function owDustRect(size: number): { left: number; top: number; alpha: number } | undefined {
+  if (dust.t <= 0) return undefined
+  return { ...tileRect(dust.gx, dust.gy, size, TILE / OW_SUB), alpha: Math.min(1, dust.t / (DUST_S * 0.6)) }
+}
+
+/** The monsters of the current realm, placed for the UI: shared roamers
+ * plus your own unfelled warlords. `sizeOf` lets rarer roamers draw larger
+ * without changing the tile grid. */
 export function owMonsterRects(
   sizeOf: (id: string) => number
 ): { id: string; left: number; top: number; size: number }[] {
-  return owRemoteMonsters(realmId).map((mon) => {
+  const out = owRemoteMonsters(realmId).map((mon) => {
     const size = sizeOf(mon.id)
     const px = mon.fx + (mon.gx - mon.fx) * mon.t
     const py = mon.fy + (mon.gy - mon.fy) * mon.t
     return { id: mon.id, size, ...tileRect(px, py, size) }
   })
+  for (const boss of localBosses()) {
+    const size = sizeOf(boss.id)
+    out.push({ id: boss.id, size, ...tileRect(boss.gx, boss.gy, size) })
+  }
+  return out
 }
 
 /** Everyone else standing in this realm: placed quads + walk-sheet cells +

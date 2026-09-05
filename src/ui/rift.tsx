@@ -2,7 +2,8 @@ import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { tap } from '../game/audio'
 import { DEBUG } from '../game/debug'
-import { leaveToHub, lockNav } from '../game/nav'
+import { goHome } from '../game/menu'
+import { lockNav } from '../game/nav'
 import { game } from '../game/store'
 import { partyUnits } from '../game/party'
 import {
@@ -435,7 +436,7 @@ function RiftEnd() {
   const mine = seated ? pub.rewards?.find((reward) => reward.address === me) : undefined
   const frame = LABELS['party-tile']
   const dismiss = () => {
-    leaveToHub()
+    goHome()
     lockNav()
   }
   return (
@@ -880,7 +881,7 @@ function DuelEnd() {
   const victor = pub.seats.find((seat) => seat.address === pub.winner)
   const laurel = LABELS['road-laurel']
   const dismiss = () => {
-    leaveToHub()
+    goHome()
     lockNav()
   }
   return (

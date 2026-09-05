@@ -16,7 +16,7 @@
 # Prints the labels.gen.ts entry lines to paste.
 
 param(
-  [string]$assets = "$env:USERPROFILE\.cursor\projects\c-Users-matth-hog-demo\assets"
+  [string]$assets = $(if ($env:HOG_RAW_ASSETS) { $env:HOG_RAW_ASSETS } else { "$env:USERPROFILE\.cursor\projects\c-Users-${env:USERNAME}-hog-demo\assets" })
 )
 
 Add-Type -AssemblyName System.Drawing

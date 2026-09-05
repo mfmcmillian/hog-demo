@@ -14,3 +14,5 @@ entity.json
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+# Local secrets (ELEVENLABS_API_KEY for the tools/gen-*-vo.mjs narration scripts).
+.env

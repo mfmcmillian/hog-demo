@@ -1,7 +1,7 @@
 // Generates the road-story / final-battle / epilogue narration via ElevenLabs
 // TTS with the same cached seer voice as the intro (sounds/vo/voice-id.txt):
 // one clip per page into sounds/vo/story-<id>-<n>.mp3.
-// Reads ELEVENLABS_API_KEY from env, the repo .env, or the KoA bots .env.
+// Reads ELEVENLABS_API_KEY from env, the repo .env.
 // Does not print the key.
 //
 //   node tools/gen-story-vo.mjs
@@ -13,7 +13,6 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
-const BOTS_ENV = join(process.env.USERPROFILE ?? '', 'OneDrive', 'Documents', 'GitHub', 'koa', 'bots', '.env')
 const OUT_DIR = join(ROOT, 'sounds', 'vo')
 const VOICE_CACHE = join(OUT_DIR, 'voice-id.txt')
 
@@ -29,8 +28,7 @@ function readKeyFromEnvFile(path) {
 
 const apiKey =
   process.env.ELEVENLABS_API_KEY ||
-  readKeyFromEnvFile(join(ROOT, '.env')) ||
-  readKeyFromEnvFile(BOTS_ENV)
+  readKeyFromEnvFile(join(ROOT, '.env'))
 
 if (!apiKey) {
   console.error('No ELEVENLABS_API_KEY found')

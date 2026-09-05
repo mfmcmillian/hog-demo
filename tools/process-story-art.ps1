@@ -9,7 +9,7 @@ $jpegCodec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where
 $encParams = New-Object System.Drawing.Imaging.EncoderParameters(1)
 $encParams.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, [long]80)
 
-$src = 'C:\Users\matth\.cursor\projects\c-Users-matth-hog-demo\assets'
+$src = $(if ($env:HOG_RAW_ASSETS) { $env:HOG_RAW_ASSETS } else { "$env:USERPROFILE\.cursor\projects\c-Users-${env:USERNAME}-hog-demo\assets" })
 $dst = Join-Path (Split-Path $PSScriptRoot -Parent) 'images\story'
 New-Item -ItemType Directory -Force -Path $dst | Out-Null
 

@@ -8,7 +8,7 @@
 # Emits:  images/menus/herocard-banner-a.png (re-quantize with pngquant after)
 
 param(
-  [string]$in = "$env:USERPROFILE\.cursor\projects\c-Users-matth-hog-demo\assets\herocard-banner-raw.png",
+  [string]$in = (Join-Path $(if ($env:HOG_RAW_ASSETS) { $env:HOG_RAW_ASSETS } else { "$env:USERPROFILE\.cursor\projects\c-Users-${env:USERNAME}-hog-demo\assets" }) 'herocard-banner-raw.png'),
   [string]$name = 'herocard-banner'
 )
 

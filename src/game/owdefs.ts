@@ -58,6 +58,9 @@ export type OwExit = {
   needFlag?: string
   /** Zelda gate: must own this key item (see game.owItems). */
   needItem?: string
+  /** Wide door: walking into any of these blocked tiles (a cottage's whole
+   * front) enters as if you had stepped onto the exit tile itself. */
+  also?: { gx: number; gy: number }[]
 }
 /** `sheet` = labels.gen key of the 4x4 walk sheet drawn on the map (cell 0)
  * and used as the talk portrait. `talk` = OW_TALKS id ('elder' picks by state). */
@@ -189,12 +192,14 @@ function hut(
 
 // Town door tiles: the walkable square at the foot of each cottage lot.
 // Stepping onto it fades into that home; leaving drops you on the lane below.
+// Each lot is two tiles wide, so the other front tile (`also`) enters too:
+// walking into the house anywhere along its front is going in, not a bump.
 // Both towns share the village painting, so the lots line up.
-const DOOR_TL = { gx: 2, gy: 4 }
-const DOOR_TR = { gx: 6, gy: 4 }
-const DOOR_ML = { gx: 2, gy: 8 }
-const DOOR_MR = { gx: 6, gy: 8 }
-const DOOR_BL = { gx: 2, gy: 12 }
+const DOOR_TL = { gx: 2, gy: 4, also: [{ gx: 1, gy: 4 }] }
+const DOOR_TR = { gx: 6, gy: 4, also: [{ gx: 7, gy: 4 }] }
+const DOOR_ML = { gx: 2, gy: 8, also: [{ gx: 1, gy: 8 }] }
+const DOOR_MR = { gx: 6, gy: 8, also: [{ gx: 7, gy: 8 }] }
+const DOOR_BL = { gx: 2, gy: 12, also: [{ gx: 1, gy: 12 }] }
 
 // Village painting collision, shared by every town on that art: cottage
 // lots, pines, and the pond are '#'; lanes, lawns, and the five doors '.'.
@@ -744,6 +749,12 @@ export function owLedgeDir(realm: OwRealmId, gx: number, gy: number): OwDir | un
 
 export function owExitAt(realm: OwRealmId, gx: number, gy: number): OwExit | undefined {
   return OW_REALMS[realm].exits.find((exit) => exit.gx === gx && exit.gy === gy)
+}
+
+/** The door whose front you just walked into: an exit listing this blocked
+ * tile in `also` (see DOOR_TL). */
+export function owDoorInto(realm: OwRealmId, gx: number, gy: number): OwExit | undefined {
+  return OW_REALMS[realm].exits.find((exit) => exit.also?.some((tile) => tile.gx === gx && tile.gy === gy))
 }
 
 export function owNpcAt(realm: OwRealmId, gx: number, gy: number, has?: (flag: string) => boolean): OwNpc | undefined {

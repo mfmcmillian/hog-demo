@@ -27,6 +27,7 @@ import {
   owExitAt,
   owLedgeDir,
   owLockAt,
+  owDoorInto,
   owNpcAt,
   owNpcPresent,
   owSignAt,
@@ -336,6 +337,14 @@ function tryStep(dir: OwDir): boolean {
   if (!walkable(nx, ny)) {
     if (tryHop(dir, nx, ny)) return true
     if (!tryPush(dir) || !walkable(nx, ny)) {
+      // The rest of a cottage front counts as its door: fade in from here.
+      const door = owDoorInto(realmId, coarse(nx), coarse(ny))
+      if (door && !gateReason(door)) {
+        fade.dir = 1
+        fade.t = 0
+        fade.exit = door
+        return true
+      }
       const exit = owExitAt(realmId, coarse(nx), coarse(ny))
       if (exit) postGateNotice(exit)
       else if (lockClosed(coarse(nx), coarse(ny)) && !game.notice) {

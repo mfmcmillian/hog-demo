@@ -46,7 +46,9 @@ function mySave(): PlayerSave {
     fresh: game.freshUids,
     intro: game.introSeen,
     stories: (Object.keys(game.storySeen) as SeenStoryId[]).filter((id) => game.storySeen[id]),
-    finalWon: game.finalWon
+    finalWon: game.finalWon,
+    owFlags: game.owFlags,
+    owItems: game.owItems
   }
 }
 
@@ -74,6 +76,8 @@ function applySave(save: PlayerSave): void {
     if ((STORY_IDS as readonly string[]).indexOf(id) >= 0) game.storySeen[id as SeenStoryId] = true
   }
   game.finalWon = save.finalWon === true
+  game.owFlags = Array.isArray(save.owFlags) ? save.owFlags.slice() : []
+  game.owItems = Array.isArray(save.owItems) ? save.owItems.slice() : []
   applyDebugGrants()
 }
 
@@ -98,6 +102,8 @@ function applyServerUpdate(save: PlayerSave): void {
   const storySeen = { ...game.storySeen }
   const introSeen = game.introSeen
   const finalWon = game.finalWon
+  const flags = game.owFlags.slice()
+  const items = game.owItems.slice()
   applySave(save)
   game.cleared = cleared
   game.floorAt = floorAt
@@ -110,6 +116,14 @@ function applyServerUpdate(save: PlayerSave): void {
   }
   if (introSeen) game.introSeen = true
   if (finalWon) game.finalWon = true
+  game.owFlags = unionOw(flags, game.owFlags)
+  game.owItems = unionOw(items, game.owItems)
+}
+
+function unionOw(a: string[], b: string[]): string[] {
+  const out = a.slice()
+  for (const id of b) if (out.indexOf(id) < 0) out.push(id)
+  return out
 }
 
 /**
@@ -139,6 +153,8 @@ function mergeSave(save: PlayerSave): void {
     if ((STORY_IDS as readonly string[]).indexOf(id) >= 0) game.storySeen[id as SeenStoryId] = true
   }
   if (save.finalWon === true) game.finalWon = true
+  game.owFlags = unionOw(game.owFlags, save.owFlags ?? [])
+  game.owItems = unionOw(game.owItems, save.owItems ?? [])
   applyDebugGrants()
 }
 

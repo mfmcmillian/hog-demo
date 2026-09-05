@@ -14,6 +14,10 @@ export const DEBUG = {
   showPlayHud: false,
   /** Bottom-of-screen KoA / DecentraCraft ads. Off for shots, on for prod. */
   showAds: true,
+  /** Live canvas / stage / safe-area readout for responsive-layout testing. */
+  showCanvasInfo: false,
+  /** Overworld 9x16 tile outlines so we can judge TILE size. */
+  showOwGrid: false,
   /** Playtest: oath fight drops this id instead of OATH_DROP_ID. */
   forceDropId: '',
   /** Playtest: never let gold fall below this. 0 disables. */

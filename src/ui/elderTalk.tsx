@@ -17,10 +17,13 @@ export function ElderTalk(props: {
   lines: ElderLine[]
   onTap?: () => void
   page?: { at: number; of: number }
+  /** Another speaker in the frame (walk-sheet cell); default is the elder. */
+  portrait?: { src: string; uvs: number[] }
   /** Extra content shown over the scrim above the band (e.g. a card back). */
   children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component
 }) {
   const hintAlpha = 0.55 + 0.45 * (0.5 + 0.5 * Math.sin(Date.now() / 400))
+  const portrait = props.portrait ?? { src: villagerSheet(), uvs: villagerTalkUvs() }
   return (
     <ModalScrim alpha={0.72} onMouseDown={props.onTap}>
       {props.children}
@@ -59,8 +62,8 @@ export function ElderTalk(props: {
                 uiTransform={{ width: 140, height: 140, pointerFilter: 'none' }}
                 uiBackground={{
                   textureMode: 'stretch',
-                  texture: { src: villagerSheet() },
-                  uvs: villagerTalkUvs(),
+                  texture: { src: portrait.src },
+                  uvs: portrait.uvs,
                   color: Color4.White()
                 }}
               />

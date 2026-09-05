@@ -6,7 +6,7 @@ import { game } from '../game/store'
 import './labels.intro.gen'
 import './labels.story.gen'
 import { gold, muted } from './theme'
-import { Backdrop, Img } from './widgets'
+import { Backdrop, GameLogo, Img } from './widgets'
 
 // ---- story slideshows ------------------------------------------------------------
 // Full-bleed generated painting per page with a translucent narrator band along
@@ -78,6 +78,7 @@ export function IntroScreen() {
           <Img k="tut-continue" w={14} tint={Color4.create(gold.r, gold.g, gold.b, hintAlpha)} margin={0} />
         </UiEntity>
       </UiEntity>
+      <GameLogo />
     </UiEntity>
   )
 }

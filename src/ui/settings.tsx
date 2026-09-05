@@ -5,10 +5,11 @@ import { playClick } from '../game/audio'
 import { lockNav } from '../game/nav'
 import { game } from '../game/store'
 import { pushAccountReset } from '../mp/session'
+import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { AcceptDecline } from './panels'
 import { danger } from './theme'
-import { GameLogo, Img, MpBackdrop } from './widgets'
+import { Img, MenuTitle, MpBackdrop } from './widgets'
 
 // ---- settings ------------------------------------------------------------------
 
@@ -24,29 +25,41 @@ function SettingRow(props: { row: string; on: boolean; onFlip: () => void }) {
   const h = Math.round((w * plate.h) / plate.w)
   const tw = 42
   const th = toggle ? Math.round((tw * toggle.h) / toggle.w) : 0
+  const id = `set:${props.row}`
+  const iw = w - pressShrink(id, w)
+  const ih = h - pressShrink(id, h)
   return (
     <UiEntity
-      uiTransform={{ width: w, height: h, margin: 5 }}
-      uiBackground={{ textureMode: 'stretch', texture: { src: plate.src }, color: Color4.White() }}
-      onMouseDown={() => {
+      uiTransform={{ width: w, height: h, margin: 5, alignItems: 'center', justifyContent: 'center' }}
+      onMouseDown={press(id, () => {
         playClick()
         props.onFlip()
         lockNav(200)
-      }}
+      })}
     >
-      {toggle ? (
-        <UiEntity
-          uiTransform={{
-            positionType: 'absolute',
-            // physical right-center of the row = landscape top-center
-            position: { top: 14, left: Math.round((w - tw) / 2) },
-            width: tw,
-            height: th,
-            pointerFilter: 'none'
-          }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: toggle.src }, color: Color4.White() }}
-        />
-      ) : null}
+      <UiEntity
+        uiTransform={{ width: iw, height: ih, pointerFilter: 'none' }}
+        uiBackground={{ textureMode: 'stretch', texture: { src: plate.src }, uvs: plate.uvs, color: pressTint(id) }}
+      >
+        {toggle ? (
+          <UiEntity
+            uiTransform={{
+              positionType: 'absolute',
+              // physical right-center of the row = landscape top-center
+              position: { top: 14, left: Math.round((iw - tw) / 2) },
+              width: tw,
+              height: th,
+              pointerFilter: 'none'
+            }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: toggle.src },
+              uvs: toggle.uvs,
+              color: pressTint(id)
+            }}
+          />
+        ) : null}
+      </UiEntity>
     </UiEntity>
   )
 }
@@ -70,7 +83,6 @@ export function SettingsScreen() {
       }}
     >
       <MpBackdrop k="map-settings" />
-      <Img k="set-banner" w={150} tint={Color4.White()} margin={12} />
       <SettingRow
         row="set-row-sound"
         on={game.soundOn}
@@ -98,14 +110,15 @@ export function SettingsScreen() {
           uiBackground={{
             textureMode: 'stretch',
             texture: { src: restart.src },
-            color: armRestart ? Color4.create(0.45, 0.4, 0.4, 1) : Color4.White()
+            uvs: restart.uvs,
+            color: pressTint('set:restart', armRestart ? Color4.create(0.45, 0.4, 0.4, 1) : Color4.White())
           }}
-          onMouseDown={() => {
+          onMouseDown={press('set:restart', () => {
             if (!armRestart) {
               armRestart = true
               lockNav()
             }
-          }}
+          })}
         >
           {armRestart ? (
             <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
@@ -128,7 +141,7 @@ export function SettingsScreen() {
           ) : null}
         </UiEntity>
       ) : null}
-      <GameLogo />
+      <MenuTitle k="set-banner" />
     </UiEntity>
   )
 }

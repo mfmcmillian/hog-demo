@@ -1,6 +1,7 @@
 import { AvatarBase, PlayerIdentityData, engine } from '@dcl/sdk/ecs'
 import { RiftPub } from '../mp/protocol'
 import { ServerCtx } from './ctx'
+import { DuelRoom } from './duel'
 import { TradeSession } from './trades'
 
 export function setupPresence(
@@ -13,6 +14,8 @@ export function setupPresence(
     rift: RiftPub
     publishRift: () => void
     riftReset: () => void
+    duelRooms: DuelRoom[]
+    dropOwPlayer: (address: string) => void
   }
 ): void {
   // --- Presence -----------------------------------------------------------------
@@ -29,13 +32,20 @@ export function setupPresence(
 
     for (const address of ctx.present) {
       if (inScene.has(address)) continue
-      // Departures: void their trade, free their lobby seat.
+      // Departures: void their trade, free their lobby seat, clear their tile.
       const session = hooks.sessions.get(address)
       if (session) hooks.closeTrade(session, 'left')
       hooks.invites.delete(address)
+      hooks.dropOwPlayer(address)
       if (hooks.rift.phase === 'lobby' && hooks.rift.seats.some((seat) => seat.address === address)) {
         hooks.rift.seats = hooks.rift.seats.filter((seat) => seat.address !== address)
         hooks.publishRift()
+      }
+      for (const ring of hooks.duelRooms) {
+        if (ring.duel.phase === 'lobby' && ring.duel.seats.some((seat) => seat.address === address)) {
+          ring.duel.seats = ring.duel.seats.filter((seat) => seat.address !== address)
+          ring.publishDuel()
+        }
       }
     }
 
@@ -43,6 +53,14 @@ export function setupPresence(
     if (hooks.rift.phase !== 'lobby' && hooks.rift.seats.length > 0 && !hooks.rift.seats.some((seat) => inScene.has(seat.address))) {
       console.log('[Server] rift: all participants left; resetting')
       hooks.riftReset()
+    }
+
+    // Both duelists gone mid-fight: nothing left to settle, reopen the ring.
+    for (const ring of hooks.duelRooms) {
+      if (ring.duel.phase !== 'lobby' && ring.duel.seats.length > 0 && !ring.duel.seats.some((seat) => inScene.has(seat.address))) {
+        console.log(`[Server] duel ${ring.duel.mode}: all participants left; resetting`)
+        ring.duelReset()
+      }
     }
 
     for (const address of inScene) {

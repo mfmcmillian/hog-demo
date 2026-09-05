@@ -3,10 +3,11 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { DAY_MS } from '../mp/protocol'
 import { canGiftToday, festView, gift, giftSend, presentPlayers } from '../mp/session'
 import { chestOpenSheet, giftFx, loopSparksUvs, sparksSheet, stopGiftFx } from './flipbook'
+import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { ChestStage, ModalScrim } from './panels'
 import { cream, danger, gold, muted, panelDim } from './theme'
-import { Backdrop, Digits, Face, Gain, GameLogo, Img, NameTag, SlashCount } from './widgets'
+import { Backdrop, Digits, Face, Gain, Img, MenuTitle, NameTag, SlashCount } from './widgets'
 
 /** Time left in the festival window on the kit's hourglass plate. */
 function FestCountdown() {
@@ -28,7 +29,7 @@ function FestCountdown() {
         margin: 4,
         padding: { top: Math.round(h * 0.18), bottom: 10 }
       }}
-      uiBackground={{ textureMode: 'stretch', texture: { src: plate.src }, color: Color4.White() }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: plate.src }, uvs: plate.uvs, color: Color4.White() }}
     >
       <Img k="ends-in" w={24} tint={cream} margin={5} />
       <Digits value={days} w={30} tint={gold} tight />
@@ -63,7 +64,7 @@ function FestGoalPanel() {
         margin: 4,
         padding: 14
       }}
-      uiBackground={{ textureMode: 'stretch', texture: { src: panel.src }, color: Color4.White() }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }}
     >
       <Img k="fest-realm-goal" w={42} tint={Color4.White()} margin={3} />
       <Img k="fest-goal-hint" w={22} tint={muted} margin={2} />
@@ -78,7 +79,12 @@ function FestGoalPanel() {
               height: '100%',
               pointerFilter: 'none'
             }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: barFrame.src }, color: Color4.White() }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: barFrame.src },
+              uvs: barFrame.uvs,
+              color: Color4.White()
+            }}
           />
         ) : null}
         {barFill && frac > 0 ? (
@@ -90,7 +96,12 @@ function FestGoalPanel() {
               height: Math.round((barH - pad * 2) * frac),
               pointerFilter: 'none'
             }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: barFill.src }, color: Color4.White() }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: barFill.src },
+              uvs: barFill.uvs,
+              color: Color4.White()
+            }}
           />
         ) : null}
         {done ? (
@@ -139,7 +150,7 @@ function FestGiftPanel() {
         margin: 4,
         padding: 14
       }}
-      uiBackground={{ textureMode: 'stretch', texture: { src: panel.src }, color: Color4.White() }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }}
     >
       <Img k="fest-daily-gift" w={42} tint={Color4.White()} margin={3} />
       <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 2 }}>
@@ -151,14 +162,24 @@ function FestGiftPanel() {
         {chest ? (
           <UiEntity
             uiTransform={{ width: 132, height: Math.round((132 * chest.h) / chest.w), margin: 8 }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: chest.src }, color: can ? Color4.White() : muted }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: chest.src },
+              uvs: chest.uvs,
+              color: can ? Color4.White() : muted
+            }}
           />
         ) : null}
         {send ? (
           <UiEntity
-            uiTransform={{ width: 102, height: Math.round((102 * send.h) / send.w), margin: 8 }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: send.src }, color: can ? Color4.White() : muted }}
-            onMouseDown={() => {
+            uiTransform={{
+              width: 102,
+              height: Math.round((102 * send.h) / send.w),
+              margin: 8,
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            onMouseDown={press('fest:send', () => {
               if (!can) return
               if (presentPlayers.size === 0) {
                 gift.blocked = 'gone'
@@ -166,8 +187,22 @@ function FestGiftPanel() {
                 return
               }
               gift.picking = true
-            }}
-          />
+            })}
+          >
+            <UiEntity
+              uiTransform={{
+                width: 102 - pressShrink('fest:send', 102),
+                height: Math.round(((102 - pressShrink('fest:send', 102)) * send.h) / send.w),
+                pointerFilter: 'none'
+              }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: send.src },
+                uvs: send.uvs,
+                color: pressTint('fest:send', can ? Color4.White() : muted)
+              }}
+            />
+          </UiEntity>
         ) : null}
       </UiEntity>
       {gift.blessing > 0 ? (
@@ -211,7 +246,9 @@ function GiftPicker() {
           padding: 24
         }}
         uiBackground={
-          panel ? { textureMode: 'stretch', texture: { src: panel.src }, color: Color4.White() } : { color: panelDim }
+          panel
+            ? { textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }
+            : { color: panelDim }
         }
         onMouseDown={() => {}}
       >
@@ -226,26 +263,50 @@ function GiftPicker() {
             {ring ? (
               <UiEntity
                 uiTransform={{ width: 74, height: 74, margin: { bottom: 8 } }}
-                uiBackground={{ textureMode: 'stretch', texture: { src: ring.src }, color: Color4.White() }}
+                uiBackground={{
+                  textureMode: 'stretch',
+                  texture: { src: ring.src },
+                  uvs: ring.uvs,
+                  color: Color4.White()
+                }}
               />
             ) : null}
             <NameTag name={name} w={30} tint={cream} />
             {chest ? (
               <UiEntity
                 uiTransform={{ width: 44, height: Math.round((44 * chest.h) / chest.w), margin: { top: 8 } }}
-                uiBackground={{ textureMode: 'stretch', texture: { src: chest.src }, color: gold }}
+                uiBackground={{ textureMode: 'stretch', texture: { src: chest.src }, uvs: chest.uvs, color: gold }}
               />
             ) : null}
           </UiEntity>
         ))}
         {cancel ? (
           <UiEntity
-            uiTransform={{ width: 76, height: Math.round((76 * cancel.h) / cancel.w), margin: 10 }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: cancel.src }, color: Color4.White() }}
-            onMouseDown={() => {
-              gift.picking = false
+            uiTransform={{
+              width: 76,
+              height: Math.round((76 * cancel.h) / cancel.w),
+              margin: 10,
+              alignItems: 'center',
+              justifyContent: 'center'
             }}
-          />
+            onMouseDown={press('fest:cancel', () => {
+              gift.picking = false
+            })}
+          >
+            <UiEntity
+              uiTransform={{
+                width: 76 - pressShrink('fest:cancel', 76),
+                height: Math.round(((76 - pressShrink('fest:cancel', 76)) * cancel.h) / cancel.w),
+                pointerFilter: 'none'
+              }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: cancel.src },
+                uvs: cancel.uvs,
+                color: pressTint('fest:cancel')
+              }}
+            />
+          </UiEntity>
         ) : null}
       </UiEntity>
     </ModalScrim>
@@ -265,12 +326,11 @@ export function FestivalScreen() {
       }}
     >
       {Backdrop({ label: 'map-settings', dim: 0.55, pass: true })}
-      <Img k="fest-banner" w={148} tint={Color4.White()} margin={6} />
       <FestCountdown />
       <FestGoalPanel />
       <FestGiftPanel />
       <GiftPicker />
-      <GameLogo />
+      <MenuTitle k="fest-banner" />
     </UiEntity>
   )
 }

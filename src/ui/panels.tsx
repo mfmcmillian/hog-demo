@@ -4,7 +4,8 @@ import { isNftHero } from '../game/familiars'
 import { game } from '../game/store'
 import { OwnedFamiliar } from '../game/types'
 import { dropRaySheet, revealBurstSheet, sparksSheet } from './flipbook'
-import { LABELS } from './labels.gen'
+import { press, pressShrink, pressTint } from './fx/press'
+import { LABELS, LabelInfo } from './labels.gen'
 import { cream, gold, panelDim } from './theme'
 import { Face, Img, NameTag, SlotChrome } from './widgets'
 
@@ -69,7 +70,13 @@ export function HeroPickStrip(props: {
         {cards.map((owned) => {
           const lit = owned.uid === props.selectedUid
           return (
-            <SlotChrome key={owned.uid} size={lit ? 148 : 132} lit={lit} onTap={() => props.onPick(owned.uid)}>
+            <SlotChrome
+              key={owned.uid}
+              pid={owned.uid}
+              size={lit ? 148 : 132}
+              lit={lit}
+              onTap={() => props.onPick(owned.uid)}
+            >
               <Face id={owned.defId} w="100%" h="100%" fallback={28} />
             </SlotChrome>
           )
@@ -223,18 +230,28 @@ export function PagedColumn(props: {
       {props.show ? (
         <UiEntity
           uiTransform={{ width: props.boxW, height: props.boxH, alignItems: 'center', justifyContent: 'center' }}
-          onMouseDown={props.onLeft}
+          onMouseDown={press(`page:${props.leftK}`, props.onLeft)}
         >
-          <Img k={props.leftK} w={props.imgW} tint={props.leftTint ?? Color4.White()} margin={0} />
+          <Img
+            k={props.leftK}
+            w={props.imgW - pressShrink(`page:${props.leftK}`, props.imgW)}
+            tint={pressTint(`page:${props.leftK}`, props.leftTint)}
+            margin={0}
+          />
         </UiEntity>
       ) : null}
       {props.children}
       {props.show ? (
         <UiEntity
           uiTransform={{ width: props.boxW, height: props.boxH, alignItems: 'center', justifyContent: 'center' }}
-          onMouseDown={props.onRight}
+          onMouseDown={press(`page:${props.rightK}`, props.onRight)}
         >
-          <Img k={props.rightK} w={props.imgW} tint={props.rightTint ?? Color4.White()} margin={0} />
+          <Img
+            k={props.rightK}
+            w={props.imgW - pressShrink(`page:${props.rightK}`, props.imgW)}
+            tint={pressTint(`page:${props.rightK}`, props.rightTint)}
+            margin={0}
+          />
         </UiEntity>
       ) : null}
     </UiEntity>
@@ -318,6 +335,40 @@ export function TalkPanel(props: {
   )
 }
 
+function VerdictBtn(props: {
+  id: string
+  art: LabelInfo
+  w: number
+  margin: number
+  tint?: Color4
+  onTap?: () => void
+}) {
+  const dw = pressShrink(props.id, props.w)
+  const w = props.w - dw
+  return (
+    <UiEntity
+      uiTransform={{
+        width: props.w,
+        height: Math.round((props.w * props.art.h) / props.art.w),
+        margin: props.margin,
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+      onMouseDown={press(props.id, props.onTap)}
+    >
+      <UiEntity
+        uiTransform={{ width: w, height: Math.round((w * props.art.h) / props.art.w), pointerFilter: 'none' }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: props.art.src },
+          uvs: props.art.uvs,
+          color: pressTint(props.id, props.tint)
+        }}
+      />
+    </UiEntity>
+  )
+}
+
 export function AcceptDecline(props: {
   w: number
   margin: number
@@ -330,22 +381,17 @@ export function AcceptDecline(props: {
   return (
     <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center' }}>
       {accept ? (
-        <UiEntity
-          uiTransform={{ width: props.w, height: Math.round((props.w * accept.h) / accept.w), margin: props.margin }}
-          uiBackground={{
-            textureMode: 'stretch',
-            texture: { src: accept.src },
-            color: props.acceptTint ?? Color4.White()
-          }}
-          onMouseDown={props.onAccept}
+        <VerdictBtn
+          id="accept"
+          art={accept}
+          w={props.w}
+          margin={props.margin}
+          tint={props.acceptTint}
+          onTap={props.onAccept}
         />
       ) : null}
       {decline ? (
-        <UiEntity
-          uiTransform={{ width: props.w, height: Math.round((props.w * decline.h) / decline.w), margin: props.margin }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: decline.src }, color: Color4.White() }}
-          onMouseDown={props.onDecline}
-        />
+        <VerdictBtn id="decline" art={decline} w={props.w} margin={props.margin} onTap={props.onDecline} />
       ) : null}
     </UiEntity>
   )
@@ -371,7 +417,9 @@ export function TravelerPlate(props: {
         margin: 4
       }}
       uiBackground={
-        plate ? { textureMode: 'stretch', texture: { src: plate.src }, color: Color4.White() } : { color: panelDim }
+        plate
+          ? { textureMode: 'stretch', texture: { src: plate.src }, uvs: plate.uvs, color: Color4.White() }
+          : { color: panelDim }
       }
       onMouseDown={props.onTap}
     >

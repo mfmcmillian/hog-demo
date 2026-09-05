@@ -23,7 +23,11 @@ function LevelTile(props: { floor: number; key?: number }) {
   return (
     <UiEntity
       uiTransform={{ width: size, height: size, alignItems: 'center', justifyContent: 'center', margin: 6 }}
-      uiBackground={frame ? { textureMode: 'stretch', texture: { src: frame.src }, color: tint } : { color: panelDim }}
+      uiBackground={
+        frame
+          ? { textureMode: 'stretch', texture: { src: frame.src }, uvs: frame.uvs, color: tint }
+          : { color: panelDim }
+      }
       onMouseDown={tap(() => {
         if (locked) game.notice = 'clear-road'
         else startFloor(game.roadPick, props.floor)
@@ -76,16 +80,21 @@ export function LevelsScreen() {
             justifyContent: 'center',
             margin: 8
           }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: banner.src }, color: Color4.White() }}
+          uiBackground={{
+            textureMode: 'stretch',
+            texture: { src: banner.src },
+            uvs: banner.uvs,
+            color: Color4.White()
+          }}
         >
           <Img k={`road-name-${road.id}`} w={42} tint={Color4.White()} />
         </UiEntity>
       ) : null}
       {/* tier picker + boss drop preview, physically under the banner */}
       <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 4 }}>
-        {star > 1 ? <CardBtn k="party-arrow-l" w={46} onTap={() => cycleTier(road.id, -1)} /> : null}
+        {star > 1 ? <CardBtn k="party-arrow-l" w={46} hit={84} onTap={() => cycleTier(road.id, -1)} /> : null}
         <Stars count={picked} w={20} />
-        {star > 1 ? <CardBtn k="party-arrow-r" w={46} onTap={() => cycleTier(road.id, 1)} /> : null}
+        {star > 1 ? <CardBtn k="party-arrow-r" w={46} hit={84} onTap={() => cycleTier(road.id, 1)} /> : null}
         <UiEntity uiTransform={{ height: 22 }} />
         <Img k="spoils" w={16} tint={muted} />
         <Stars count={dropStarsFor(picked)} w={13} />
@@ -109,7 +118,12 @@ export function LevelsScreen() {
             justifyContent: 'center',
             margin: 6
           }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: bossFrame.src }, color: bossTint }}
+          uiBackground={{
+            textureMode: 'stretch',
+            texture: { src: bossFrame.src },
+            uvs: bossFrame.uvs,
+            color: bossTint
+          }}
           onMouseDown={tap(() => {
             if (bossLocked) game.notice = 'clear-road'
             else startFloor(game.roadPick, FLOORS)

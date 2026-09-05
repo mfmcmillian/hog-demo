@@ -3,6 +3,7 @@ import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { tap } from '../game/audio'
 import { game } from '../game/store'
 import { idlePoster, sparksSheet, starBurstFx } from './flipbook'
+import { press, pressAmt, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { cream, gold, ink, muted, PASS } from './theme'
 
@@ -22,13 +23,16 @@ export function Img(props: { k: string; w: number; tint?: Color4; margin?: numbe
       uiBackground={{
         textureMode: 'stretch',
         texture: { src: info.src },
+        uvs: info.uvs,
         color: props.tint ?? cream
       }}
     />
   )
 }
 
-/** Game logo, pushed past the chrome inset toward the real screen top. */
+/** Game logo, pushed past the chrome inset toward the physical screen top
+ * (stage left). Decorative and stage-relative — a camera cutout grazing it
+ * is fine; shifting it off its slot is not. */
 export function GameLogo() {
   if (!LABELS['boot-logo']) return null
   return (
@@ -46,6 +50,33 @@ export function GameLogo() {
       <UiEntity
         uiTransform={{ width: 160, height: 320, pointerFilter: 'none' }}
         uiBackground={{ textureMode: 'stretch', texture: { src: LABELS['boot-logo'].src }, color: Color4.White() }}
+      />
+    </UiEntity>
+  )
+}
+
+/** A menu screen's ornate title plate, parked in the gutter strip where
+ * GameLogo sits on non-menu screens (physical top in the portrait grip). */
+export function MenuTitle(props: { k: string }) {
+  const art = LABELS[props.k]
+  if (!art) return null
+  const w = 150
+  const h = Math.min(500, Math.round((w * art.h) / art.w))
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: -185, top: 0 },
+        width: 170,
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        pointerFilter: 'none'
+      }}
+    >
+      <UiEntity
+        uiTransform={{ width: w, height: h, pointerFilter: 'none' }}
+        uiBackground={{ textureMode: 'stretch', texture: { src: art.src }, uvs: art.uvs, color: Color4.White() }}
       />
     </UiEntity>
   )
@@ -208,10 +239,15 @@ export function SlotChrome(props: {
   lit?: boolean
   hall?: string
   onTap: () => void
+  /** Stable id (e.g. the owned uid) enables the pressed-in tap effect. */
+  pid?: string
   children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component
   key?: string | number
 }) {
-  const pad = props.lit ? 7 : 3
+  // Pressing sinks the content deeper into the frame (padding grows inward).
+  const amt = props.pid ? pressAmt(props.pid) : 0
+  const pad = (props.lit ? 7 : 3) + Math.round(props.size * 0.04 * amt)
+  const frame = props.lit ? gold : Color4.create(0.82, 0.62, 0.28, 0.5)
   return (
     <UiEntity
       uiTransform={{
@@ -222,8 +258,8 @@ export function SlotChrome(props: {
         padding: pad,
         margin: 3
       }}
-      uiBackground={{ color: props.lit ? gold : Color4.create(0.82, 0.62, 0.28, 0.5) }}
-      onMouseDown={tap(props.onTap)}
+      uiBackground={{ color: props.pid ? pressTint(props.pid, frame) : frame }}
+      onMouseDown={props.pid ? press(props.pid, tap(props.onTap)) : tap(props.onTap)}
     >
       <UiEntity
         uiTransform={{
@@ -278,8 +314,12 @@ export function Face(props: {
   fallback?: number
   tint?: Color4
   margin?: { left?: number; top?: number; right?: number; bottom?: number }
+  /** Prefer the standalone 1024px portrait over the sheet's 512px idle cell.
+   * For big draws (hero card at 560 units) the sheet cell blurs; small faces
+   * should stay on the sheet, which is already bound for battle anyway. */
+  hi?: boolean
 }) {
-  const sheet = idlePoster(props.id)
+  const sheet = props.hi ? null : idlePoster(props.id)
   const art = !sheet ? charArt(props.id) : undefined
   if (!sheet && !art) return props.fallback ? <Img k={props.id} w={props.fallback} /> : null
   return (
@@ -295,18 +335,25 @@ export function Face(props: {
   )
 }
 
-export function CardBtn(props: { k: string; w: number; onTap?: () => void }) {
+/** Icon button. `hit` grows the tappable box past the icon (negative margins
+ * keep the flex footprint at `w`, so layouts don't shift) — mobile thumbs need
+ * ~84 stage units to make the 44pt touch-target minimum. */
+export function CardBtn(props: { k: string; w: number; hit?: number; onTap?: () => void }) {
+  const hit = Math.max(props.w, props.hit ?? props.w)
+  const bleed = -Math.round((hit - props.w) / 2)
+  const id = `card:${props.k}`
   return (
     <UiEntity
       uiTransform={{
-        width: props.w,
-        height: props.w,
+        width: hit,
+        height: hit,
+        margin: bleed,
         alignItems: 'center',
         justifyContent: 'center'
       }}
-      onMouseDown={props.onTap}
+      onMouseDown={press(id, props.onTap)}
     >
-      <Img k={props.k} w={props.w} tint={Color4.White()} margin={0} />
+      <Img k={props.k} w={props.w - pressShrink(id, props.w)} tint={pressTint(id)} margin={0} />
     </UiEntity>
   )
 }
@@ -314,6 +361,10 @@ export function CardBtn(props: { k: string; w: number; onTap?: () => void }) {
 export function Plate(props: { k: string; w: number; h: number; onTap?: () => void }) {
   const info = LABELS[props.k]
   if (!info) return null
+  // The image sinks inside a fixed hit box so pressing never shifts layout.
+  // Gate on onTap: decorative plates share keys with live ones (`continue`).
+  const id = `plate:${props.k}`
+  const amt = props.onTap ? pressAmt(id) : 0
   return (
     <UiEntity
       uiTransform={{
@@ -323,13 +374,22 @@ export function Plate(props: { k: string; w: number; h: number; onTap?: () => vo
         justifyContent: 'center',
         margin: 4
       }}
-      uiBackground={{
-        textureMode: 'stretch',
-        texture: { src: info.src },
-        color: Color4.White()
-      }}
-      onMouseDown={tap(props.onTap)}
-    />
+      onMouseDown={press(id, tap(props.onTap))}
+    >
+      <UiEntity
+        uiTransform={{
+          width: props.w - Math.round(props.w * 0.08 * amt),
+          height: props.h - Math.round(props.h * 0.08 * amt),
+          pointerFilter: 'none'
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: info.src },
+          uvs: info.uvs,
+          color: props.onTap ? pressTint(id) : Color4.White()
+        }}
+      />
+    </UiEntity>
   )
 }
 
@@ -345,7 +405,11 @@ export function Backdrop(props: {
   pass?: boolean
   veilPass?: boolean
 }): ReactEcs.JSX.Element[] {
-  const art = props.src ? { src: props.src } : props.label ? LABELS[props.label] : undefined
+  const art: { src: string; uvs?: number[] } | undefined = props.src
+    ? { src: props.src }
+    : props.label
+      ? LABELS[props.label]
+      : undefined
   const veilColor = props.veil ?? (props.dim !== undefined ? Color4.create(0.02, 0.01, 0.02, props.dim) : undefined)
   const nodes: ReactEcs.JSX.Element[] = []
   if (art) {
@@ -361,6 +425,7 @@ export function Backdrop(props: {
         uiBackground={{
           textureMode: 'stretch',
           texture: { src: art.src },
+          uvs: art.uvs,
           color: props.tint ?? Color4.White()
         }}
       />
@@ -405,7 +470,12 @@ export function PartyTile(props: {
           ? { width: props.w, height: h, margin, alignItems: 'center', justifyContent: 'center' }
           : { width: props.w, height: h, alignItems: 'center', justifyContent: 'center' }
       }
-      uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, color: props.frameTint ?? Color4.White() }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src: frame.src },
+        uvs: frame.uvs,
+        color: props.frameTint ?? Color4.White()
+      }}
       onMouseDown={props.wrap === undefined ? props.onTap : undefined}
     >
       {props.children}
@@ -455,6 +525,7 @@ export function SeatCard(props: {
       uiBackground={{
         textureMode: 'stretch',
         texture: { src: frame.src },
+        uvs: frame.uvs,
         color: props.frameTint ?? Color4.White()
       }}
     >

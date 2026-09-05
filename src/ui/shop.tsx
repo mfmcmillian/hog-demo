@@ -9,7 +9,7 @@ import { chestFx, chestOpenSheet, chestWobble } from './flipbook'
 import { LABELS } from './labels.gen'
 import { AcceptDecline, ChestStage, ModalScrim } from './panels'
 import { danger, gold, muted } from './theme'
-import { Backdrop, Digits, GameLogo, Img, Notice } from './widgets'
+import { Backdrop, Digits, Img, MenuTitle, Notice } from './widgets'
 
 /** Gem pips on the pack cards: rarity color + count, like the approved mock. */
 const SHOP_GEMS: Record<string, { gem: string; count: number }> = {
@@ -40,7 +40,7 @@ function CostPlate(props: { cost: number; afford: boolean; w?: number }) {
         margin: 3,
         flexDirection: 'column-reverse'
       }}
-      uiBackground={{ textureMode: 'stretch', texture: { src: plate.src }, color: Color4.White() }}
+      uiBackground={{ textureMode: 'stretch', texture: { src: plate.src }, uvs: plate.uvs, color: Color4.White() }}
     >
       <Img k="icon-coins" w={Math.round(w * 0.52)} tint={props.afford ? Color4.White() : muted} margin={2} />
       <Digits value={props.cost} w={Math.round(w * 0.44)} tint={props.afford ? gold : danger} />
@@ -82,7 +82,7 @@ function PackBay(props: { pack: PackDef; index: number; key?: string | number })
             height: '100%',
             pointerFilter: 'none'
           }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, color: Color4.White() }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, uvs: frame.uvs, color: Color4.White() }}
         />
       ) : null}
       <Img k={`shop-name-${props.pack.id}`} w={40} tint={Color4.White()} margin={2} />
@@ -100,7 +100,12 @@ function PackBay(props: { pack: PackDef; index: number; key?: string | number })
                 })()
               : 4
           }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: art.src }, color: afford ? Color4.White() : muted }}
+          uiBackground={{
+            textureMode: 'stretch',
+            texture: { src: art.src },
+            uvs: art.uvs,
+            color: afford ? Color4.White() : muted
+          }}
         />
       ) : null}
       <CostPlate cost={props.pack.cost} afford={afford} w={lit ? 44 : 40} />
@@ -164,7 +169,12 @@ function PackConfirm() {
               height: '100%',
               pointerFilter: 'none'
             }}
-            uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, color: Color4.White() }}
+            uiBackground={{
+              textureMode: 'stretch',
+              texture: { src: frame.src },
+              uvs: frame.uvs,
+              color: Color4.White()
+            }}
           />
         ) : null}
         <Img k="shop-open-chest" w={66} tint={Color4.White()} margin={4} />
@@ -219,20 +229,6 @@ export function ShopScreen() {
       }}
     >
       {Backdrop({ label: 'map-shop' })}
-      {LABELS['shop-title'] ? (
-        <UiEntity
-          uiTransform={{
-            width: 156,
-            height: 386,
-            margin: { left: 12, right: 4 }
-          }}
-          uiBackground={{
-            textureMode: 'stretch',
-            texture: { src: LABELS['shop-title'].src },
-            color: Color4.White()
-          }}
-        />
-      ) : null}
       {LABELS['shop-chip'] ? (
         <UiEntity
           uiTransform={{
@@ -271,7 +267,7 @@ export function ShopScreen() {
       >
         <Notice />
       </UiEntity>
-      <GameLogo />
+      <MenuTitle k="shop-title" />
     </UiEntity>
   )
 }

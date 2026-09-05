@@ -81,7 +81,22 @@ function sanitizeSave(raw: unknown): PlayerSave {
     save.stories = STORY_IDS.filter((id) => (row.stories as unknown[]).indexOf(id) >= 0)
   }
   save.finalWon = row.finalWon === true
+  save.owFlags = cleanOwList(row.owFlags)
+  save.owItems = cleanOwList(row.owItems)
   return save
+}
+
+function cleanOwList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (typeof item !== 'string' || !/^[a-z0-9-]{1,40}$/.test(item) || seen.has(item)) continue
+    seen.add(item)
+    out.push(item)
+    if (out.length >= 64) break
+  }
+  return out
 }
 
 export type SaveGrants = { maybeGrantFest: (address: string) => void }
@@ -126,9 +141,15 @@ export function setupSaves(grants: SaveGrants): {
     const save = saves.get(address)
     if (!save) return
     try {
-      Storage.player.set(address, SAVE_KEY, save).catch((error: unknown) => {
-        console.log(`[Server] save persist failed for ${address}: ${error}`)
-      })
+      // Storage.set resolves false on a failed PUT (it does not reject).
+      Storage.player
+        .set(address, SAVE_KEY, save)
+        .then((ok) => {
+          if (!ok) console.log(`[Server] save persist failed for ${address}: storage set returned false`)
+        })
+        .catch((error: unknown) => {
+          console.log(`[Server] save persist failed for ${address}: ${error}`)
+        })
     } catch (error) {
       console.log(`[Server] save persist failed for ${address}: ${error}`)
     }

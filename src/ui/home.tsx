@@ -2,14 +2,15 @@ import { Color4 } from '@dcl/sdk/math'
 import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
 import { playCancel, tap } from '../game/audio'
 import { openHeroCard } from '../game/menu'
-import { open } from '../game/nav'
+import { open, openOverworld } from '../game/nav'
+import { ElderTalk } from './elderTalk'
 import { goRoad } from '../game/roads'
 import { findOwned, game } from '../game/store'
-import { goPointerShowing } from '../game/tutorial'
-import { getMyName, presentPlayers } from '../mp/session'
+import { goPointerShowing, partyPointerShowing } from '../game/tutorial'
+import { duelSeatCount, getMyName, presentPlayers } from '../mp/session'
 import { riftView } from '../mp/views'
-import { ElderTalk } from './elderTalk'
 import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs } from './flipbook'
+import { press, pressShrink, pressTint } from './fx/press'
 import { cardBackArt } from './halls'
 import { LABELS } from './labels.gen'
 import { ModalScrim, TalkPanel, TravelerPlate } from './panels'
@@ -41,11 +42,14 @@ function HomeHud() {
         <Img k="icon-coins" w={22} tint={Color4.White()} />
         <Digits value={game.coins} w={16} tint={gold} />
       </UiEntity>
-      {/* live presence: tap the header to open the who's-online roster */}
+      {/* live presence: tap the header to open the who's-online roster.
+          Fills the rail width so the tap target is thumb-sized, not glyph-sized. */}
       <UiEntity
         uiTransform={{
+          width: '100%',
           flexDirection: 'column-reverse',
           alignItems: 'center',
+          justifyContent: 'center',
           margin: 6,
           padding: 4
         }}
@@ -74,16 +78,17 @@ function HomePoi(props: {
   const info = LABELS[props.k]
   const plate = LABELS[props.label]
   if (!info) return null
+  const drawn = props.size
   const plateW = 22
   const plateH = plate ? Math.round((plateW * plate.h) / plate.w) : 0
-  const plateTop = Math.max(0, Math.round((props.size - plateH) / 2))
+  const plateTop = Math.max(0, Math.round((drawn - plateH) / 2))
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
         position: { left: props.left, top: props.top },
-        width: props.size + plateW + 6,
-        height: Math.max(props.size, plateH)
+        width: drawn + plateW + 16,
+        height: Math.max(drawn, plateH)
       }}
       onMouseDown={tap(props.onTap)}
     >
@@ -91,12 +96,13 @@ function HomePoi(props: {
         uiTransform={{
           positionType: 'absolute',
           position: { left: 0, top: 0 },
-          width: props.size,
-          height: props.size
+          width: drawn,
+          height: drawn
         }}
         uiBackground={{
           textureMode: 'stretch',
           texture: { src: info.src },
+          uvs: info.uvs,
           color: Color4.White()
         }}
       />
@@ -105,7 +111,7 @@ function HomePoi(props: {
           uiTransform={{
             positionType: 'absolute',
             position: {
-              left: props.size + 2,
+              left: drawn + 2,
               top: plateTop
             },
             width: plateW,
@@ -114,6 +120,7 @@ function HomePoi(props: {
           uiBackground={{
             textureMode: 'stretch',
             texture: { src: plate.src },
+            uvs: plate.uvs,
             color: cream
           }}
         />
@@ -123,7 +130,7 @@ function HomePoi(props: {
         <UiEntity
           uiTransform={{
             positionType: 'absolute',
-            position: { left: props.size + 4, top: plateTop - 46 },
+            position: { left: drawn + 4, top: plateTop - 46 },
             width: plateW,
             flexDirection: 'column-reverse',
             alignItems: 'center',
@@ -187,10 +194,12 @@ function HomeField() {
         left="54%"
         top="13%"
         size={148}
-        badge={riftView.pub.seats.length}
+        badge={riftView.pub.seats.length + duelSeatCount()}
         onTap={() => open('rift')}
       />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />
+      {/* The quest map: resumes where you left it this session. */}
+      <HomePoi k="home-overworld" label="questing" left="30%" top="8%" size={130} onTap={() => openOverworld()} />
     </UiEntity>
   )
 }
@@ -333,8 +342,9 @@ function HomeParty() {
   )
 }
 
-function NavBtn(props: { k: string; big?: boolean; badge?: number; onTap: () => void }) {
+function NavBtn(props: { k: string; big?: boolean; onTap: () => void }) {
   const w = props.big ? 118 : 78
+  const id = `nav:${props.k}`
   return (
     <UiEntity
       uiTransform={{
@@ -344,36 +354,9 @@ function NavBtn(props: { k: string; big?: boolean; badge?: number; onTap: () => 
         alignItems: 'center',
         justifyContent: 'center'
       }}
-      onMouseDown={tap(props.onTap)}
+      onMouseDown={press(id, tap(props.onTap))}
     >
-      <Img k={props.k} w={w} tint={Color4.White()} margin={0} />
-      {props.badge ? (
-        // red notification: undiscovered cards, physical top-right of the button
-        <UiEntity
-          uiTransform={{
-            positionType: 'absolute',
-            position: { left: -4, top: -4 },
-            width: 34,
-            height: 34,
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerFilter: 'none'
-          }}
-        >
-          <UiEntity
-            uiTransform={{
-              positionType: 'absolute',
-              position: { left: 0, top: 0 },
-              width: '100%',
-              height: '100%',
-              pointerFilter: 'none'
-            }}
-          >
-            <Img k="dot" w={34} tint={Color4.create(0.85, 0.16, 0.12, 1)} margin={0} />
-          </UiEntity>
-          <Digits value={props.badge} w={16} tint={Color4.White()} tight />
-        </UiEntity>
-      ) : null}
+      <Img k={props.k} w={w - pressShrink(id, w)} tint={pressTint(id)} margin={0} />
     </UiEntity>
   )
 }
@@ -395,7 +378,7 @@ function HomeNav() {
         color: Color4.White()
       }}
     >
-      <NavBtn k="btn-party" badge={game.freshUids.length} onTap={() => open('party')} />
+      <NavBtn k="btn-party" onTap={() => open('party')} />
       <NavBtn k="btn-map" onTap={() => open('quest')} />
       <NavBtn k="btn-go" big onTap={() => goRoad()} />
       <NavBtn
@@ -410,11 +393,19 @@ function HomeNav() {
         // First-quest nudge: aim the animated pointer at the GO button's
         // center. GO is the middle of the five buttons in this centered
         // rail, so its center sits at (70, 324) - half the 140 rail width,
-        // half its 648 height (90% of the fixed 720 canvas). The cursor tip
-        // lands 13px right / 66px down from the pointer's anchor, hence the
-        // offset. Last child of the rail so it draws over the buttons; no
-        // handlers, taps fall through.
+        // half its 648 height (90% of the 720-unit Stage, which pins these
+        // numbers on every device). The cursor tip lands 13px right / 66px
+        // down from the pointer's anchor, hence the offset. Last child of
+        // the rail so it draws over the buttons; no handlers, taps fall
+        // through.
         <TutPointer left={70 - 13} top={324 - 66} />
+      ) : null}
+      {partyPointerShowing() ? (
+        // Undiscovered cards: same pointer, aimed at the party button. In
+        // this column-reverse rail it is the bottom button: 99px of centering
+        // slack + map (82) + GO (122) + settings (82) + event (82) puts its
+        // center at (70, 508).
+        <TutPointer left={70 - 13} top={508 - 66} />
       ) : null}
     </UiEntity>
   )
@@ -496,7 +487,9 @@ function OnlineRoster() {
           margin: { left: 12 }
         }}
         uiBackground={
-          panel ? { textureMode: 'stretch', texture: { src: panel.src }, color: Color4.White() } : { color: panelDim }
+          panel
+            ? { textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }
+            : { color: panelDim }
         }
         onMouseDown={() => {}}
       >

@@ -2,6 +2,7 @@ import { beginFloor } from './campaign'
 import { DEBUG } from './debug'
 import { prepareFuse } from './fuse'
 import { goHome, openHeroCard, resetMenu } from './menu'
+import { returnFromWildBattle } from './overworld'
 import { partyUnits, seatInParty } from './party'
 import {
   clampCleared,
@@ -174,6 +175,9 @@ export function leaveResult() {
     openHeroCard(game.reveal.uid, game.dropBack)
     return
   }
+  // Wild overworld fights: a win resumes the realm at the contact tile;
+  // a loss falls through to the blackout-home default below.
+  if (returnFromWildBattle()) return
   const dest = resultReturn
   resultReturn = undefined
   if (dest && dest.roadIndex >= 0) {
@@ -191,7 +195,7 @@ export function leaveResult() {
     if (game.phase !== 'levels') goHome()
     return
   }
-  // First arrival at the village: tease the hound's card drop so the player
+  // First arrival at the hall: tease the hound's card drop so the player
   // follows the badge to the party screen (where the card waits undiscovered).
   if (oath && game.battle?.winner === 'you' && game.freshUids.length > 0) {
     game.dropTalk = true
@@ -227,6 +231,8 @@ export function leaveHeroCard() {
     if (back === 'home') seatInParty(acquired.uid)
     game.reveal = undefined
     game.dropBack = 'home'
+    // The questline's last card rolls the credits (endCredits goes home).
+    if (back === 'credits') game.creditsAt = Date.now()
     closeOverlay(back === 'home' ? 'leaveResult' : back)
     if (back === 'fuse') prepareFuse()
     return

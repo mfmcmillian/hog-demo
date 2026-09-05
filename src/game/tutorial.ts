@@ -8,8 +8,9 @@ import { TipId } from './types'
  * the freshly opened, dimmed screen. Tapping anywhere advances; the last tap
  * dismisses and marks the tip seen (persisted in the player save). A page may
  * also aim the animated pointer at a key element of the screen underneath —
- * positions are percentages of the screen area, safe because the canvas
- * layout is fixed (1600x720 virtual, deterministic screens).
+ * positions are percentages of the screen area, safe because every screen is
+ * pinned to the fixed 1600x720 Stage (see ui/screens.tsx), so the screen area
+ * is deterministic on every device.
  */
 export type TipPage = {
   /** Label keys, one per dialog line, phone top-to-bottom. */
@@ -59,7 +60,9 @@ export const TIPS: Record<TipId, TipPage[]> = {
   friendzone: [
     // page 1: the hero pick strip
     { lines: ['tut-friendzone-1a', 'tut-friendzone-1b', 'tut-friendzone-1c'], pointer: { left: '45%', top: '55%' } },
-    { lines: ['tut-friendzone-2a', 'tut-friendzone-2b', 'tut-friendzone-2c'] }
+    { lines: ['tut-friendzone-2a', 'tut-friendzone-2b', 'tut-friendzone-2c'] },
+    // page 3: the raids/duels tabs
+    { lines: ['tut-friendzone-3a', 'tut-friendzone-3b', 'tut-friendzone-3c'], pointer: { left: '14%', top: '30%' } }
   ],
   // No dialog: 'go' is only the pointer on the home GO button (goPointerShowing).
   go: []
@@ -87,6 +90,24 @@ export function goPointerShowing(): boolean {
   if (!game.tutSeen.party || game.tutSeen.go) return false
   // Saves that predate the flag: anyone with road progress knows GO already.
   if (game.cleared > 0) return false
+  // One pointer at a time: undiscovered cards send you to the hall first.
+  if (game.freshUids.length > 0) return false
+  return homeClear()
+}
+
+/**
+ * Animated pointer on the home party button while cards sit undiscovered in
+ * the hall (fresh drops, quest rewards). Replaces the old red count badge
+ * with the same nudge the GO button uses; clears itself when the party
+ * screen opens (open() empties freshUids).
+ */
+export function partyPointerShowing(): boolean {
+  if (game.phase !== 'home' || game.freshUids.length === 0) return false
+  return homeClear()
+}
+
+/** No home dialog or overlay holding the screen. */
+function homeClear(): boolean {
   return !game.dropTalk && !game.fireTalk && !game.onlineOpen && !tipShowing()
 }
 

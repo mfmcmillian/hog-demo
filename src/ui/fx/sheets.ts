@@ -90,6 +90,7 @@ const DRIVE16 = [0, -4, -8, -12, -8, 0, 12, 26, 42, 30, 20, 12, 8, 5, 2, 1, 0]
 // Negative = lean back, positive = drive forward. The eye tracks this
 // smooth glide, so the discrete pose flips read as detail, not chop.
 const DRIVE = [0, -8, -12, -10, 0, 16, 42, 30, 16, 8, 4, 2, 0]
+
 const IDLE_CELL = 0
 
 export const PUNCH_DECAY = 5 // impact accent fades in ~0.2s
@@ -100,6 +101,7 @@ export const RAY_FPS = 16
 let playingId = ''
 let step = 0
 let frameWait = 0
+let swingTime = 0 // seconds since the swing began, for continuous motion
 let punch = 0
 let idleTime = 0
 let idleWeight = 1 // fades out during the attack so motions don't stack
@@ -192,19 +194,71 @@ export function posterPunch(): number {
   return punch
 }
 
+// Sample a per-step table at the current instant of the swing, smoothstepped
+// between steps so there are no velocity spikes at step edges.
+function stepLerp(table: number[]): number {
+  const times = stepTimeOf(playingId)
+  const from = table[step] ?? 0
+  const to = table[step + 1] ?? 0
+  const dur = times[step] ?? 0.08
+  let t = 1 - frameWait / dur
+  t = Math.min(1, Math.max(0, t))
+  t = t * t * (3 - 2 * t)
+  return from + (to - from) * t
+}
+
 // Smoothly interpolated lunge offset (px) for the current instant of the
 // attack. Changes every render tick, unlike the stepped frames.
 export function posterDrive(): number {
   if (!playingId) return 0
-  const drive = driveOf(playingId)
-  const times = stepTimeOf(playingId)
-  const from = drive[step] ?? 0
-  const to = drive[step + 1] ?? 0
-  const dur = times[step] ?? 0.08
-  let t = 1 - frameWait / dur
-  t = Math.min(1, Math.max(0, t))
-  t = t * t * (3 - 2 * t) // smoothstep: no velocity spikes at step edges
-  return from + (to - from) * t
+  return stepLerp(driveOf(playingId))
+}
+
+// Blood-Brothers dash timing: seconds from swing start to the impact frame
+// and to the swing's end, per sheet class. Cached — the step tables are const.
+const swingSpans = new Map<boolean, { impactAt: number; total: number }>()
+
+function swingSpanOf(id: string) {
+  const full = isFull16(id)
+  let span = swingSpans.get(full)
+  if (!span) {
+    const times = full ? STEP_TIME16 : STEP_TIME
+    const impact = full ? IMPACT16 : IMPACT_STEP
+    let impactAt = 0
+    let total = 0
+    for (let i = 0; i < times.length; i++) {
+      if (i < impact) impactAt += times[i]
+      total += times[i]
+    }
+    span = { impactAt, total }
+    swingSpans.set(full, span)
+  }
+  return span
+}
+
+const TRAVEL_WINDUP = 0.07 // lean-back depth, as a fraction of the dash
+
+// 0..1 fraction of the dash-to-target distance covered right now (briefly
+// negative during the windup lean-back), from ONE continuous time curve over
+// the whole swing — not per-step easing, which pulsed to zero velocity at
+// every frame edge and read as chop across a 400px run. Reaches 1 exactly
+// when the impact frame fires, holds through contact, then glides home.
+export function attackTravel(): number {
+  if (!playingId) return 0
+  const { impactAt, total } = swingSpanOf(playingId)
+  const t = swingTime
+  const windEnd = impactAt * 0.42
+  const holdEnd = Math.min(impactAt + 0.14, impactAt + (total - impactAt) * 0.3)
+  if (t <= windEnd) return -TRAVEL_WINDUP * ease(t / windEnd)
+  if (t < impactAt) {
+    // Accelerating run-in that arrives at full tilt; the punch/recoil accents
+    // cover the hard stop, which is what makes the landing feel weighty.
+    const p = (t - windEnd) / (impactAt - windEnd)
+    return -TRAVEL_WINDUP + (1 + TRAVEL_WINDUP) * Math.pow(p, 1.8)
+  }
+  if (t <= holdEnd) return 1
+  if (t >= total) return 0
+  return 1 - ease((t - holdEnd) / (total - holdEnd))
 }
 
 // Breathing idle: lift = physical up/down bob, sway = slow sideways drift,
@@ -223,6 +277,7 @@ export function playAttack(id: string) {
   playingId = id
   step = 0
   frameWait = stepTimeOf(id)[0]
+  swingTime = 0
 }
 
 export function stopAttack() {
@@ -230,6 +285,7 @@ export function stopAttack() {
   playingId = ''
   step = 0
   frameWait = 0
+  swingTime = 0
 }
 
 export function isPlaying(id?: string): boolean {
@@ -254,6 +310,7 @@ export function tickAttack(dt: number) {
   if (playingId) {
     const swing = swingOf(playingId)
     const times = stepTimeOf(playingId)
+    swingTime += dt
     frameWait -= dt
     if (frameWait <= 0) {
       step += 1

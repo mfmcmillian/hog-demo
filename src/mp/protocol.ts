@@ -33,10 +33,14 @@ export type PlayerSave = {
   stories?: string[]
   /** Gates of Antrom beaten (the first-win jackpot is spent). */
   finalWon?: boolean
+  /** Opened overworld chest ids and one-shot talk flags. */
+  owFlags?: string[]
+  /** Key items found on the overworld (reed-lamp, ...). */
+  owItems?: string[]
 }
 
 export function emptySave(): PlayerSave {
-  return { v: MP_VERSION, collection: [], party: ['', '', '', ''], heroUid: '', coins: 0, energy: 0, cleared: 0, floorAt: {}, roadStar: {}, soundOn: true, musicOn: true, giftDay: 0, tutSeen: {}, fresh: [], intro: false, stories: [], finalWon: false }
+  return { v: MP_VERSION, collection: [], party: ['', '', '', ''], heroUid: '', coins: 0, energy: 0, cleared: 0, floorAt: {}, roadStar: {}, soundOn: true, musicOn: true, giftDay: 0, tutSeen: {}, fresh: [], intro: false, stories: [], finalWon: false, owFlags: [], owItems: [] }
 }
 
 // --- Trading -------------------------------------------------------------------
@@ -97,10 +101,62 @@ export type RiftPub = {
   floor: number
   battle?: BattleState
   rewards?: RiftReward[]
+  /** Seconds until the end plaque clears and the lobby reopens (won/lost only). */
+  resetIn?: number
 }
 
 export function emptyRift(): RiftPub {
   return { phase: 'lobby', seats: [], floor: 1 }
+}
+
+// --- Duels ---------------------------------------------------------------------
+
+/** 1v1 = champion vs champion; 4v4 = full party vs full party. Two players either way. */
+export const DUEL_MODES = ['1v1', '4v4'] as const
+export type DuelMode = (typeof DUEL_MODES)[number]
+
+export const DUEL_SEATS = 2
+export const DUEL_ENERGY_COST: Record<DuelMode, number> = { '1v1': 2, '4v4': 4 }
+export const DUEL_WIN_COINS: Record<DuelMode, number> = { '1v1': 60, '4v4': 100 }
+/** XP per fighter, so the 4v4 winner spreads it across the party. */
+export const DUEL_WIN_XP: Record<DuelMode, number> = { '1v1': 40, '4v4': 20 }
+export const DUEL_LOSS_XP: Record<DuelMode, number> = { '1v1': 12, '4v4': 6 }
+export const DUEL_LADDER_TOP = 5
+
+export type DuelMsg =
+  | { type: 'sit'; mode: DuelMode; heroUid?: string } // 4v4 seats your party; no heroUid
+  | { type: 'leave'; mode: DuelMode }
+  | { type: 'ready'; mode: DuelMode; ready: boolean }
+
+export type DuelFighter = { uid: string; defId: string; stars: number; level: number }
+
+export type DuelSeat = {
+  address: string
+  name: string
+  ready: boolean
+  /** One champion in 1v1; the seated party in 4v4. */
+  heroes: DuelFighter[]
+}
+
+export type DuelRank = { name: string; wins: number }
+
+/** One duel ring (per mode) as one synced JSON snapshot. */
+export type DuelPub = {
+  mode: DuelMode
+  phase: 'lobby' | 'battle' | 'done'
+  seats: DuelSeat[]
+  battle?: BattleState
+  /** Winning wallet once the duel is done. */
+  winner?: string
+  rewards?: RiftReward[]
+  /** Top duelists of this mode, persisted across restarts. */
+  ladder: DuelRank[]
+  /** Seconds until the verdict clears and the ring reopens (done only). */
+  resetIn?: number
+}
+
+export function emptyDuel(mode: DuelMode): DuelPub {
+  return { mode, phase: 'lobby', seats: [], ladder: [] }
 }
 
 // --- Festival ------------------------------------------------------------------
@@ -133,6 +189,29 @@ export type FestPub = {
 export function emptyFest(): FestPub {
   return { week: FEST_WINDOW_ID, count: 0, target: FEST_TARGET, endsAt: FEST_END_MS, done: false }
 }
+
+// --- Overworld -----------------------------------------------------------------
+
+/** Client -> server overworld intents. Positions are tile-committed steps. */
+export type OwMsg =
+  | { type: 'move'; realm: string; gx: number; gy: number; facing: string }
+  | { type: 'leave' }
+  | { type: 'slay'; key: string }
+
+export type OwPlayerPub = { address: string; name: string; realm: string; gx: number; gy: number; facing: string }
+export type OwMonsterPub = { key: string; id: string; realm: string; gx: number; gy: number }
+/** Most recent monster kill, so everyone sees who opened the path. */
+export type OwSlayPub = { seq: number; address: string; name: string; id: string; key: string }
+
+/** Everyone on the overworld maps + the live wilds monsters, as one snapshot. */
+export type OwPub = { players: OwPlayerPub[]; monsters: OwMonsterPub[]; slay?: OwSlayPub }
+
+export function emptyOw(): OwPub {
+  return { players: [], monsters: [] }
+}
+
+/** Seconds until a slain wilds monster respawns at its spawn tile. */
+export const OW_MONSTER_RESPAWN_S = 90
 
 export type GiftMsg = { type: 'send'; to: string }
 

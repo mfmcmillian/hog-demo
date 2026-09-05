@@ -1,17 +1,22 @@
 import { cycleHero, pickHero } from './account'
 import { listOathkin } from './allies'
 import { playCancel, playClick, playRift } from './audio'
-import { mySeat, riftLeave, tradeCancel } from '../mp/session'
-import { gift, riftView } from '../mp/views'
+import { duelLeave, myDuelSeat, mySeat, riftLeave, tradeCancel } from '../mp/session'
+import { duelViews, gift, riftView } from '../mp/views'
+import { DUEL_MODES } from '../mp/protocol'
 import { enterGame, isBootFilled, isBootReady } from './boot'
 import { advanceBanner, advanceFightTalk, openFinalBattle, skipBattle } from './campaign'
 import { canFuse, fuse, fuseFaces, pickFuseHero, prepareFuse } from './fuse'
 import { advanceIntro, endCredits, skipIntro } from './intro'
-import { cycleHeroCard, goHome, resetMenu } from './menu'
+import { cycleHeroCard, goHome, resetMenu, revealAcquisition } from './menu'
 import { PACKS, packAt } from './packs'
 import { benchUnits, tapBenchHero, tapPartySlot } from './party'
 import { frontierFloor } from './progress'
 import { ROADS } from './quests'
+import { makeOwned } from './familiars'
+import { enterOverworld, owVisited, resumeOverworld } from './overworld'
+import { isLastQuest, owQuest, questRewardFlag, questRewarded, resetBosses } from './owQuests'
+import { advanceOwTalk, dismissOwTalk, owTalkActive, setOwFlag } from './owTalk'
 import { leaveHeroCard, leaveResult, openLevels, startFloor } from './roads'
 import { cancelPack, openPendingChest, requestPack } from './shop'
 import { findOwned, game } from './store'
@@ -57,10 +62,48 @@ export function open(phase: Phase) {
   if (phase === 'quest') game.cursor = Math.min(game.cleared, ROADS.length - 1)
   if (phase === 'rift') playRift()
   if (phase === 'fuse') prepareFuse()
+  if (phase === 'overworld') enterOverworld()
   // Fresh cards are discovered the moment the bench is on screen.
   if (phase === 'party') game.freshUids = []
   const tip = PHASE_TIP[phase]
   if (tip) maybeStartTip(tip)
+}
+
+/** The home village button: resume the map where you left it this session,
+ * or spawn on the plaza the first time. */
+export function openOverworld() {
+  if (!owVisited()) {
+    open('overworld')
+    return
+  }
+  resumeOverworld()
+  lockNav()
+}
+
+/** What a closed talk leaves behind: a quest prize (owQuests table). */
+export function runOwTalkThen(then: string) {
+  if (!then) return
+  const [kind, arg] = then.split(':')
+  if (kind !== 'reward') return
+  const quest = owQuest(arg)
+  if (!quest || questRewarded(quest.id)) return
+  setOwFlag(questRewardFlag(quest.id))
+  if (isLastQuest(quest.id)) {
+    // The line is done: the warlords stand again for a second run (coins
+    // only), and closing the regent's card rolls the credits, then home —
+    // the same ending beat as a Gates win (leaveHeroCard starts the crawl).
+    resetBosses()
+    revealAcquisition(makeOwned(quest.card), 'credits')
+    return
+  }
+  // The card ceremony returns to the map in place (closeOverlay keeps the
+  // realm and tile; only enterOverworld respawns).
+  revealAcquisition(makeOwned(quest.card), 'overworld')
+}
+
+/** Tap/E on an open talk: next page, or close and run its follow-up. */
+export function owTalkNext() {
+  runOwTalkThen(advanceOwTalk())
 }
 
 function menuLen(): number {
@@ -160,6 +203,10 @@ export function primary() {
     advanceTip()
     return
   }
+  if (owTalkActive()) {
+    owTalkNext()
+    return
+  }
   if (game.phase === 'intro') {
     advanceIntro()
     return
@@ -243,6 +290,12 @@ function dismissOverlay() {
 /** F — leave the current screen. */
 export function back() {
   if (!isBootReady()) return
+  if (owTalkActive()) {
+    playCancel()
+    runOwTalkThen(dismissOwTalk())
+    lockNav()
+    return
+  }
   if (tipShowing()) {
     playCancel()
     dismissTip()
@@ -327,10 +380,15 @@ export function back() {
   lockNav()
 }
 
-/** Trade + Rift screens exit through here so the server hears about it. */
+/** Trade + Friendzone screens exit through here so the server hears about it. */
 function leaveMultiplayerScreen() {
   if (game.phase === 'trade') tradeCancel()
   if (game.phase === 'rift' && riftView.pub.phase === 'lobby' && mySeat()) riftLeave()
+  if (game.phase === 'rift') {
+    for (const mode of DUEL_MODES) {
+      if (duelViews[mode].pub.phase === 'lobby' && myDuelSeat(mode)) duelLeave(mode)
+    }
+  }
   goHome()
   lockNav()
 }

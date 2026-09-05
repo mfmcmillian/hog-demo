@@ -2,7 +2,9 @@ import { playSkill } from '../../game/audio'
 import { game } from '../../game/store'
 import { BattleFx } from '../../game/types'
 import {
+  attackTravel,
   cellUvs,
+  ease,
   FX_FRAMES,
   isPlaying,
   playAttack,
@@ -36,6 +38,48 @@ let fxAge = -1
 let popSeq = 0
 const POP_LIFE = 0.85
 const pops: { id: number; uid: string; amount: number; age: number }[] = []
+
+// Blood-Brothers dash: on melee actions (strike/drain) the attacker's poster
+// travels across the field and lands the blow in the target's face. Sheet
+// attackers ride the swing's TRAVEL curve so arrival matches the impact
+// frame; sheetless attackers run a timed out-hit-back with a deferred strike.
+let dashUid = ''
+let dashTargetUid = ''
+let dashTimed = false
+let dashAge = 0
+let dashStruck = false
+const DASH_OUT = 0.26
+const DASH_HOLD = 0.12
+const DASH_BACK = 0.34
+
+export type DashState = { uid: string; targetUid: string; travel: number }
+
+/** The in-flight dash, with 0..1 travel toward the target (or null). */
+export function dashState(): DashState | null {
+  if (!dashUid) return null
+  let travel: number
+  if (dashTimed) {
+    if (dashAge < DASH_OUT) travel = ease(dashAge / DASH_OUT)
+    else if (dashAge < DASH_OUT + DASH_HOLD) travel = 1
+    else travel = 1 - ease((dashAge - DASH_OUT - DASH_HOLD) / DASH_BACK)
+  } else {
+    travel = attackTravel()
+  }
+  return { uid: dashUid, targetUid: dashTargetUid, travel }
+}
+
+function clearTimedDash() {
+  if (!dashTimed) return
+  dashUid = ''
+  dashTargetUid = ''
+  dashTimed = false
+  dashAge = 0
+  if (!dashStruck) {
+    pendingHitUids = []
+    hpHold.clear()
+  }
+  dashStruck = false
+}
 
 // The sim applies damage the instant a turn resolves, but the swing takes a
 // beat to reach its impact frame. These hold the PRE-hit hp per unit until
@@ -131,12 +175,27 @@ setAttackHooks({
     hpHold.clear()
     pendingFx = ''
     pendingFxUids = []
+    if (!dashTimed) {
+      dashUid = ''
+      dashTargetUid = ''
+    }
   }
 })
 
 export function tickCombatEarly(dt: number) {
   if (hit > 0) hit = Math.max(0, hit - dt * PUNCH_DECAY)
   if (foeLunge > 0) foeLunge = Math.max(0, foeLunge - dt * 3)
+  if (dashUid && dashTimed) {
+    dashAge += dt
+    if (!dashStruck && dashAge >= DASH_OUT) {
+      dashStruck = true
+      if (pendingHitUids.length) {
+        strike(pendingHitUids)
+        pendingHitUids = []
+      }
+    }
+    if (dashAge >= DASH_OUT + DASH_HOLD + DASH_BACK) clearTimedDash()
+  }
   if (fxAge >= 0) {
     fxAge += dt
     if (fxAge >= FX_LIFE) {
@@ -164,6 +223,10 @@ export function tickCombatLate() {
           ? [game.battle.targetUid]
           : []
       const flash = game.battle.fxUids.length ? game.battle.fxUids : marked
+      // Melee actions send the attacker to the target, Blood Brothers style.
+      // Ranged/buff actions (volley, bolt, rally) stay home and let FX fly.
+      const primary = game.battle.targetUid || marked[0] || ''
+      const melee = (game.battle.fx === 'strike' || game.battle.fx === 'drain') && !!primary
       if (actor && sheetSrcOf(actor.defId)) {
         playAttack(actor.defId)
         pendingHitUids = marked
@@ -172,6 +235,19 @@ export function tickCombatLate() {
         pendingFxUids = flash
         startSkillFx(pendingFx, flash)
         playSkill(pendingFx)
+        dashTimed = false
+        dashUid = melee ? actor.uid : ''
+        dashTargetUid = melee ? primary : ''
+      } else if (actor && melee) {
+        dashUid = actor.uid
+        dashTargetUid = primary
+        dashTimed = true
+        dashAge = 0
+        dashStruck = false
+        pendingHitUids = marked
+        holdHp()
+        startSkillFx(game.battle.fx ?? '', flash)
+        playSkill(game.battle.fx)
       } else {
         if (actor?.side === 'foe') foeLunge = 1
         startSkillFx(game.battle.fx ?? '', flash)
@@ -184,5 +260,6 @@ export function tickCombatLate() {
   }
 
   lastActing = ''
+  clearTimedDash()
   if (isPlaying()) stopAttack()
 }

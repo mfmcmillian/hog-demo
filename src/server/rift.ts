@@ -1,9 +1,11 @@
 import { engine } from '@dcl/sdk/ecs'
 import { syncEntity } from '@dcl/sdk/network'
 import { buildBattle, stepBattle } from '../game/combat'
+import { DEBUG } from '../game/debug'
 import { BOSS_IDS, grantXp, makeOwned, rollDef } from '../game/familiars'
 import { OwnedFamiliar } from '../game/types'
 import {
+  ENERGY_MAX,
   RIFT_ENERGY_COST,
   RIFT_FLOORS,
   RIFT_SEATS,
@@ -44,6 +46,7 @@ export function setupRift(
     rift.floor = 1
     rift.battle = undefined
     rift.rewards = undefined
+    rift.resetIn = undefined
     riftHp = new Map()
     publishRift()
   }
@@ -98,7 +101,9 @@ export function setupRift(
     for (const seat of rift.seats) {
       const save = ctx.saves.get(seat.address)
       if (save) {
-        save.energy = Math.max(0, save.energy - RIFT_ENERGY_COST)
+        // Mirrors the client's spendEnergy: the playtest flag refills instead
+        // of draining, so the server copy never silently starves out sits.
+        save.energy = DEBUG.unlimitedEnergy ? ENERGY_MAX : Math.max(0, save.energy - RIFT_ENERGY_COST)
         ctx.persistSave(seat.address)
         ctx.pushSave(seat.address)
       }
@@ -134,6 +139,7 @@ export function setupRift(
       rift.rewards = rewards
     }
     riftWait = won ? 12 : 9
+    rift.resetIn = riftWait
     publishRift()
   }
 
@@ -154,7 +160,7 @@ export function setupRift(
       const card = save?.collection.find((owned) => owned.uid === msg.heroUid)
       if (!save || !card) return
       // Not enough energy: refuse the seat (clients also gate this).
-      if (save.energy < RIFT_ENERGY_COST) return
+      if (!DEBUG.unlimitedEnergy && save.energy < RIFT_ENERGY_COST) return
       const seat: RiftSeat = {
         address: sender,
         name: ctx.nameFor(sender),
@@ -191,7 +197,16 @@ export function setupRift(
   engine.addSystem((dt) => {
     if (rift.phase === 'won' || rift.phase === 'lost') {
       riftWait -= dt
-      if (riftWait <= 0) riftReset()
+      if (riftWait <= 0) {
+        riftReset()
+        return
+      }
+      // Tick the spectators' reopen countdown once per whole second.
+      const secs = Math.ceil(riftWait)
+      if (secs !== rift.resetIn) {
+        rift.resetIn = secs
+        publishRift()
+      }
       return
     }
     if (rift.phase !== 'battle' || !rift.battle) return

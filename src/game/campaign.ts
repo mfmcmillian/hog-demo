@@ -7,7 +7,7 @@ import { partyUnits } from './party'
 import { clearFloor, resetRunRewards, roadStarOf } from './progress'
 import { FLOORS, ROADS, dropStarsFor, floorCoins, floorFoes, floorScale, starScale } from './quests'
 import { findOwned, game } from './store'
-import { MAX_STARS, XpLine } from './types'
+import { MAX_STARS, Rarity, XpLine } from './types'
 
 const REPLAY_COIN_SCALE = 0.35
 
@@ -53,6 +53,33 @@ export function startOathClash() {
   // The elder explains the autobattle before the very first clash begins;
   // tickBattle holds the fight until the dialog is dismissed.
   game.fightTalk = 1
+}
+
+const RARITY_SCALE: Record<Rarity, number> = { common: 0, uncommon: 0.25, rare: 0.55, epic: 0.95, legendary: 1.4, mythic: 1.8 }
+const RARITY_COINS: Record<Rarity, number> = { common: 8, uncommon: 14, rare: 22, epic: 36, legendary: 52, mythic: 70 }
+
+/** Overworld monster contact: a free roaming fight, no energy, no card drop.
+ * MMBN-style packs: the roamer plus its spawn's `pack` all take the field.
+ * Difficulty scales with roads cleared AND the toughest foe's rarity; coins
+ * sum over the whole pack. Returns false (and shows the recruit notice)
+ * when there is no party to field. */
+export function startWildBattle(foeIds: string[]): boolean {
+  if (partyUnits().length === 0) {
+    game.notice = 'recruit-first'
+    return false
+  }
+  game.run = undefined
+  game.fightingIndex = -1
+  resetRunRewards()
+  game.pendingDrop = undefined
+  game.rewarded = false
+  const ally = game.selectedAlly ? familiarForKin(game.selectedAlly) : undefined
+  const rarities = foeIds.map((id) => getDef(id).rarity)
+  const scale = 1 + game.cleared * 0.4 + Math.max(...rarities.map((rarity) => RARITY_SCALE[rarity]))
+  game.battle = buildBattle(partyUnits(), foeIds, ally, scale)
+  game.battle.coins = rarities.reduce((sum, rarity) => sum + RARITY_COINS[rarity], 0) + game.cleared * 6
+  enterBattlePhase()
+  return true
 }
 
 export const FIGHT_TALK_PAGES = 2

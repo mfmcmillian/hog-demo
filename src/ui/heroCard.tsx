@@ -9,7 +9,7 @@ import { revealBurstSheet, revealBurstUvs, revealFx, skipReveal } from './flipbo
 import { cardBackArt, hallArt } from './halls'
 import { LABELS } from './labels.gen'
 import { cream, gold, panelDim, PASS } from './theme'
-import { Backdrop, CardBtn, Face, Img, Stars, Stat } from './widgets'
+import { Backdrop, CardBtn, Face, Img, MenuTitle, Stars, Stat } from './widgets'
 
 function PlaqueLine(props: { children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component }) {
   return (
@@ -40,6 +40,7 @@ export function HeroCardScreen() {
     <UiEntity uiTransform={{ width: '100%', height: '100%', ...PASS }}>
       <HeroCardBody owned={owned} />
       {revealing ? null : <CycleArrows />}
+      <MenuTitle k="herocard-banner" />
     </UiEntity>
   )
 }
@@ -61,8 +62,8 @@ function CycleArrows() {
         ...PASS
       }}
     >
-      <CardBtn k="sel-arrow-right" w={76} onTap={tap(() => cycleHeroCard(1))} />
-      <CardBtn k="sel-arrow-left" w={76} onTap={tap(() => cycleHeroCard(-1))} />
+      <CardBtn k="sel-arrow-right" w={76} hit={96} onTap={tap(() => cycleHeroCard(1))} />
+      <CardBtn k="sel-arrow-left" w={76} hit={96} onTap={tap(() => cycleHeroCard(-1))} />
     </UiEntity>
   )
 }
@@ -200,7 +201,7 @@ function HeroCardBody(props: { owned: OwnedFamiliar; swirl?: boolean }) {
           justifyContent: 'center'
         }}
       >
-        <Face id={owned.defId} w={560} h={560} fallback={72} margin={{ left: -80 }} />
+        <Face id={owned.defId} w={560} h={560} hi fallback={72} margin={{ left: -80 }} />
       </UiEntity>
 
       <UiEntity
@@ -213,7 +214,9 @@ function HeroCardBody(props: { owned: OwnedFamiliar; swirl?: boolean }) {
           padding: { top: 28, bottom: 28, left: 20, right: 20 }
         }}
         uiBackground={
-          plaque ? { textureMode: 'stretch', texture: { src: plaque.src }, color: Color4.White() } : { color: panelDim }
+          plaque
+            ? { textureMode: 'stretch', texture: { src: plaque.src }, uvs: plaque.uvs, color: Color4.White() }
+            : { color: panelDim }
         }
       >
         <PlaqueLine>

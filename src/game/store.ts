@@ -93,7 +93,11 @@ export const game = {
   giftDay: 0,
   /** Parent star count for the fuse flipbook; 0 = no burst. */
   starBurstFrom: 0,
-  starBurstTo: 0
+  starBurstTo: 0,
+  /** Opened overworld chests / one-shot flags; persisted. */
+  owFlags: [] as string[],
+  /** Key items found on the overworld; persisted. */
+  owItems: [] as string[]
 }
 
 export function findOwned(uid: string) {

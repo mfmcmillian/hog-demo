@@ -6,6 +6,7 @@ import { game } from '../game/store'
 import { BattleUnit } from '../game/types'
 import { ElderTalk } from './elderTalk'
 import {
+  dashState,
   dmgPops,
   foeLungeAmt,
   heroPoster,
@@ -19,8 +20,9 @@ import {
   unitHit,
   unitSkillFx
 } from './flipbook'
+import { press } from './fx/press'
 import { LABELS } from './labels.gen'
-import { cream, danger, gold, good, muted } from './theme'
+import { cream, danger, gold, good, muted, STAGE_H } from './theme'
 import { Backdrop, charArt, Digits, FillBar, Gain, GameLogo, Img, NameTag, Plate, Stars } from './widgets'
 
 function ArenaPoster(props: {
@@ -165,6 +167,40 @@ function rankPosterSize(count: number) {
   return 140
 }
 
+// ---- Blood-Brothers dash geometry ------------------------------------------
+// On strike/drain turns the attacker's poster travels to the defender and the
+// blow lands in their face (ranged/buff actions stay home). The ranks live on
+// the fixed stage — two 430-wide columns around a ~70px gutter, filling
+// ScreenChrome's 90% content height — so slot-to-slot vectors are pure math,
+// applied as poster nudges; no measured layout needed.
+const RANK_SPAN = 500 // attacker rank center -> defender rank center
+const FIELD_H = Math.round(STAGE_H * 0.9)
+
+function slotCenterY(index: number, count: number) {
+  // column-reverse: unit 0 sits at the physical bottom of the rank
+  return FIELD_H * (1 - (index + 0.5) / count)
+}
+
+function dashVec(unit: BattleUnit, targetUid: string): { dx: number; dy: number } | null {
+  const b = game.battle
+  if (!b) return null
+  const own = unit.side === 'you' ? b.you : b.foe
+  const opp = unit.side === 'you' ? b.foe : b.you
+  const iA = own.findIndex((u) => u.uid === unit.uid)
+  const iT = opp.findIndex((u) => u.uid === targetUid)
+  if (iA < 0 || iT < 0) return null
+  const sizeA = rankPosterSize(own.length)
+  const sizeT = rankPosterSize(opp.length)
+  // Your heroes draw above the foe rank, so they land deep in the target's
+  // face; foes draw under your rank, so they pull up at the target's edge.
+  const shy = unit.side === 'you' ? sizeA / 2 + sizeT / 4 : sizeA / 2 + sizeT / 2
+  const dist = Math.max(80, RANK_SPAN - shy)
+  return {
+    dx: unit.side === 'you' ? -dist : dist,
+    dy: slotCenterY(iT, opp.length) - slotCenterY(iA, own.length)
+  }
+}
+
 function RankFighter(props: { key?: string; unit: BattleUnit; count: number; acting: boolean; hp: Color4 }) {
   const unit = props.unit
   const dead = shownHp(unit.uid, unit.hp) <= 0
@@ -174,18 +210,25 @@ function RankFighter(props: { key?: string; unit: BattleUnit; count: number; act
   const face = sheet ?? (art ? { src: art.src } : undefined)
   const idle = props.acting ? idleMotion() : { grow: 0, sway: 0, lift: 0 }
   const hasSheet = !!sheet
-  const drive = props.acting && hasSheet ? posterDrive() : 0
+  const info = props.acting ? dashState() : null
+  const dash = info && info.uid === unit.uid ? dashVec(unit, info.targetUid) : null
+  const travel = dash && info ? info.travel : 0
+  // While dashing, the cross-field travel replaces the in-place drive/lunge.
+  const drive = !dash && props.acting && hasSheet ? posterDrive() : 0
   const punch = props.acting && hasSheet ? posterPunch() : 0
   const hit = unitHit(unit.uid)
-  const lunge = props.acting && unit.side === 'foe' && !hasSheet ? foeLungeAmt() : 0
+  const lunge = !dash && props.acting && unit.side === 'foe' && !hasSheet ? foeLungeAmt() : 0
   const grow = props.acting
-    ? Math.round(18 * punch + idle.grow + Math.max(0, drive) * 0.25 + 14 * lunge - 8 * hit)
+    ? Math.round(18 * punch + idle.grow + Math.max(0, drive) * 0.25 + 14 * lunge + 16 * Math.max(0, travel) - 8 * hit)
     : Math.round(-6 * hit)
+  const dashX = dash ? dash.dx * travel : 0
+  const dashY = dash ? dash.dy * travel : 0
   const nudgeLeft =
-    unit.side === 'you'
+    dashX +
+    (unit.side === 'you'
       ? -Math.round(drive) - Math.round(10 * hit) - Math.round(idle.lift)
-      : Math.round(drive) + Math.round(22 * lunge) - Math.round(12 * hit)
-  const nudgeTop = Math.round(idle.sway) + Math.round(6 * hit)
+      : Math.round(drive) + Math.round(22 * lunge) - Math.round(12 * hit))
+  const nudgeTop = dashY + Math.round(idle.sway) + Math.round(6 * hit)
   return (
     <UiEntity
       uiTransform={{
@@ -297,7 +340,9 @@ export function BattleScreen() {
           alignItems: 'center',
           justifyContent: 'center'
         }}
-        onMouseDown={() => skipBattle()}
+        // Same press id the inner Plate uses, so taps landing on the padding
+        // around the plaque still show the dip on the plaque itself.
+        onMouseDown={press('plate:skip', () => skipBattle())}
       >
         <Plate k="skip" w={52} h={180} onTap={() => skipBattle()} />
       </UiEntity>

@@ -47,9 +47,14 @@ export function setupFest(
   function persistFest(): void {
     if (!festReady) return
     try {
-      Storage.set(FEST_KEY, JSON.stringify(fest)).catch((error: unknown) => {
-        console.log(`[Server] fest persist failed: ${error}`)
-      })
+      // Storage.set resolves false on a failed PUT (it does not reject).
+      Storage.set(FEST_KEY, JSON.stringify(fest))
+        .then((ok) => {
+          if (!ok) console.log('[Server] fest persist failed: storage set returned false')
+        })
+        .catch((error: unknown) => {
+          console.log(`[Server] fest persist failed: ${error}`)
+        })
     } catch (error) {
       console.log(`[Server] fest persist failed: ${error}`)
     }
@@ -65,6 +70,9 @@ export function setupFest(
         }
       }
       festReady = true
+      // A missing key resolves null (no throw). Seed it now so the write
+      // path is proven at boot and restarts stop re-reading an absent key.
+      if (!raw) persistFest()
     } catch (error) {
       console.log(`[Server] fest load failed: ${error}`)
     }

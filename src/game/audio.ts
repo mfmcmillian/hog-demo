@@ -164,6 +164,12 @@ function playError() {
   playSfx('error')
 }
 
+/** Soft thud while walking into a blocked overworld tile. */
+export function playBump() {
+  if (throttled('bump', 500)) return
+  playSfx('cancel', 0.4)
+}
+
 export function playChest() {
   playSfx('chest')
 }

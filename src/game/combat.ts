@@ -294,9 +294,8 @@ export function buildBattle(
   ally?: OwnedFamiliar,
   scale = 1
 ): BattleState {
-  const you = player.map((owned) => toUnit(owned, 'you'))
   return {
-    you: [...you, ...(ally ? [toUnit(ally, 'you', true)] : [])],
+    you: [...player.map((owned) => toUnit(owned, 'you')), ...(ally ? [toUnit(ally, 'you', true)] : [])],
     foe: foes.map((id, index) => toFoe(id, index, scale)),
     log: [{ text: ally ? 'An oath-kin joins the clash.' : 'The clash begins.' }],
     queue: [],
@@ -306,6 +305,26 @@ export function buildBattle(
     hitUids: [],
     fxUids: [],
     damage: 0,
+    coins: 0,
+    kills: 0,
+    xpEarned: 0
+  }
+}
+
+/** A friendzone duel: player heroes on BOTH sides, no AI scaling. */
+export function buildDuelBattle(a: OwnedFamiliar[], b: OwnedFamiliar[]): BattleState {
+  return {
+    you: a.map((owned) => toUnit(owned, 'you')),
+    foe: b.map((owned) => toUnit(owned, 'foe')),
+    log: [{ text: 'The duel begins.' }],
+    queue: [],
+    turn: 0,
+    actingUid: '',
+    targetUid: '',
+    hitUids: [],
+    fxUids: [],
+    damage: 0,
+    duel: true,
     coins: 0,
     kills: 0,
     xpEarned: 0
@@ -332,7 +351,7 @@ export function stepBattle(battle: BattleState): BattleState {
   const allies = actor.side === 'you' ? battle.you : battle.foe
   const enemies = actor.side === 'you' ? battle.foe : battle.you
   const livingBefore = living(enemies).length
-  const result = act(actor, allies, enemies, !!battle.finalBattle)
+  const result = act(actor, allies, enemies, !!battle.finalBattle || !!battle.duel)
   if (actor.side === 'you') {
     battle.kills += Math.max(0, livingBefore - living(enemies).length)
   }

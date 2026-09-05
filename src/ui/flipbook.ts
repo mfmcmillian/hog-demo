@@ -6,6 +6,7 @@ import { tickAttack, tickIdle, tickPunch } from './fx/sheets'
 
 export { campfireSheet, campfireUvs, chestWobble, loopSparksUvs, villagerSheet, villagerTalkUvs } from './fx/ambient'
 export {
+  dashState,
   dmgPops,
   foeLungeAmt,
   shownHp,

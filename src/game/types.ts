@@ -48,7 +48,26 @@ export type XpLine = {
   levels: number
 }
 
-export type Phase = 'intro' | 'start' | 'home' | 'quest' | 'levels' | 'party' | 'fuse' | 'shop' | 'allies' | 'battle' | 'banner' | 'report' | 'heroCard' | 'trade' | 'rift' | 'settings' | 'festival' | 'credits'
+export type Phase =
+  | 'intro'
+  | 'start'
+  | 'home'
+  | 'quest'
+  | 'levels'
+  | 'party'
+  | 'fuse'
+  | 'shop'
+  | 'allies'
+  | 'battle'
+  | 'banner'
+  | 'report'
+  | 'heroCard'
+  | 'trade'
+  | 'rift'
+  | 'settings'
+  | 'festival'
+  | 'credits'
+  | 'overworld'
 
 /** First-press tutorial tips: one per nav button and village building, plus
  * 'go' — the dialogless pointer on the home GO button after the first party
@@ -69,7 +88,18 @@ export type StoryId = 'main' | SeenStoryId
  * image (images/labels/<code>.png). 'recruited' and 'fused' pair with noticeArg
  * (a familiar defId) to show the familiar's name image after the word.
  */
-export type NoticeCode = '' | 'clear-road' | 'recruit-first' | 'no-coin' | 'fuse-rule' | 'road-failed' | 'recruited' | 'fused'
+export type NoticeCode =
+  | ''
+  | 'clear-road'
+  | 'recruit-first'
+  | 'no-coin'
+  | 'fuse-rule'
+  | 'road-failed'
+  | 'recruited'
+  | 'fused'
+  | 'need-four'
+  | 'need-item'
+  | 'sealed'
 
 type BattleSide = 'you' | 'foe'
 
@@ -105,6 +135,9 @@ export type BattleState = {
   oathClash?: boolean
   /** The Gates of Antrom: all four warlords at once (see startFinalBattle). */
   finalBattle?: boolean
+  /** Friendzone duel: both sides are player heroes, so boss-lineage units
+   * fire their specials every turn on either side (no foe-side holdback). */
+  duel?: boolean
   winner?: 'you' | 'foe'
   coins: number
   dropId?: string

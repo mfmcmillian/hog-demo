@@ -1,8 +1,10 @@
 import { engine } from '@dcl/sdk/ecs'
+import { tickDuelMirror } from './duelClient'
 import { setupGiftClient, tickGiftDropReveal, tickGiftTimers } from './giftClient'
 import { setupPresence, tickIdentity } from './identity'
+import { tickOwMirror } from './owClient'
 import { FestPub } from './protocol'
-import { tickRiftDropReveal, tickRiftMirror, tickSpectatorHome } from './riftClient'
+import { tickRiftDropReveal, tickRiftMirror } from './riftClient'
 import { setupSaveSync, tickSavePush } from './saveSync'
 import { setupTradeClient } from './tradeClient'
 import { MpFestState } from './transport'
@@ -15,6 +17,7 @@ import { festView } from './views'
 export { getMyAddress, getMyName, presentPlayers } from './identity'
 export { canGiftToday, giftSend } from './giftClient'
 export { mySeat, riftLeave, riftReady, riftSit } from './riftClient'
+export { duelLeave, duelReady, duelSeatCount, duelSit, myDuelPickFaces, myDuelSeat } from './duelClient'
 export { isHydrated, pushAccountReset } from './saveSync'
 export {
   trade,
@@ -29,7 +32,7 @@ export {
 
 // riftView / festView / gift live in ./views (leaf) so audio and FX modules
 // can read them without importing this module. Re-exported for the UI.
-export { festView, gift, riftView } from './views'
+export { activeDuel, duelViews, festView, fz, gift, riftView } from './views'
 
 // --- Wiring ----------------------------------------------------------------------
 
@@ -47,8 +50,9 @@ export function initMultiplayerSession(): void {
   engine.addSystem((dt) => {
     if (!tickIdentity()) return
     tickRiftMirror()
-    tickSpectatorHome(dt)
+    tickDuelMirror()
     tickFestMirror()
+    tickOwMirror(dt)
     tickGiftTimers(dt)
     tickGiftDropReveal()
     tickRiftDropReveal()

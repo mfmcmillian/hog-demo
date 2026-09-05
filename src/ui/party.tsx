@@ -8,11 +8,12 @@ import { benchUnits, tapBenchHero, tapPartySlot } from '../game/party'
 import { findOwned, game } from '../game/store'
 import { benchPointerShowing } from '../game/tutorial'
 import { OwnedFamiliar, PARTY_SIZE } from '../game/types'
+import { cellUvs } from './fx/sheets'
 import { LABELS } from './labels.gen'
 import { ModalScrim, PagedColumn, TalkPanel } from './panels'
 import { cream, gold } from './theme'
 import { TutPointer } from './tutorial'
-import { Backdrop, Face, GameLogo, Img, Notice, PartyTile, SeatCard, SlashCount } from './widgets'
+import { Backdrop, Face, Img, MenuTitle, Notice, PartyTile, SeatCard, SlashCount } from './widgets'
 
 /** One ornate kit seat: gold frame, hero in the leather, name in the banner. */
 function TeamSlot(props: { slot: number }) {
@@ -21,19 +22,22 @@ function TeamSlot(props: { slot: number }) {
   const lit = game.selectedSlot === props.slot || focused(props.slot)
   const starter = !!owned && owned.uid === game.heroUid
   const def = owned ? getDef(owned.defId) : undefined
-  const h = 250 // landscape height = physical card width
+  // Sized so the full row (title + NFT teaser + 2 seat columns + occupied
+  // bench) stays inside the frame's 1229-unit content box: h=220 -> 369 wide,
+  // two columns ~766 with wrappers. At the old h=250 the worst case hit ~1330.
+  const h = 220 // landscape height = physical card width
   return (
     <SeatCard
       empty={!owned}
       h={h}
       faceId={owned?.defId}
-      face={195}
-      faceLeft={68}
+      face={172}
+      faceLeft={60}
       faceFallback={36}
       name={def?.name}
-      nameW={17}
-      nameLeft={10}
-      nameBox={42}
+      nameW={15}
+      nameLeft={9}
+      nameBox={37}
       glow={lit ? Color4.create(0.95, 0.78, 0.35, 0.35) : Color4.create(0, 0, 0, 0)}
       onTap={() => {
         setCursor(props.slot)
@@ -44,7 +48,7 @@ function TeamSlot(props: { slot: number }) {
         <UiEntity
           uiTransform={{
             positionType: 'absolute',
-            position: { top: 12, left: 62 },
+            position: { top: 11, left: 55 },
             width: 28,
             height: 28,
             pointerFilter: 'none'
@@ -136,7 +140,7 @@ function NftTalk() {
             justifyContent: 'center',
             pointerFilter: 'none'
           }}
-          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, color: Color4.White() }}
+          uiBackground={{ textureMode: 'stretch', texture: { src: frame.src }, uvs: frame.uvs, color: Color4.White() }}
         >
           <Face
             id={id}
@@ -209,7 +213,9 @@ function BenchTile(props: { owned: OwnedFamiliar; index: number; key?: string })
   const lit = focused(abs)
   const frame = LABELS['party-tile']
   if (!frame) return null
-  const w = lit ? 148 : 138
+  // Constant size: the glow wrap alone marks focus. Growing the lit tile used
+  // to widen the whole centered row and nudge the title.
+  const w = 138
   const h = Math.round((w * frame.h) / frame.w)
   return (
     <PartyTile
@@ -246,7 +252,6 @@ export function PartyScreen() {
       {/* dim the hall so the gold kit reads like the mock */}
       {Backdrop({ label: 'hall-party', dim: 0.42 })}
       <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: { left: 8, right: 4 } }}>
-        <Img k="party-banner" w={132} tint={Color4.White()} margin={2} />
         {/* unique faces owned vs the full collectible book */}
         <SlashCount
           at={new Set(game.collection.map((owned) => owned.defId)).size}
@@ -281,10 +286,15 @@ export function PartyScreen() {
         <TeamSlot slot={2} />
         <TeamSlot slot={3} />
       </UiEntity>
+      {/* Fixed-width slot: the row is centered, so if this group shrank when
+          the bench emptied (or a tile lit up) everything - including the
+          PARTY title - would slide. Reserve the worst-case width instead. */}
       <UiEntity
         uiTransform={{
+          width: 190,
           flexDirection: 'row',
           alignItems: 'center',
+          justifyContent: 'flex-start',
           height: '96%',
           margin: { left: 4 }
         }}
@@ -307,7 +317,7 @@ export function PartyScreen() {
       </UiEntity>
       <NftTalk />
       <Notice />
-      <GameLogo />
+      <MenuTitle k="party-banner" />
     </UiEntity>
   )
 }

@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { getDef } from '../game/familiars'
 import { canFuse, fuse, fuseCount, fuseFaces, pickFuse, pickFuseHero, pickFuseRank } from '../game/fuse'
@@ -10,7 +11,19 @@ import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { PagedColumn } from './panels'
 import { cream, gold, muted } from './theme'
-import { Backdrop, Digits, Face, Img, MenuTitle, Notice, PartyTile, SeatCard, Stars } from './widgets'
+import {
+  Backdrop,
+  Digits,
+  Face,
+  Img,
+  MenuTitle,
+  Notice,
+  PartyTile,
+  RarityAura,
+  RarityRibbon,
+  SeatCard,
+  Stars
+} from './widgets'
 
 function FuseSeat(props: { which: 'a' | 'b' }) {
   const uid = props.which === 'a' ? game.fuseA : game.fuseB
@@ -81,20 +94,30 @@ function FuseHeroTile(props: { owned: OwnedFamiliar; index: number; key?: string
   const lit = game.fuseId === props.owned.defId || focused(props.index)
   const frame = LABELS['party-tile']
   if (!frame) return null
-  // Same tile size as the TEAM bench.
-  const w = lit ? 148 : 138
+  // Same tile size as the TEAM bench; the select frame alone marks the pick.
+  const w = 138
   const h = Math.round((w * frame.h) / frame.w)
+  const rarity = getDef(props.owned.defId).rarity
   return (
     <PartyTile
       w={w}
       wrap={6}
-      glow={lit ? Color4.create(0.95, 0.78, 0.35, 0.35) : Color4.create(0, 0, 0, 0)}
+      selected={lit}
       onTap={() => {
         setCursor(props.index)
         pickFuseHero(props.owned.defId)
       }}
     >
-      <Face id={props.owned.defId} w={Math.round(w * 0.78)} h={Math.round(h * 0.78)} fallback={28} />
+      {/* rarity light behind the face; star ribbon on the phone-bottom edge (same as the TEAM bench) */}
+      <RarityAura rarity={rarity} size={Math.round(w * 1.1)} cx={Math.round((w - 18) / 2)} cy={Math.round(h / 2)} />
+      <Face
+        id={props.owned.defId}
+        w={Math.round(w * 0.72)}
+        h={Math.round(h * 0.72)}
+        fallback={28}
+        margin={{ right: 18 }}
+      />
+      <RarityRibbon rarity={rarity} stars={props.owned.stars} h={h} inset={10} band={22} starW={15} />
     </PartyTile>
   )
 }
@@ -107,15 +130,9 @@ function FuseRankNode(props: { stars: number; key?: string | number }) {
   const frame = LABELS['party-tile']
   if (!frame) return null
   // Same tile as the bench; the copy count is the hero of the tile.
-  const w = lit ? 104 : 100
+  const w = 100
   return (
-    <PartyTile
-      w={w}
-      wrap={2}
-      margin={1}
-      glow={lit ? Color4.create(0.95, 0.78, 0.35, 0.35) : Color4.create(0, 0, 0, 0)}
-      onTap={top ? undefined : tap(() => pickFuseRank(props.stars))}
-    >
+    <PartyTile w={w} wrap={2} margin={1} selected={lit} onTap={top ? undefined : tap(() => pickFuseRank(props.stars))}>
       <Digits value={n} w={34} tint={ready ? gold : n > 0 ? cream : muted} tight />
       <UiEntity uiTransform={{ positionType: 'absolute', position: { left: 6, top: 16 }, pointerFilter: 'none' }}>
         <Stars count={props.stars} w={11} />
@@ -198,11 +215,11 @@ export function FuseScreen() {
         ) : (
           <PagedColumn
             show={canPage}
-            leftK="party-arrow-l"
-            rightK="party-arrow-r"
+            leftK="sel-arrow-left"
+            rightK="sel-arrow-right"
             boxW={60}
             boxH={48}
-            imgW={54}
+            imgW={46}
             onLeft={tap(() => shiftBench(-1))}
             onRight={tap(() => shiftBench(1))}
           >

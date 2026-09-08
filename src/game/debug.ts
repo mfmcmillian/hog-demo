@@ -6,9 +6,9 @@ export const OATH_DROP_ID = 'blaze'
 
 /** Local playtest only. Flip cheats off before a real deploy. */
 export const DEBUG = {
-  // Stays on until an energy regen system exists; without it a player at
-  // zero energy would be stranded forever.
-  unlimitedEnergy: true,
+  // Energy refills on the clock now (game/energy.ts), so the real economy is
+  // on. Flip back for playtests that need to spam fights.
+  unlimitedEnergy: false,
   grantAllHeroes: false,
   /** D-pad + ACTION/BACK + crown. Off while we try tap-only screens. */
   showPlayHud: false,
@@ -18,6 +18,9 @@ export const DEBUG = {
   showCanvasInfo: false,
   /** Overworld 9x16 tile outlines so we can judge TILE size. */
   showOwGrid: false,
+  /** Layout test: '' follows the explorer (desktop/web upright, phones the
+   * portrait grip); 'portrait' | 'landscape' forces one (see ui/grip.ts). */
+  forceGrip: '' as '' | 'portrait' | 'landscape',
   /** Playtest: oath fight drops this id instead of OATH_DROP_ID. */
   forceDropId: '',
   /** Playtest: never let gold fall below this. 0 disables. */

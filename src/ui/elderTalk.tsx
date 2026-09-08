@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { villagerSheet, villagerTalkUvs } from './flipbook'
 import { ModalScrim, TalkPanel } from './panels'
 import { cream, gold, muted } from './theme'

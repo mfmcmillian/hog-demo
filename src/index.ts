@@ -19,9 +19,11 @@ export async function main() {
   const { tickBattle } = await import('./game/campaign')
   const { tickOverworld } = await import('./game/overworld')
   const { DEBUG } = await import('./game/debug')
+  const { tickEnergyRegen } = await import('./game/energy')
   const { createShell } = await import('./scene/shell')
   const { tickFlipbook } = await import('./ui/flipbook')
   const { setupUi } = await import('./ui/screens')
+  const { detectGrip } = await import('./ui/grip')
   const { initMultiplayerSession, tickTrade } = await import('./mp/session')
   const { initNftHeroes } = await import('./game/nftHeroes')
 
@@ -46,6 +48,8 @@ export async function main() {
   }
 
   createShell()
+  // Desktop draws the UI upright; must be known before the renderer mounts.
+  await detectGrip()
   setupUi()
   startInput()
   applyTouchHud()
@@ -55,11 +59,19 @@ export async function main() {
   engine.addSystem((dt) => {
     tickBattle(dt)
     tickOverworld(dt)
+    tickEnergyRegen()
     tickTrade()
     tickFlipbook(dt)
     tickAudio()
   })
-  engine.addSystem(() => {
+  // Re-asserted once a second (not every frame: each createOrReplace is a
+  // component write the explorer has to process) in case the player entity
+  // gets rebuilt under us.
+  let lockWait = 1
+  engine.addSystem((dt) => {
+    lockWait += dt
+    if (lockWait < 1) return
+    lockWait = 0
     InputModifier.createOrReplace(engine.PlayerEntity, {
       mode: InputModifier.Mode.Standard({
         disableWalk: true,

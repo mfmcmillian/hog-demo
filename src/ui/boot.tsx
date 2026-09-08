@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { boot, enterGame } from '../game/boot'
 import { press, pressShrink, pressTint } from './fx/press'

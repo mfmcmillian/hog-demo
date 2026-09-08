@@ -18,7 +18,6 @@ $lines = [ordered]@{
   'victor'           = @{ text = 'VICTOR'; size = 30 }
   'duel-1v1'         = @{ text = '1 VS 1'; size = 30 }
   'duel-4v4'         = @{ text = '4 VS 4'; size = 30 }
-  'leaderboard'      = @{ text = 'LEADERBOARD'; size = 26 }
   'wins'             = @{ text = 'WINS'; size = 22 }
   'player-vs-player' = @{ text = 'PLAYER VS PLAYER'; size = 26 }
   'awaiting-foe'     = @{ text = 'AWAITING A CHALLENGER'; size = 26 }
@@ -31,7 +30,34 @@ $lines = [ordered]@{
   'pick-your-champion' = @{ text = 'TAP A HERO TO PICK YOUR CHAMPION'; size = 26 }
   'tap-join-party'     = @{ text = 'TAP JOIN TO FIELD YOUR PARTY'; size = 26 }
   'tap-enter-ready'    = @{ text = 'TAP ENTER WHEN READY'; size = 26 }
+  'swap-hero'          = @{ text = 'TAP A HERO TO SWAP YOUR PICK'; size = 26 }
+  'invites-you'        = @{ text = 'YOU ARE INVITED'; size = 30 }
   'foe-not-ready'      = @{ text = 'WAITING ON YOUR FOE'; size = 26 }
+  # arena hub (the friendzone landing) + lobby flow
+  'choose-your-arena'  = @{ text = 'CHOOSE YOUR ARENA'; size = 26 }
+  'arena-raid'         = @{ text = 'RIFT RAID'; size = 30 }
+  'coop-hint'          = @{ text = 'CO-OP  -  UP TO 4 RAIDERS'; size = 22 }
+  'pvp-hint'           = @{ text = 'PVP  -  CHAMPION VS CHAMPION'; size = 22 }
+  'pvp4-hint'          = @{ text = 'PVP  -  PARTY VS PARTY'; size = 22 }
+  'lobby-open'         = @{ text = 'OPEN'; size = 26 }
+  'in-battle'          = @{ text = 'IN BATTLE'; size = 26 }
+  'reopens-in'         = @{ text = 'REOPENS IN'; size = 22 }
+  'join'               = @{ text = 'JOIN'; size = 30 }
+  'spectate'           = @{ text = 'SPECTATE'; size = 26 }
+  'seated'             = @{ text = 'SEATED'; size = 22 }
+  'ready'              = @{ text = 'READY'; size = 26 }
+  'starting-in'        = @{ text = 'STARTING IN'; size = 30 }
+  'waiting-for-allies' = @{ text = 'WAITING FOR YOUR ALLIES TO READY UP'; size = 26 }
+  'invite-hint'        = @{ text = 'INVITE TRAVELERS TO FILL THE SEATS'; size = 22 }
+  'invite-sent'        = @{ text = 'INVITE SENT'; size = 22 }
+  'raid-invite'        = @{ text = 'INVITES YOU TO A RAID'; size = 22 }
+  'duel-invite'        = @{ text = 'CHALLENGES YOU TO A DUEL'; size = 22 }
+  'play-again'         = @{ text = 'PLAY AGAIN'; size = 30 }
+  'leave'              = @{ text = 'LEAVE'; size = 30 }
+  'queued-again'       = @{ text = 'YOU WILL RE-ENTER WHEN THE ROOM REOPENS'; size = 22 }
+  'next-raid-in'       = @{ text = 'NEXT RAID IN'; size = 22 }
+  'next-duel-in'       = @{ text = 'NEXT DUEL IN'; size = 22 }
+  'no-energy'          = @{ text = 'NOT ENOUGH ENERGY'; size = 26 }
 }
 
 . "$PSScriptRoot\lib-labels.ps1"

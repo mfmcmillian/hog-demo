@@ -68,11 +68,12 @@ export type Phase =
   | 'festival'
   | 'credits'
   | 'overworld'
+  | 'hall'
 
 /** First-press tutorial tips: one per nav button and village building, plus
  * 'go' — the dialogless pointer on the home GO button after the first party
  * visit (persists via tutSeen like the rest). */
-export const TIP_IDS = ['party', 'map', 'settings', 'events', 'fuse', 'shop', 'trade', 'friendzone', 'go'] as const
+export const TIP_IDS = ['party', 'map', 'settings', 'events', 'fuse', 'shop', 'trade', 'friendzone', 'hall', 'go'] as const
 export type TipId = (typeof TIP_IDS)[number]
 
 /** Once-per-account story slideshows that persist in the save: one per road
@@ -100,6 +101,7 @@ export type NoticeCode =
   | 'need-four'
   | 'need-item'
   | 'sealed'
+  | 'no-energy'
 
 type BattleSide = 'you' | 'foe'
 

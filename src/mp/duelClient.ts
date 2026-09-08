@@ -1,4 +1,5 @@
 import { Entity, engine } from '@dcl/sdk/ecs'
+import { dailyBump } from '../game/daily'
 import { partyUnits } from '../game/party'
 import { findOwned, game } from '../game/store'
 import { getMyAddress } from './identity'
@@ -19,15 +20,23 @@ function sendDuel(msg: DuelMsg): void {
 /** Lobby picks are sealed in the server broadcast (no scouting the enemy),
  * so each client remembers its own hand to draw on its own seat plate. */
 const myPickFaces: Record<DuelMode, string[]> = { '1v1': [], '4v4': [] }
+/** The 1v1 champion's uid, so the lobby strip can highlight it for a swap. */
+const myPickUid: Record<DuelMode, string> = { '1v1': '', '4v4': '' }
 
 export function myDuelPickFaces(mode: DuelMode): string[] {
   return myPickFaces[mode]
 }
 
-/** 1v1 sits your picked champion; 4v4 sits your current party (no heroUid). */
+export function myDuelPickUid(mode: DuelMode): string {
+  return myPickUid[mode]
+}
+
+/** 1v1 sits your picked champion; 4v4 sits your current party (no heroUid).
+ * Sitting again while seated swaps the pick (server un-readies you). */
 export function duelSit(mode: DuelMode, heroUid?: string): void {
   myPickFaces[mode] =
     mode === '1v1' ? [findOwned(heroUid ?? '')?.defId ?? ''] : partyUnits().map((owned) => owned.defId)
+  myPickUid[mode] = mode === '1v1' ? (heroUid ?? '') : ''
   sendDuel({ type: 'sit', mode, heroUid })
 }
 
@@ -37,6 +46,18 @@ export function duelLeave(mode: DuelMode): void {
 
 export function duelReady(mode: DuelMode, ready: boolean): void {
   sendDuel({ type: 'ready', mode, ready })
+}
+
+export function duelInvite(mode: DuelMode, to: string): void {
+  sendDuel({ type: 'invite', mode, to })
+}
+
+/** PLAY AGAIN on the verdict screen: sit back down in this ring (same
+ * champion in 1v1, current party in 4v4) the moment it reopens. */
+export function duelRequeue(mode: DuelMode): void {
+  const seat = myDuelSeat(mode)
+  if (!seat) return
+  fz.requeue = { arena: mode, heroUid: mode === '1v1' ? seat.heroes[0]?.uid : undefined }
 }
 
 export function myDuelSeat(mode?: DuelMode) {
@@ -66,9 +87,20 @@ export function tickDuelMirror(): void {
     // My duel just kicked off while I was looking elsewhere: pull me to the
     // ring. Edge-triggered so parallel fights don't wrestle the tab.
     const mine = pub.seats.some((seat) => seat.address === getMyAddress())
-    if (pub.phase === 'battle' && lastDuelPhase[pub.mode] === 'lobby' && mine) {
+    const last = lastDuelPhase[pub.mode]
+    if (pub.phase === 'battle' && last === 'lobby' && mine) {
       fz.tab = 'duels'
       fz.duelMode = pub.mode
+    }
+    // Fighting a duel (win or lose) is a daily task.
+    if (pub.phase === 'done' && last !== 'done' && mine) dailyBump('duel')
+    // The ring reopened after a duel I asked to replay: sit straight back down.
+    if (pub.phase === 'lobby' && last !== 'lobby' && fz.requeue?.arena === pub.mode) {
+      const uid = fz.requeue.heroUid
+      fz.requeue = undefined
+      if (game.phase === 'rift' && (pub.mode === '4v4' ? partyUnits().length >= 4 : !!findOwned(uid ?? ''))) {
+        duelSit(pub.mode, uid)
+      }
     }
     lastDuelPhase[pub.mode] = pub.phase
   }

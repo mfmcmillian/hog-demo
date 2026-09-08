@@ -1,3 +1,4 @@
+import { getDef, RARITY_RANK } from './familiars'
 import { findOwned, game } from './store'
 import { OwnedFamiliar, PARTY_SIZE } from './types'
 
@@ -39,6 +40,16 @@ export function bestPerFace(list: OwnedFamiliar[]): OwnedFamiliar[] {
   return [...best.values()]
 }
 
+/** The card to auto-field when JOIN seats you in a raid or 1v1 ring: the
+ * strongest copy you own (stars, then level), falling back to the sworn hero. */
+export function strongestOwned(): OwnedFamiliar | undefined {
+  let best: OwnedFamiliar | undefined
+  for (const owned of game.collection) {
+    if (!best || owned.stars > best.stars || (owned.stars === best.stars && owned.level > best.level)) best = owned
+  }
+  return best ?? findOwned(game.heroUid)
+}
+
 export function benchUnits(): OwnedFamiliar[] {
   const taken = seatedDefIds()
   // Best copy per face (stars, then level), matching the rift picker, so
@@ -49,7 +60,14 @@ export function benchUnits(): OwnedFamiliar[] {
     if (taken.has(owned.defId)) continue
     list.push(owned)
   }
-  return bestPerFace(list)
+  // Strongest first - rarity, then stars, then level - so the cards worth
+  // seating lead the bench instead of sitting pages deep in pickup order.
+  return bestPerFace(list).sort(
+    (a, b) =>
+      RARITY_RANK.indexOf(getDef(b.defId).rarity) - RARITY_RANK.indexOf(getDef(a.defId).rarity) ||
+      b.stars - a.stars ||
+      b.level - a.level
+  )
 }
 
 export function seatInParty(uid: string) {

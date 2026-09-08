@@ -6,6 +6,7 @@ import { BOSS_IDS, grantXp, makeOwned, rollDef } from '../game/familiars'
 import { OwnedFamiliar } from '../game/types'
 import {
   ENERGY_MAX,
+  LOBBY_COUNTDOWN_S,
   RIFT_ENERGY_COST,
   RIFT_FLOORS,
   RIFT_SEATS,
@@ -17,10 +18,11 @@ import {
 } from '../mp/protocol'
 import { MpRiftState, RIFT_SYNC_ID, room } from '../mp/transport'
 import { ServerCtx } from './ctx'
+import { relayFzInvite } from './fz'
 
 export function setupRift(
   ctx: ServerCtx,
-  deps: { festBump: (floors: number) => void }
+  deps: { festBump: (floors: number) => void; raidWon: (address: string) => void }
 ): { rift: RiftPub; publishRift: () => void; riftReset: () => void } {
   // --- The Rift ---------------------------------------------------------------
   const riftEntity = engine.addEntity()
@@ -47,8 +49,28 @@ export function setupRift(
     rift.battle = undefined
     rift.rewards = undefined
     rift.resetIn = undefined
+    rift.startIn = undefined
     riftHp = new Map()
     publishRift()
+  }
+
+  /** Everyone seated is ready: the raid is go. */
+  function allReady(): boolean {
+    return rift.seats.length > 0 && rift.seats.every((entry) => entry.ready)
+  }
+
+  /** Re-evaluate the lobby countdown after any seat change: arm it when the
+   * room just became all-ready, cancel it when someone stood up or unreadied. */
+  function syncCountdown(): void {
+    if (rift.phase !== 'lobby') return
+    if (allReady()) {
+      if (rift.startIn === undefined) {
+        riftWait = LOBBY_COUNTDOWN_S
+        rift.startIn = LOBBY_COUNTDOWN_S
+      }
+    } else {
+      rift.startIn = undefined
+    }
   }
 
   function riftFoePools(): string[][] {
@@ -82,7 +104,12 @@ export function setupRift(
   }
 
   function riftBeginFloor(): void {
-    const battle = buildBattle(seatParty(), riftFoes(rift.floor, rift.seats.length), undefined, riftScale(rift.floor, rift.seats.length))
+    const battle = buildBattle(
+      seatParty(),
+      riftFoes(rift.floor, rift.seats.length),
+      undefined,
+      riftScale(rift.floor, rift.seats.length)
+    )
     // Gauntlet rule: hp carries between floors; the fallen stay fallen.
     // Survivors catch their breath: heal 30% of max between floors.
     for (const unit of battle.you) {
@@ -110,6 +137,7 @@ export function setupRift(
       seat.ready = false
     }
     rift.floor = 1
+    rift.startIn = undefined
     riftHp = new Map()
     riftBeginFloor()
   }
@@ -119,6 +147,7 @@ export function setupRift(
     if (won) {
       const rewards: RiftReward[] = []
       for (const seat of rift.seats) {
+        deps.raidWon(seat.address) // a rung on the Hall of Heroes raids board
         const save = ctx.saves.get(seat.address)
         const reward: RiftReward = { address: seat.address, coins: 90, xp: 46 }
         if (Math.random() < 0.7) {
@@ -154,11 +183,24 @@ export function setupRift(
       return
     }
     if (msg.type === 'sit') {
-      if (rift.phase !== 'lobby' || rift.seats.length >= RIFT_SEATS) return
-      if (rift.seats.some((seat) => seat.address === sender)) return
+      if (rift.phase !== 'lobby') return
+      const mine = rift.seats.find((seat) => seat.address === sender)
+      if (!mine && rift.seats.length >= RIFT_SEATS) return
       const save = ctx.saves.get(sender)
       const card = save?.collection.find((owned) => owned.uid === msg.heroUid)
       if (!save || !card) return
+      if (mine) {
+        // Already seated: swap the pick. Un-readies, so a running 3-2-1
+        // (syncCountdown) can't start the raid on a hero nobody saw.
+        mine.uid = card.uid
+        mine.defId = card.defId
+        mine.stars = card.stars
+        mine.level = card.level
+        mine.ready = false
+        syncCountdown()
+        publishRift()
+        return
+      }
       // Not enough energy: refuse the seat (clients also gate this).
       if (!DEBUG.unlimitedEnergy && save.energy < RIFT_ENERGY_COST) return
       const seat: RiftSeat = {
@@ -177,6 +219,7 @@ export function setupRift(
     if (msg.type === 'leave') {
       if (rift.phase !== 'lobby') return
       rift.seats = rift.seats.filter((seat) => seat.address !== sender)
+      syncCountdown()
       publishRift()
       return
     }
@@ -185,16 +228,38 @@ export function setupRift(
       const seat = rift.seats.find((entry) => entry.address === sender)
       if (!seat) return
       seat.ready = msg.ready === true
-      if (rift.seats.length > 0 && rift.seats.every((entry) => entry.ready)) {
-        riftStart()
-        return
-      }
+      // All ready arms the 3-2-1 (the ticker fires riftStart); unreadying cancels it.
+      syncCountdown()
       publishRift()
+      return
+    }
+    if (msg.type === 'invite') {
+      relayFzInvite(ctx, sender, msg.to, 'raid')
     }
   })
 
   // --- Rift battle ticker -------------------------------------------------------
   engine.addSystem((dt) => {
+    if (rift.phase === 'lobby') {
+      if (rift.startIn === undefined) return
+      // Presence may have pulled a seat out from under the countdown.
+      if (!allReady()) {
+        rift.startIn = undefined
+        publishRift()
+        return
+      }
+      riftWait -= dt
+      if (riftWait <= 0) {
+        riftStart()
+        return
+      }
+      const secs = Math.ceil(riftWait)
+      if (secs !== rift.startIn) {
+        rift.startIn = secs
+        publishRift()
+      }
+      return
+    }
     if (rift.phase === 'won' || rift.phase === 'lost') {
       riftWait -= dt
       if (riftWait <= 0) {

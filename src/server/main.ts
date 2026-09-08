@@ -1,7 +1,9 @@
 import { MP_VERSION } from '../mp/protocol'
+import { setupBoards } from './boards'
 import { ServerCtx, displayNames, nameFor, present } from './ctx'
 import { setupDuels } from './duel'
 import { setupFest } from './fest'
+import { setupLevels } from './levels'
 import { setupOverworld } from './overworld'
 import { setupPresence } from './presence'
 import { setupRift } from './rift'
@@ -33,13 +35,19 @@ export function startServer(): void {
   const festApi = setupFest(ctx, { getRiftSeats: () => riftApi.rift.seats })
   grants.maybeGrantFest = festApi.maybeGrantFest
 
-  riftApi = setupRift(ctx, { festBump: festApi.festBump })
+  // The Hall of Heroes boards are wired after the rooms that feed them; the
+  // closures resolve lazily, and no raid or duel can finish before setup ends.
+  let boardsApi!: ReturnType<typeof setupBoards>
+  riftApi = setupRift(ctx, { festBump: festApi.festBump, raidWon: (address) => boardsApi.bumpRaid(address) })
 
-  const duelApi = setupDuels(ctx)
+  const duelApi = setupDuels(ctx, { onWin: (address) => boardsApi.bumpWin(address) })
+  boardsApi = setupBoards(ctx, { duelWins: duelApi.allWins })
 
   const tradesApi = setupTrades(ctx)
 
   const overworldApi = setupOverworld(ctx)
+
+  setupLevels(ctx)
 
   setupPresence(ctx, {
     loadOnArrive: savesApi.loadOnArrive,

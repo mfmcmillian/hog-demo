@@ -1,5 +1,6 @@
 import { seatInParty } from './party'
 import { clampCleared } from './progress'
+import { grantAccountXp, XP } from './level'
 import { findOwned, game } from './store'
 import { OwnedFamiliar, Phase } from './types'
 
@@ -9,6 +10,7 @@ export function resetMenu() {
   game.notice = ''
   game.noticeArg = ''
   game.fireTalk = false
+  game.lockTalk = false
   game.onlineOpen = false
   game.nftTalk = ''
   // A tip cleared without being dismissed stays unseen and shows again next
@@ -62,7 +64,10 @@ export function cycleHeroCard(delta: number) {
 }
 
 export function revealAcquisition(owned: OwnedFamiliar, back: Phase, opts?: { seat?: boolean; show?: boolean }) {
-  if (!findOwned(owned.uid)) game.collection.push(owned)
+  if (!findOwned(owned.uid)) {
+    game.collection.push(owned)
+    grantAccountXp(XP.newHero)
+  }
   if (opts?.seat) seatInParty(owned.uid)
   game.reveal = owned
   game.dropBack = back

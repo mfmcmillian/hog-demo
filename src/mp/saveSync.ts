@@ -1,10 +1,11 @@
 import { boot } from '../game/boot'
 import { applyDebugGrants } from '../game/debug'
+import { retroXp, setAccountXp, XP_HARD_CAP } from '../game/level'
 import { goHome } from '../game/menu'
 import { game } from '../game/store'
 import { SeenStoryId, STORY_IDS, TipId } from '../game/types'
 import { getMyAddress } from './identity'
-import { MP_VERSION, PlayerSave } from './protocol'
+import { MP_VERSION, PlayerSave, mergeDaily, sanitizeDaily } from './protocol'
 import { room } from './transport'
 
 /** True once the server confirmed a storage-backed save round-trip. */
@@ -36,6 +37,7 @@ function mySave(): PlayerSave {
     heroUid: game.heroUid,
     coins: game.coins,
     energy: game.energy,
+    energyAt: game.energyAt,
     cleared: game.cleared,
     floorAt: game.floorAt,
     roadStar: game.roadStar,
@@ -48,8 +50,17 @@ function mySave(): PlayerSave {
     stories: (Object.keys(game.storySeen) as SeenStoryId[]).filter((id) => game.storySeen[id]),
     finalWon: game.finalWon,
     owFlags: game.owFlags,
-    owItems: game.owItems
+    owItems: game.owItems,
+    daily: game.daily,
+    axp: game.axp
   }
+}
+
+/** Account XP from a save; one that predates levels is back-filled from
+ * what its roads and cards would have paid (server does the same). */
+function saveXp(save: PlayerSave): number {
+  if (typeof save.axp === 'number') return Math.max(0, Math.min(XP_HARD_CAP, Math.floor(save.axp)))
+  return Math.min(XP_HARD_CAP, retroXp(save))
 }
 
 function applySave(save: PlayerSave): void {
@@ -58,6 +69,8 @@ function applySave(save: PlayerSave): void {
   game.heroUid = save.heroUid
   game.coins = save.coins
   game.energy = save.energy
+  // Older saves predate regen; 0 makes the counter start fresh from now.
+  game.energyAt = Math.max(0, Math.floor(Number(save.energyAt) || 0))
   game.cleared = save.cleared
   game.floorAt = save.floorAt
   // Older saves predate ascension; every road starts back at tier 1.
@@ -78,6 +91,9 @@ function applySave(save: PlayerSave): void {
   game.finalWon = save.finalWon === true
   game.owFlags = Array.isArray(save.owFlags) ? save.owFlags.slice() : []
   game.owItems = Array.isArray(save.owItems) ? save.owItems.slice() : []
+  // Older saves predate the daily hooks; missing means a fresh streak.
+  game.daily = sanitizeDaily(save.daily)
+  setAccountXp(saveXp(save))
   applyDebugGrants()
 }
 
@@ -104,7 +120,11 @@ function applyServerUpdate(save: PlayerSave): void {
   const finalWon = game.finalWon
   const flags = game.owFlags.slice()
   const items = game.owItems.slice()
+  const dailyLocal = game.daily
+  const xpLocal = game.axp
   applySave(save)
+  // XP is client-earned and forward-moving, like roads.
+  setAccountXp(Math.max(xpLocal, game.axp))
   game.cleared = cleared
   game.floorAt = floorAt
   game.roadStar = roadStar
@@ -118,6 +138,9 @@ function applyServerUpdate(save: PlayerSave): void {
   if (finalWon) game.finalWon = true
   game.owFlags = unionOw(flags, game.owFlags)
   game.owItems = unionOw(items, game.owItems)
+  // Daily claims/progress are client-driven too: a push racing a just-tapped
+  // CLAIM must not hand the reward back.
+  game.daily = mergeDaily(dailyLocal, game.daily)
 }
 
 function unionOw(a: string[], b: string[]): string[] {
@@ -155,6 +178,8 @@ function mergeSave(save: PlayerSave): void {
   if (save.finalWon === true) game.finalWon = true
   game.owFlags = unionOw(game.owFlags, save.owFlags ?? [])
   game.owItems = unionOw(game.owItems, save.owItems ?? [])
+  game.daily = mergeDaily(game.daily, sanitizeDaily(save.daily))
+  setAccountXp(Math.max(game.axp, saveXp(save)))
   applyDebugGrants()
 }
 

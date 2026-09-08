@@ -1,6 +1,8 @@
+import { emptyDaily } from '../mp/protocol'
 import { startOathClash } from './campaign'
 import { applyDebugGrants, grantTestRoster } from './debug'
 import { HEROES, makeOwned } from './familiars'
+import { energyCapFor } from './level'
 import { game } from './store'
 
 export function cycleHero(delta: number) {
@@ -29,6 +31,10 @@ export function resetAccount() {
   game.heroIndex = 0
   game.coins = 40
   game.energy = 12
+  game.energyAt = 0
+  game.axp = 0
+  game.energyMax = energyCapFor(1)
+  game.levelUp = undefined
   game.cleared = 0
   game.floorAt = {}
   game.roadStar = {}
@@ -51,6 +57,7 @@ export function resetAccount() {
   game.finalWon = false
   game.owFlags = []
   game.owItems = []
+  game.daily = emptyDaily()
   game.creditsAt = 0
   game.welcomeTalk = false
   game.fightTalk = 0

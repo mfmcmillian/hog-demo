@@ -64,6 +64,9 @@ export function getDef(id: string): FamiliarDef {
   return def
 }
 
+/** Rarities in ascending order; index = rank. */
+export const RARITY_RANK: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']
+
 export function rarityWeight(rarity: Rarity): number {
   if (rarity === 'common') return 56
   if (rarity === 'uncommon') return 28

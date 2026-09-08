@@ -1,23 +1,64 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { playCancel, tap } from '../game/audio'
 import { openHeroCard } from '../game/menu'
 import { open, openOverworld } from '../game/nav'
 import { ElderTalk } from './elderTalk'
 import { goRoad } from '../game/roads'
+import { dailyClaimable } from '../game/daily'
+import { msToNextEnergy } from '../game/energy'
+import { levelProgress } from '../game/level'
 import { findOwned, game } from '../game/store'
 import { goPointerShowing, partyPointerShowing, questingPointerShowing, questingUnlocked } from '../game/tutorial'
-import { duelSeatCount, getMyName, presentPlayers } from '../mp/session'
+import { canGiftToday, duelSeatCount, getMyName, levelOf, presentPlayers } from '../mp/session'
 import { riftView } from '../mp/views'
 import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs } from './flipbook'
 import { press, pressShrink, pressTint } from './fx/press'
 import { cardBackArt } from './halls'
 import { LABELS } from './labels.gen'
+import { LevelCard } from './level'
 import { ModalScrim, TalkPanel, TravelerPlate } from './panels'
 import { disarmRestart } from './settings'
-import { cream, gold, muted, panelDim } from './theme'
+import { cream, gold, muted, panelDim, PASS, xpBlue } from './theme'
 import { TutPointer } from './tutorial'
-import { Digits, Face, FillBar, GameLogo, Img, Stars } from './widgets'
+import { Digits, Face, FillBar, GameLogo, Img, NameTag, Stars } from './widgets'
+
+/** m:ss until the next energy refills, under the bolt; hidden at the cap. */
+function EnergyClock() {
+  const left = msToNextEnergy()
+  if (left <= 0) return null
+  const mins = Math.floor(left / 60000)
+  const secs = Math.floor((left % 60000) / 1000)
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: { top: 4 } }}>
+      <Digits value={mins} w={11} tint={muted} tight />
+      <NameTag name="m" w={10} tint={muted} />
+      <UiEntity uiTransform={{ width: 3 }} />
+      <Digits value={secs} w={11} tint={muted} tight />
+      <NameTag name="s" w={10} tint={muted} />
+    </UiEntity>
+  )
+}
+
+/** Account level on the HUD rail: LV badge, the number, and the XP bar to the
+ * next level (full and still at the cap). Tap opens the level card. */
+export function LevelMeter() {
+  const p = levelProgress(game.axp)
+  const frac = p.need > 0 ? p.into / p.need : 1
+  return (
+    <UiEntity
+      uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 6, padding: 2 }}
+      onMouseDown={tap(() => {
+        game.levelCard = !game.levelCard
+      })}
+    >
+      <Img k="lv" w={20} tint={game.levelCard ? gold : cream} />
+      <FillBar frac={frac} w={14} h={90} fill={xpBlue} />
+      <Digits value={p.level} w={16} tint={gold} />
+    </UiEntity>
+  )
+}
 
 function HomeHud() {
   const online = presentPlayers.size + 1
@@ -33,10 +74,12 @@ function HomeHud() {
       }}
       uiBackground={{ color: Color4.create(0.09, 0.05, 0.06, 0.94) }}
     >
+      <LevelMeter />
       <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 6 }}>
         <Img k="icon-bolt" w={20} tint={Color4.White()} />
         <FillBar frac={game.energy / game.energyMax} w={14} h={90} fill={gold} />
         <Digits value={game.energy} w={16} tint={gold} />
+        <EnergyClock />
       </UiEntity>
       <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 6 }}>
         <Img k="icon-coins" w={22} tint={Color4.White()} />
@@ -217,6 +260,9 @@ function HomeField() {
         onTap={() => open('rift')}
       />
       <HomePoi k="home-fuse" label="fuse" left="10%" top="62%" size={136} onTap={() => open('fuse')} />
+      {/* The Hall of Heroes: the leaderboards, in the clear ground on the
+          village's east side between the friendzone gate and the trade post. */}
+      <HomePoi k="home-hall" label="hall-of-heroes" left="70%" top="37%" size={134} onTap={() => open('hall')} />
       {/* The quest map: locked until the Moor Gate road is cleared, then
           resumes where you left it this session. */}
       <HomePoi
@@ -376,7 +422,7 @@ function HomeParty() {
   )
 }
 
-function NavBtn(props: { k: string; big?: boolean; onTap: () => void }) {
+function NavBtn(props: { k: string; big?: boolean; alert?: boolean; onTap: () => void }) {
   const w = props.big ? 118 : 78
   const id = `nav:${props.k}`
   return (
@@ -391,6 +437,14 @@ function NavBtn(props: { k: string; big?: boolean; onTap: () => void }) {
       onMouseDown={press(id, tap(props.onTap))}
     >
       <Img k={props.k} w={w - pressShrink(id, w)} tint={pressTint(id)} margin={0} />
+      {props.alert ? (
+        // Something to collect inside: a red pip on the button's physical top-right.
+        <UiEntity
+          uiTransform={{ positionType: 'absolute', position: { top: 4, right: 4 }, width: 16, height: 16, ...PASS }}
+        >
+          <Img k="dot" w={16} tint={Color4.create(0.9, 0.22, 0.18, 1)} margin={0} />
+        </UiEntity>
+      ) : null}
     </UiEntity>
   )
 }
@@ -422,7 +476,12 @@ function HomeNav() {
           open('settings')
         }}
       />
-      <NavBtn k="btn-event" onTap={() => open('festival')} />
+      {/* pip: a reward waits, or today's gift is unsent while there's someone to give it to */}
+      <NavBtn
+        k="btn-event"
+        alert={dailyClaimable() || (canGiftToday() && presentPlayers.size > 0)}
+        onTap={() => open('festival')}
+      />
       {goPointerShowing() ? (
         // First-quest nudge: aim the animated pointer at the GO button's
         // center. GO is the middle of the five buttons in this centered
@@ -462,6 +521,8 @@ export function HomeScreen() {
       <GameLogo />
       <OnlineRoster />
       <DropTalk />
+      <LockTalk />
+      <LevelCard />
     </UiEntity>
   )
 }
@@ -498,6 +559,30 @@ function DropTalk() {
   )
 }
 
+/** Tapped the sealed questing gate: the elder explains the lock and the
+ * pointer lands on the map button, where the Moor Gate road is. */
+function LockTalk() {
+  if (!game.lockTalk) return null
+  return (
+    <ElderTalk
+      lines={[{ k: 'tut-lock-1a' }, { k: 'tut-lock-1b' }, { k: 'tut-lock-1c', tint: gold }]}
+      onTap={tap(() => {
+        game.lockTalk = false
+      })}
+    >
+      {/* A box the size and place of the nav rail (canvas right = phone
+          bottom), so the pointer math matches HomeNav: the map button is the
+          second from the phone-left, centered at (70, 426) - 99 slack + event
+          82 + settings 82 + GO 122 + half of map 82 - less the tip offset. */}
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { top: 0, right: 0 }, width: 140, height: '100%', ...PASS }}
+      >
+        <TutPointer left={70 - 13} top={426 - 66} />
+      </UiEntity>
+    </ElderTalk>
+  )
+}
+
 /** Who's in the hall right now. Opens from the home "players online" header. */
 function OnlineRoster() {
   if (!game.onlineOpen) return null
@@ -509,7 +594,7 @@ function OnlineRoster() {
     game.onlineOpen = false
   }
   return (
-    <ModalScrim alpha={0.86} left={84} flexDirection="row" justifyContent="flex-start" onMouseDown={close}>
+    <ModalScrim alpha={0.86} left={84} flexDirection="row" justifyContent="flex-start" buttons onMouseDown={close}>
       <UiEntity
         uiTransform={{
           width: Math.min(820, 200 + 86 * (1 + Math.max(others.length, 1))),
@@ -518,27 +603,29 @@ function OnlineRoster() {
           alignItems: 'center',
           justifyContent: 'center',
           padding: 20,
-          margin: { left: 12 }
+          margin: { left: 12 },
+          pointerFilter: 'block' // not a close; no handler (see shop PackConfirm)
         }}
         uiBackground={
           panel
             ? { textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }
             : { color: panelDim }
         }
-        onMouseDown={() => {}}
       >
         <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 8 }}>
           <Img k="dot" w={14} tint={Color4.create(0.28, 0.85, 0.35, 1)} margin={4} />
           <Digits value={presentPlayers.size + 1} w={28} tint={gold} tight />
           <Img k="players-online" w={28} tint={cream} margin={4} />
         </UiEntity>
-        <TravelerPlate name={mine} tint={gold}>
+        <TravelerPlate name={mine} tint={gold} level={levelProgress(game.axp).level}>
           <Img k="dot" w={14} tint={Color4.create(0.28, 0.85, 0.35, 1)} />
         </TravelerPlate>
         {others.length === 0 ? (
           <Img k="no-travelers" w={26} tint={muted} margin={8} />
         ) : (
-          others.map(([address, name]) => <TravelerPlate key={address} name={name} tint={cream} />)
+          others.map(([address, name]) => (
+            <TravelerPlate key={address} name={name} tint={cream} level={levelOf(address)} />
+          ))
         )}
       </UiEntity>
     </ModalScrim>

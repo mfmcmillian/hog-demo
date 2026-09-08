@@ -1,11 +1,13 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { game } from '../game/store'
 import { idlePoster, sparksSheet, starBurstFx } from './flipbook'
 import { press, pressAmt, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
-import { cream, gold, ink, muted, PASS } from './theme'
+import { Rarity } from '../game/types'
+import { cream, gold, ink, muted, PASS, rarityGlow, xpBlue } from './theme'
 
 // ---- moved primitives --------------------------------------------------------
 
@@ -335,10 +337,37 @@ export function Face(props: {
   )
 }
 
+const HALO_TEX = 'images/hud/tut-ring.png'
+
+/** Soft gold halo of light, breathing slowly: the tutorial ring blown up
+ * behind a ceremony title (LEVEL UP). Absolute and centered in a `w`x`h`
+ * parent; put it before the art so it draws underneath. The ring is round, so
+ * the landscape-grip UV turn is harmless. */
+export function Halo(props: { w: number; h: number; scale?: number }) {
+  const size = Math.round(Math.max(props.w, props.h) * (props.scale ?? 1.9))
+  const pulse = 0.5 + 0.5 * Math.sin(Date.now() / 650)
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: Math.round((props.h - size) / 2), left: Math.round((props.w - size) / 2) },
+        width: size,
+        height: size,
+        pointerFilter: 'none'
+      }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src: HALO_TEX },
+        color: Color4.create(1, 0.8, 0.38, 0.32 + 0.28 * pulse)
+      }}
+    />
+  )
+}
+
 /** Icon button. `hit` grows the tappable box past the icon (negative margins
  * keep the flex footprint at `w`, so layouts don't shift) — mobile thumbs need
  * ~84 stage units to make the 44pt touch-target minimum. */
-export function CardBtn(props: { k: string; w: number; hit?: number; onTap?: () => void }) {
+export function CardBtn(props: { k: string; w: number; hit?: number; tint?: Color4; onTap?: () => void }) {
   const hit = Math.max(props.w, props.hit ?? props.w)
   const bleed = -Math.round((hit - props.w) / 2)
   const id = `card:${props.k}`
@@ -353,7 +382,7 @@ export function CardBtn(props: { k: string; w: number; hit?: number; onTap?: () 
       }}
       onMouseDown={press(id, props.onTap)}
     >
-      <Img k={props.k} w={props.w - pressShrink(id, props.w)} tint={pressTint(id)} margin={0} />
+      <Img k={props.k} w={props.w - pressShrink(id, props.w)} tint={pressTint(id, props.tint)} margin={0} />
     </UiEntity>
   )
 }
@@ -448,12 +477,47 @@ export function Backdrop(props: {
   return nodes
 }
 
-/** Gold glow wrap + party-tile frame. Omit `wrap` for a bare framed tile (NFT teasers). */
+const SELECT_TEX = 'images/hud/select-frame.png'
+// the frame line sits 44/256 in from the texture edge; slice just past it so
+// the straight runs stretch and the rounded corners keep their shape
+const SELECT_SLICE = 0.36
+const SELECT_INSET = 44 / 256
+
+/** The card selection marker: a rounded gold frame with light bleeding off
+ * it, breathing slowly, laid over a `w`x`h` box and reaching `reach` beyond
+ * it. Nine-sliced, so it fits any card; absolute, so it costs no layout. */
+export function SelectFrame(props: { w: number; h: number; reach?: number }) {
+  const reach = props.reach ?? 14
+  // The texture's own line is inset from its edge; overshoot by that inset
+  // (in the on-screen scale of the slice) so the line lands `reach` outside.
+  const pad = reach + Math.round(SELECT_INSET * 100)
+  const pulse = 0.8 + 0.2 * Math.sin(Date.now() / 260)
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: -pad, left: -pad },
+        width: props.w + pad * 2,
+        height: props.h + pad * 2,
+        ...PASS
+      }}
+      uiBackground={{
+        textureMode: 'nine-slices',
+        texture: { src: SELECT_TEX },
+        textureSlices: { top: SELECT_SLICE, left: SELECT_SLICE, right: SELECT_SLICE, bottom: SELECT_SLICE },
+        color: Color4.create(1, 1, 1, pulse)
+      }}
+    />
+  )
+}
+
+/** Party-tile frame in a fixed-size wrap; `selected` lays the gold SelectFrame
+ * over it. Omit `wrap` for a bare framed tile (NFT teasers). */
 export function PartyTile(props: {
   w: number
   wrap?: number
   margin?: number
-  glow?: Color4
+  selected?: boolean
   frameTint?: Color4
   onTap?: () => void
   children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component
@@ -479,6 +543,7 @@ export function PartyTile(props: {
       onMouseDown={props.wrap === undefined ? props.onTap : undefined}
     >
       {props.children}
+      {props.selected ? <SelectFrame w={props.w} h={h} reach={6} /> : null}
     </UiEntity>
   )
   if (props.wrap === undefined) return tile
@@ -491,10 +556,81 @@ export function PartyTile(props: {
         alignItems: 'center',
         justifyContent: 'center'
       }}
-      uiBackground={{ color: props.glow ?? Color4.create(0, 0, 0, 0) }}
       onMouseDown={props.onTap}
     >
       {tile}
+    </UiEntity>
+  )
+}
+
+const AURA_TEX = 'images/hud/aura.png'
+
+/** Rarity as a soft radial glow of light behind a hero face (not a fill: the
+ * card art stays visible). Absolute, centred on (`cx`, `cy`) in the parent. */
+export function RarityAura(props: { rarity: Rarity; size: number; cx: number; cy: number; alpha?: number }) {
+  const glow = rarityGlow(props.rarity)
+  const half = Math.round(props.size / 2)
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: props.cy - half, left: props.cx - half },
+        width: props.size,
+        height: props.size,
+        ...PASS
+      }}
+      uiBackground={{
+        textureMode: 'stretch',
+        texture: { src: AURA_TEX },
+        color: Color4.create(glow.r, glow.g, glow.b, props.alpha ?? 0.9)
+      }}
+    />
+  )
+}
+
+/** The star rank on a slim dark ribbon along the phone-bottom edge (canvas
+ * right) of a card, edged in the rarity color. Absolute; draw it *after* the
+ * face so it always reads. `h` is the card height, `inset` the frame margin. */
+export function RarityRibbon(props: {
+  rarity: Rarity
+  stars: number
+  h: number
+  inset: number
+  band: number
+  starW: number
+}) {
+  const glow = rarityGlow(props.rarity)
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: props.inset, right: props.inset },
+        width: props.band,
+        height: props.h - props.inset * 2,
+        flexDirection: 'column-reverse',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: Color4.create(glow.r, glow.g, glow.b, 0.85),
+        borderRadius: 4,
+        ...PASS
+      }}
+      uiBackground={{ color: Color4.create(0.05, 0.03, 0.03, 0.78) }}
+    >
+      <Stars count={props.stars} w={props.starW} />
+    </UiEntity>
+  )
+}
+
+/** "LV n" for another player (lobbies, trade, gift list, roster). Hidden while
+ * the server hasn't published their level yet (0). */
+export function LevelBadge(props: { level: number; w?: number; tint?: Color4; key?: string | number }) {
+  if (props.level <= 0) return null
+  const w = props.w ?? 11
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', ...PASS }}>
+      <Img k="lv" w={w} tint={props.tint ?? xpBlue} margin={1} />
+      <Digits value={props.level} w={w + 2} tint={props.tint ?? xpBlue} tight />
     </UiEntity>
   )
 }
@@ -511,9 +647,12 @@ export function SeatCard(props: {
   nameW?: number
   nameLeft?: number
   nameBox?: number
-  glow?: Color4
+  /** Lays the gold SelectFrame over the card. */
+  selected?: boolean
   frameTint?: Color4
   onTap?: () => void
+  /** Drawn beneath the face (e.g. RarityAura); `children` draw over it. */
+  under?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component
   children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component
 }) {
   const frame = LABELS[props.empty ? 'party-seat-empty' : 'party-seat']
@@ -529,6 +668,7 @@ export function SeatCard(props: {
         color: props.frameTint ?? Color4.White()
       }}
     >
+      {props.under}
       {props.faceId ? (
         <UiEntity
           uiTransform={{
@@ -559,25 +699,73 @@ export function SeatCard(props: {
         </UiEntity>
       ) : null}
       {props.children}
+      {props.selected ? <SelectFrame w={w} h={props.h} reach={8} /> : null}
     </UiEntity>
   )
-  const wrap = {
-    width: w + 8,
-    height: props.h + 8,
-    margin: 3,
-    alignItems: 'center' as const,
-    justifyContent: 'center' as const
-  }
-  if (props.glow !== undefined) {
-    return (
-      <UiEntity uiTransform={wrap} uiBackground={{ color: props.glow }} onMouseDown={props.onTap}>
-        {inner}
-      </UiEntity>
-    )
-  }
   return (
-    <UiEntity uiTransform={wrap} onMouseDown={props.onTap}>
+    <UiEntity
+      uiTransform={{
+        width: w + 8,
+        height: props.h + 8,
+        margin: 3,
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+      onMouseDown={props.onTap}
+    >
       {inner}
+    </UiEntity>
+  )
+}
+
+/** Warm gold plate for primary actions (CLAIM, JOIN, PLAY AGAIN). */
+export const btnGold = Color4.create(0.34, 0.21, 0.07, 0.92)
+/** Neutral dark plate for secondary actions (LEAVE, CANCEL). */
+export const btnDark = Color4.create(0.1, 0.07, 0.08, 0.85)
+
+/** A word-label button: a flat plate `w`x`h` (canvas units) carrying a label
+ * strip, with the shared press shrink/dim. `disabled` greys it out and eats
+ * the tap. Plates are laid out like any other box: for a button that reads
+ * physically wide, make `h` the long side (the strip runs along canvas y). */
+export function LabelBtn(props: {
+  k: string
+  id: string
+  w: number
+  h: number
+  labelW: number
+  bg?: Color4
+  labelTint?: Color4
+  disabled?: boolean
+  margin?: number | { top?: number; bottom?: number; left?: number; right?: number }
+  onTap?: () => void
+}) {
+  const id = `lbl:${props.id}`
+  const shrink = pressShrink(id, props.w)
+  const bg = props.disabled ? Color4.create(0.1, 0.07, 0.08, 0.5) : (props.bg ?? btnGold)
+  const tint = props.disabled ? muted : (props.labelTint ?? cream)
+  return (
+    <UiEntity
+      uiTransform={{
+        width: props.w,
+        height: props.h,
+        margin: props.margin ?? 4,
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+      onMouseDown={props.disabled || !props.onTap ? undefined : press(id, tap(props.onTap))}
+    >
+      <UiEntity
+        uiTransform={{
+          width: props.w - shrink,
+          height: props.h - Math.round((shrink * props.h) / props.w),
+          alignItems: 'center',
+          justifyContent: 'center',
+          pointerFilter: 'none'
+        }}
+        uiBackground={{ color: pressTint(id, bg) }}
+      >
+        <Img k={props.k} w={props.labelW} tint={tint} margin={0} />
+      </UiEntity>
     </UiEntity>
   )
 }

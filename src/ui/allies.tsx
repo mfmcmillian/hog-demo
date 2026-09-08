@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { familiarForKin, listOathkin } from '../game/allies'
 import { tap } from '../game/audio'
 import { focused, setCursor, windowed } from '../game/nav'

@@ -7,6 +7,7 @@ import { questCycle } from './owQuests'
 import { partyUnits } from './party'
 import { clearFloor, resetRunRewards, roadStarOf } from './progress'
 import { FLOORS, ROADS, dropStarsFor, floorCoins, floorFoes, floorScale, starScale } from './quests'
+import { grantAccountXp, XP } from './level'
 import { findOwned, game } from './store'
 import { MAX_STARS, Rarity, XpLine } from './types'
 
@@ -309,6 +310,7 @@ function settleBattle() {
   if (bossClear && run) {
     if (game.fightingIndex === game.cleared && game.cleared < ROADS.length) {
       game.cleared += 1
+      grantAccountXp(XP.roadClear)
     }
     // Ascension: felling the boss at the road's current tier raises the
     // tier and resets the climb. Lower-tier farm runs never move it.

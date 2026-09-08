@@ -1,8 +1,10 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { game } from '../game/store'
 import {
   getMyName,
+  levelOf,
   presentPlayers,
   trade,
   tradeAccept,
@@ -121,7 +123,7 @@ function TradePartnerList() {
   return (
     <UiEntity uiTransform={{ height: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
       {people.slice(0, 5).map(([address, name]) => (
-        <TravelerPlate key={address} name={name} tint={cream} onTap={() => tradeInvite(address)}>
+        <TravelerPlate key={address} name={name} tint={cream} level={levelOf(address)} onTap={() => tradeInvite(address)}>
           <Img k="invite" w={24} tint={gold} />
         </TravelerPlate>
       ))}

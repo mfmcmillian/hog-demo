@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { openFinalBattle } from '../game/campaign'
 import { BOSS_IDS } from '../game/familiars'
 import { resumeFloor, roadStarOf } from '../game/progress'

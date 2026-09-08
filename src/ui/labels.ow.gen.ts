@@ -4,10 +4,11 @@
 import { LABELS, LabelInfo } from './labels.gen'
 
 export const OW_LABELS: Record<string, LabelInfo> = {
-  'ow-guide-1a': { src: 'images/labels/ow-guide-1a.png', w: 57, h: 478 },
-  'ow-guide-1b': { src: 'images/labels/ow-guide-1b.png', w: 57, h: 378 },
-  'ow-guide-2a': { src: 'images/labels/ow-guide-2a.png', w: 57, h: 867 },
-  'ow-guide-2b': { src: 'images/labels/ow-guide-2b.png', w: 57, h: 706 },
+  'ow-guide-1a': { src: 'images/labels/ow-guide-1a.png', w: 57, h: 773 },
+  'ow-guide-1b': { src: 'images/labels/ow-guide-1b.png', w: 57, h: 850 },
+  'ow-guide-2a': { src: 'images/labels/ow-guide-2a.png', w: 57, h: 478 },
+  'ow-guide-2b': { src: 'images/labels/ow-guide-2b.png', w: 57, h: 867 },
+  'ow-guide-2c': { src: 'images/labels/ow-guide-2c.png', w: 57, h: 706 },
   'ow-elder-hint-1a': { src: 'images/labels/ow-elder-hint-1a.png', w: 57, h: 439 },
   'ow-elder-hint-1b': { src: 'images/labels/ow-elder-hint-1b.png', w: 57, h: 392 },
   'ow-elder-hint-1c': { src: 'images/labels/ow-elder-hint-1c.png', w: 57, h: 759 },

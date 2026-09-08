@@ -1,4 +1,5 @@
 import { engine, UiCanvasInformation } from '@dcl/sdk/ecs'
+import { landscape } from './grip'
 import { STAGE_H, STAGE_W } from './theme'
 
 // Live canvas metrics in virtual (stage) units, refreshed every frame from
@@ -29,7 +30,10 @@ export function startCanvasWatch() {
   engine.addSystem(() => {
     const info = UiCanvasInformation.getOrNull(engine.RootEntity)
     if (!info || info.width <= 0 || info.height <= 0) return
-    const scale = Math.min(info.width / STAGE_W, info.height / STAGE_H)
+    // Landscape grip: the virtual canvas is the stage on end (see setupUi).
+    const vw = landscape() ? STAGE_H : STAGE_W
+    const vh = landscape() ? STAGE_W : STAGE_H
+    const scale = Math.min(info.width / vw, info.height / vh)
     if (!Number.isFinite(scale) || scale <= 0) return
     canvasV.w = info.width / scale
     canvasV.h = info.height / scale

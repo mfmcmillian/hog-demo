@@ -1,3 +1,4 @@
+import { DailyState, emptyDaily } from '../mp/protocol'
 import { PackId } from './packs'
 import { BattleState, NoticeCode, OwnedFamiliar, Phase, RoadRun, SeenStoryId, StoryId, TipId, XpLine } from './types'
 
@@ -10,6 +11,10 @@ export const game = {
   coins: 40,
   energy: 12,
   energyMax: 30,
+  /** Regen clock anchor (see game/energy.ts); persisted so refills survive a relog. */
+  energyAt: 0,
+  /** Events hall page: 0 = the dailies (streak + tasks), 1 = the realm (goal + gift). */
+  festPage: 0,
   collection: [] as OwnedFamiliar[],
   party: ['', '', '', ''] as string[],
   selectedSlot: -1,
@@ -48,6 +53,8 @@ export const game = {
   freshUids: [] as string[],
   /** Campfire elder quest dialog open on the home screen. */
   fireTalk: false,
+  /** Elder explaining the sealed questing gate (tapped while locked), pointing at the map button. */
+  lockTalk: false,
   /** Who's-online roster overlay open on the home screen. */
   onlineOpen: false,
   /** Locked NFT hero dialog on the party screen: the tapped defId, '' = closed. */
@@ -97,7 +104,25 @@ export const game = {
   /** Opened overworld chests / one-shot flags; persisted. */
   owFlags: [] as string[],
   /** Key items found on the overworld; persisted. */
-  owItems: [] as string[]
+  owItems: [] as string[],
+  /** Login streak + today's task board (events page); persisted. */
+  daily: emptyDaily() as DailyState,
+  /** Account XP (game/level.ts); persisted. Level and energy cap derive from it. */
+  axp: 0,
+  /** Level-up ceremony waiting to play / showing; undefined = none. */
+  levelUp: undefined as LevelUpInfo | undefined,
+  /** Level card (what XP is, next rewards) open on the home screen. */
+  levelCard: false
+}
+
+/** One level-up ceremony: several levels gained at once collapse into one. */
+export type LevelUpInfo = {
+  from: number
+  level: number
+  coins: number
+  energyMax: number
+  /** Free hero card handed out at PACK_LEVELS milestones. */
+  card?: OwnedFamiliar
 }
 
 export function findOwned(uid: string) {

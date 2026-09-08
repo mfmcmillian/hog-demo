@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { collectionSize, getDef } from '../game/familiars'
 import { focused, setCursor, shiftBench, windowed } from '../game/nav'
@@ -13,7 +14,18 @@ import { LABELS } from './labels.gen'
 import { ModalScrim, PagedColumn, TalkPanel } from './panels'
 import { cream, gold } from './theme'
 import { TutPointer } from './tutorial'
-import { Backdrop, Face, Img, MenuTitle, Notice, PartyTile, SeatCard, SlashCount } from './widgets'
+import {
+  Backdrop,
+  Face,
+  Img,
+  MenuTitle,
+  Notice,
+  PartyTile,
+  RarityAura,
+  RarityRibbon,
+  SeatCard,
+  SlashCount
+} from './widgets'
 
 /** One ornate kit seat: gold frame, hero in the leather, name in the banner. */
 function TeamSlot(props: { slot: number }) {
@@ -38,12 +50,17 @@ function TeamSlot(props: { slot: number }) {
       nameW={15}
       nameLeft={9}
       nameBox={37}
-      glow={lit ? Color4.create(0.95, 0.78, 0.35, 0.35) : Color4.create(0, 0, 0, 0)}
+      selected={lit}
       onTap={() => {
         setCursor(props.slot)
         tapPartySlot(props.slot)
       }}
+      // soft rarity light behind the seated hero (art stays visible)
+      under={def ? <RarityAura rarity={def.rarity} size={236} cx={60 + 86} cy={Math.round(h / 2)} /> : undefined}
     >
+      {def && owned ? (
+        <RarityRibbon rarity={def.rarity} stars={owned.stars} h={h} inset={16} band={30} starW={20} />
+      ) : null}
       {starter ? (
         <UiEntity
           uiTransform={{
@@ -213,21 +230,31 @@ function BenchTile(props: { owned: OwnedFamiliar; index: number; key?: string })
   const lit = focused(abs)
   const frame = LABELS['party-tile']
   if (!frame) return null
-  // Constant size: the glow wrap alone marks focus. Growing the lit tile used
-  // to widen the whole centered row and nudge the title.
+  // Constant size: the select frame alone marks focus. Growing the lit tile
+  // used to widen the whole centered row and nudge the title.
   const w = 138
   const h = Math.round((w * frame.h) / frame.w)
+  const rarity = getDef(props.owned.defId).rarity
   return (
     <PartyTile
       w={w}
       wrap={6}
-      glow={lit ? Color4.create(0.95, 0.78, 0.35, 0.35) : Color4.create(0, 0, 0, 0)}
+      selected={lit}
       onTap={() => {
         setCursor(abs)
         tapBenchHero(props.owned.uid)
       }}
     >
-      <Face id={props.owned.defId} w={Math.round(w * 0.78)} h={Math.round(h * 0.78)} fallback={28} />
+      {/* rarity light behind the face; star ribbon on the phone-bottom edge */}
+      <RarityAura rarity={rarity} size={Math.round(w * 1.1)} cx={Math.round((w - 18) / 2)} cy={Math.round(h / 2)} />
+      <Face
+        id={props.owned.defId}
+        w={Math.round(w * 0.72)}
+        h={Math.round(h * 0.72)}
+        fallback={28}
+        margin={{ right: 18 }}
+      />
+      <RarityRibbon rarity={rarity} stars={props.owned.stars} h={h} inset={10} band={22} starW={15} />
       {/* onboarding: point at the hound's recruit (tip lands 13,66 from anchor) */}
       {props.index === 0 && benchPointerShowing() ? (
         <TutPointer left={Math.round(w / 2) - 13} top={Math.round(h / 2) - 66} />
@@ -302,11 +329,11 @@ export function PartyScreen() {
         <Img k="party-bench-plate" w={38} tint={Color4.White()} margin={2} />
         <PagedColumn
           show={canPage}
-          leftK="party-arrow-l"
-          rightK="party-arrow-r"
+          leftK="sel-arrow-left"
+          rightK="sel-arrow-right"
           boxW={60}
           boxH={48}
-          imgW={54}
+          imgW={46}
           onLeft={tap(() => shiftBench(-1))}
           onRight={tap(() => shiftBench(1))}
         >

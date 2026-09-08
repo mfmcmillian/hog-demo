@@ -1,31 +1,42 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { DEBUG } from '../game/debug'
-import { goHome } from '../game/menu'
-import { lockNav } from '../game/nav'
+import { acceptFzInvite, enterArena, lockNav } from '../game/nav'
 import { game } from '../game/store'
 import { partyUnits } from '../game/party'
 import {
+  Arena,
   DUEL_ENERGY_COST,
   DUEL_MODES,
   DUEL_SEATS,
   DuelMode,
-  DuelRank,
   DuelSeat,
   RIFT_ENERGY_COST,
+  RIFT_SEATS,
   RiftSeat
 } from '../mp/protocol'
 import {
   activeDuel,
+  currentArena,
   duelReady,
+  duelRequeue,
   duelSit,
+  duelViews,
   fz,
+  fzDecline,
+  fzInvite,
+  fzInviteLeft,
   getMyAddress,
+  levelOf,
   myDuelPickFaces,
+  myDuelPickUid,
   myDuelSeat,
   mySeat,
+  presentPlayers,
   riftReady,
+  riftRequeue,
   riftSit,
   riftView
 } from '../mp/session'
@@ -34,19 +45,483 @@ import { press, pressShrink, pressTint } from './fx/press'
 import { cardBackArt } from './halls'
 import './labels.duel.gen'
 import { LABELS } from './labels.gen'
-import { HeroPickStrip } from './panels'
-import { cream, danger, gold, good, muted, panelDim } from './theme'
-import { Digits, Face, Gain, Img, MenuTitle, MpBackdrop, NameTag, Notice } from './widgets'
+import { HeroPickStrip, ModalScrim } from './panels'
+import { cream, danger, gold, good, muted, panelDim, PASS } from './theme'
+import {
+  btnDark,
+  Digits,
+  Face,
+  Gain,
+  Img,
+  LabelBtn,
+  LevelBadge,
+  MenuTitle,
+  MpBackdrop,
+  NameTag,
+  Notice,
+  SlashCount
+} from './widgets'
 
-// ---- the friendzone (raids + duels) ----------------------------------------------
+// ---- the friendzone (arena hub -> raid room / duel rings) ---------------------------
+//
+// Flow: the hub lists every room with live occupancy and state; JOIN drops you
+// into that room's lobby (sit -> ready -> 3-2-1 -> fight -> spoils), where
+// PLAY AGAIN re-seats you when the room reopens and LEAVE returns to the hub.
 
 const RIFT_PIP_FRAC = [0.08, 0.23, 0.38, 0.53, 0.68, 0.84]
 
+const chipOpen = Color4.create(0.12, 0.34, 0.16, 0.85)
+const chipBattle = Color4.create(0.5, 0.12, 0.12, 0.85)
+const chipCount = Color4.create(0.62, 0.45, 0.16, 0.85)
+const chipWait = Color4.create(0.2, 0.15, 0.16, 0.85)
+
+type RoomStatus = { k: 'lobby-open' | 'in-battle' | 'starting-in' | 'reopens-in'; n?: number; bg: Color4 }
+
+/** One line on a room's state, for the hub cards and lobby headers. */
+function roomStatus(phase: string, startIn?: number, resetIn?: number): RoomStatus {
+  if (phase === 'lobby') {
+    return startIn !== undefined ? { k: 'starting-in', n: startIn, bg: chipCount } : { k: 'lobby-open', bg: chipOpen }
+  }
+  if (phase === 'battle') return { k: 'in-battle', bg: chipBattle }
+  return { k: 'reopens-in', n: resetIn, bg: chipWait }
+}
+
+/** A colored status chip: OPEN / IN BATTLE / STARTING IN n / REOPENS IN n. */
+function StatusChip(props: { status: RoomStatus; w?: number }) {
+  const w = props.w ?? 16
+  return (
+    <UiEntity
+      uiTransform={{
+        flexDirection: 'column-reverse',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: { top: 8, bottom: 8, left: 5, right: 5 },
+        margin: 3
+      }}
+      uiBackground={{ color: props.status.bg }}
+    >
+      <Img k={props.status.k} w={w} tint={cream} margin={0} />
+      {props.status.n !== undefined ? (
+        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: { top: 6 } }}>
+          <Digits value={props.status.n} w={Math.round(w * 1.2)} tint={gold} tight />
+        </UiEntity>
+      ) : null}
+    </UiEntity>
+  )
+}
+
+/** READY n/m for a lobby: how many of the seated have pressed ENTER, over a
+ * row of seat pips - green ready, gold seated, dark empty - so the room's
+ * state reads at a glance without counting. */
+function ReadyCount(props: { seats: { ready: boolean }[]; slots: number; big?: boolean }) {
+  const total = props.seats.length
+  const ready = props.seats.filter((seat) => seat.ready).length
+  const all = total > 0 && ready === total
+  const s = props.big ? 1.45 : 1
+  const pip = Math.round(16 * s)
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', margin: 3 }}>
+      <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center' }}>
+        <Img k="ready" w={Math.round(18 * s)} tint={all ? gold : cream} margin={3} />
+        <UiEntity uiTransform={{ width: 8 }} />
+        <SlashCount
+          at={ready}
+          of={total}
+          w={Math.round(22 * s)}
+          slashW={Math.round(18 * s)}
+          atTint={all ? gold : cream}
+          ofTint={muted}
+        />
+      </UiEntity>
+      <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: { left: 6 } }}>
+        {Array.from({ length: props.slots }, (_, i) => {
+          const seat = props.seats[i]
+          const color = !seat ? pipEmpty : seat.ready ? pipReady : pipSeated
+          return <UiEntity key={i} uiTransform={{ width: pip, height: pip, margin: 3 }} uiBackground={{ color }} />
+        })}
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
+const pipReady = Color4.create(0.28, 0.85, 0.35, 1)
+const pipSeated = Color4.create(0.82, 0.62, 0.28, 1)
+const pipEmpty = Color4.create(0.08, 0.05, 0.06, 0.7)
+
+/** The room card on the hub: who is in, what state it's in, JOIN or SPECTATE. */
+function ArenaCard(props: { arena: Arena }) {
+  const panel = LABELS['fest-panel']
+  const raid = props.arena === 'raid'
+  const pub = props.arena === 'raid' ? riftView.pub : duelViews[props.arena].pub
+  const max = raid ? RIFT_SEATS : DUEL_SEATS
+  const status = roomStatus(pub.phase, pub.startIn, pub.resetIn)
+  const joinable = pub.phase === 'lobby'
+  const seats = Array.from({ length: max }, (_, i) => pub.seats[i])
+  // JOIN sits you down on the way in (SPECTATE just shows the room).
+  const enter = () => enterArena(props.arena)
+  return (
+    <UiEntity
+      uiTransform={{
+        width: 320,
+        height: 600,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: 4,
+        padding: 14
+      }}
+      uiBackground={
+        panel
+          ? { textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }
+          : { color: panelDim }
+      }
+    >
+      <Img k={raid ? 'arena-raid' : `duel-${props.arena}`} w={30} tint={gold} margin={4} />
+      <Img k={raid ? 'coop-hint' : props.arena === '1v1' ? 'pvp-hint' : 'pvp4-hint'} w={14} tint={muted} margin={2} />
+      <StatusChip status={status} />
+      {/* the seats, physically left-to-right: faces for raiders, names for duelists */}
+      <UiEntity
+        uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', justifyContent: 'center', margin: 4 }}
+      >
+        {seats.map((seat, i) => (
+          <UiEntity
+            key={i}
+            uiTransform={{ width: 58, height: 58, margin: 3, alignItems: 'center', justifyContent: 'center' }}
+            uiBackground={{ color: seat ? Color4.create(0.32, 0.2, 0.07, 0.6) : Color4.create(0.08, 0.05, 0.06, 0.5) }}
+          >
+            {seat ? (
+              raid ? (
+                <Face id={(seat as RiftSeat).defId} w={52} h={52} />
+              ) : (
+                <NameTag name={seat.name} w={12} tint={cream} />
+              )
+            ) : (
+              <Img k="empty-seat" w={9} tint={muted} margin={0} />
+            )}
+          </UiEntity>
+        ))}
+      </UiEntity>
+      <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 2 }}>
+        <Img k="seated" w={13} tint={muted} margin={3} />
+        <UiEntity uiTransform={{ width: 8 }} />
+        <SlashCount at={pub.seats.length} of={max} w={18} slashW={14} atTint={cream} ofTint={muted} />
+      </UiEntity>
+      <LabelBtn
+        k={joinable ? 'join' : 'spectate'}
+        id={`hub:${props.arena}`}
+        w={44}
+        h={190}
+        labelW={joinable ? 24 : 17}
+        bg={joinable ? undefined : btnDark}
+        onTap={enter}
+      />
+    </UiEntity>
+  )
+}
+
+/** The friendzone landing: every room at a glance, plus who's in the hall. */
+function ArenaHub() {
+  return (
+    <UiEntity
+      uiTransform={{
+        flexGrow: 1,
+        height: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <UiEntity uiTransform={{ width: 80, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
+        <Img k="choose-your-arena" w={22} tint={gold} margin={0} />
+      </UiEntity>
+      <ArenaCard arena="raid" />
+      <ArenaCard arena="1v1" />
+      <ArenaCard arena="4v4" />
+      <UiEntity
+        uiTransform={{
+          width: 70,
+          height: '100%',
+          flexDirection: 'column-reverse',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <Img k="players-online" w={14} tint={muted} margin={3} />
+        <UiEntity uiTransform={{ width: 8 }} />
+        <Digits value={presentPlayers.size + 1} w={20} tint={cream} tight />
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
+/** Pick a traveler to invite into the room you're in (same look as the gift picker). */
+function InvitePicker() {
+  if (!fz.inviting) return null
+  const panel = LABELS['fest-panel']
+  const ring = LABELS['road-ring']
+  const cancel = LABELS['fest-cancel']
+  const list = [...presentPlayers.entries()].slice(0, 5)
+  const close = () => {
+    fz.inviting = false
+  }
+  return (
+    <ModalScrim alpha={0.86} flexDirection="row" buttons onMouseDown={close}>
+      <UiEntity
+        uiTransform={{
+          width: 830,
+          height: 740,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 24,
+          pointerFilter: 'block'
+        }}
+        uiBackground={
+          panel
+            ? { textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }
+            : { color: panelDim }
+        }
+      >
+        <Img k="invite" w={50} tint={gold} margin={6} />
+        <Img k={list.length > 0 ? 'choose-a-player' : 'no-travelers'} w={32} tint={cream} margin={4} />
+        {list.map(([address, name]) => (
+          <UiEntity
+            key={address}
+            uiTransform={{
+              flexDirection: 'column-reverse',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: 10
+            }}
+            onMouseDown={tap(() => fzInvite(address))}
+          >
+            {ring ? (
+              <UiEntity
+                uiTransform={{ width: 96, height: 96, margin: { bottom: 10 } }}
+                uiBackground={{
+                  textureMode: 'stretch',
+                  texture: { src: ring.src },
+                  uvs: ring.uvs,
+                  color: Color4.White()
+                }}
+              />
+            ) : null}
+            <NameTag name={name} w={38} tint={cream} />
+            <UiEntity uiTransform={{ width: 8 }} />
+            <LevelBadge level={levelOf(address)} w={18} />
+          </UiEntity>
+        ))}
+        {cancel ? (
+          <UiEntity
+            uiTransform={{
+              width: 92,
+              height: Math.round((92 * cancel.h) / cancel.w),
+              margin: 10,
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+            onMouseDown={press('fz:cancel', close)}
+          >
+            <UiEntity
+              uiTransform={{
+                width: 92 - pressShrink('fz:cancel', 92),
+                height: Math.round(((92 - pressShrink('fz:cancel', 92)) * cancel.h) / cancel.w),
+                pointerFilter: 'none'
+              }}
+              uiBackground={{
+                textureMode: 'stretch',
+                texture: { src: cancel.src },
+                uvs: cancel.uvs,
+                color: pressTint('fz:cancel')
+              }}
+            />
+          </UiEntity>
+        ) : null}
+      </UiEntity>
+    </ModalScrim>
+  )
+}
+
+/** INVITE plate for a seated player while seats are free, with the SENT flash. */
+function InviteBtn() {
+  if (fz.sentFlash > 0) return <Img k="invite-sent" w={15} tint={gold} margin={4} />
+  return (
+    <LabelBtn
+      k="invite"
+      id="fz:invite"
+      w={40}
+      h={150}
+      labelW={18}
+      bg={btnDark}
+      disabled={presentPlayers.size === 0}
+      onTap={() => {
+        fz.inviting = true
+      }}
+    />
+  )
+}
+
+/** Everyone's ready: the 3-2-1 over the lobby. Taps still reach ENTER below
+ * (un-readying cancels the countdown on the server). */
+function StartingOverlay(props: { startIn?: number }) {
+  if (props.startIn === undefined) return null
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: 0, left: 0 },
+        width: '100%',
+        height: '100%',
+        flexDirection: 'column-reverse',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...PASS
+      }}
+      uiBackground={{ color: Color4.create(0.02, 0.01, 0.02, 0.45) }}
+    >
+      <Img k="starting-in" w={36} tint={gold} margin={6} />
+      <UiEntity uiTransform={{ width: 16 }} />
+      <Digits value={props.startIn} w={120} tint={cream} tight />
+    </UiEntity>
+  )
+}
+
+/** The spoils screen's actions: the reopen clock everyone sees, PLAY AGAIN for
+ * participants (re-seats when the room reopens), LEAVE back to the hub. */
+function EndButtons(props: { arena: Arena; seated: boolean; resetIn?: number }) {
+  const raid = props.arena === 'raid'
+  const queued = fz.requeue?.arena === props.arena
+  return (
+    <UiEntity
+      uiTransform={{
+        width: 150,
+        height: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}
+    >
+      <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 6 }}>
+        <Img k={raid ? 'next-raid-in' : 'next-duel-in'} w={14} tint={muted} margin={3} />
+        <UiEntity uiTransform={{ width: 8 }} />
+        <Digits value={props.resetIn ?? 0} w={26} tint={gold} tight />
+      </UiEntity>
+      {props.seated ? (
+        queued ? (
+          <Img k="queued-again" w={14} tint={gold} margin={6} />
+        ) : (
+          <LabelBtn
+            k="play-again"
+            id="fz:again"
+            w={50}
+            h={230}
+            labelW={24}
+            onTap={() => (raid ? riftRequeue() : duelRequeue(props.arena as DuelMode))}
+          />
+        )
+      ) : null}
+      <LabelBtn
+        k="leave"
+        id="fz:leave"
+        w={44}
+        h={160}
+        labelW={22}
+        bg={btnDark}
+        onTap={() => {
+          fz.requeue = undefined
+          fz.tab = 'hub'
+          lockNav()
+        }}
+      />
+    </UiEntity>
+  )
+}
+
+/** Someone pinged me from a room: accept lands me in that lobby. Hidden while
+ * fighting or mid-ceremony, and while I'm already looking at that room. */
+export function FzInviteToast() {
+  const invite = fz.invite
+  const p = game.phase
+  if (
+    !invite ||
+    p === 'battle' ||
+    p === 'banner' ||
+    p === 'report' ||
+    p === 'start' ||
+    p === 'intro' ||
+    p === 'credits'
+  ) {
+    return null
+  }
+  if (p === 'rift' && fz.tab !== 'hub' && currentArena() === invite.arena) return null
+  const panel = LABELS['fest-panel']
+  const raid = invite.arena === 'raid'
+  const barLen = 400
+  // A centered card, not a sliver on the edge: who, what, and two big
+  // answers, with the invite's remaining life draining along the bottom.
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { top: 0, left: 0 },
+        width: '100%',
+        height: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        ...PASS
+      }}
+    >
+      <UiEntity
+        uiTransform={{
+          width: 250,
+          height: 560,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 18
+        }}
+        uiBackground={
+          panel
+            ? { textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: Color4.White() }
+            : { color: Color4.create(0.05, 0.03, 0.05, 0.96) }
+        }
+      >
+        <Img k="invites-you" w={26} tint={gold} margin={4} />
+        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 4 }}>
+          <NameTag name={invite.name} w={26} tint={cream} />
+        </UiEntity>
+        <Img k={raid ? 'raid-invite' : 'duel-invite'} w={14} tint={muted} margin={2} />
+        <Img k={raid ? 'arena-raid' : `duel-${invite.arena}`} w={24} tint={gold} margin={6} />
+        <Img
+          k={raid ? 'coop-hint' : invite.arena === '1v1' ? 'pvp-hint' : 'pvp4-hint'}
+          w={12}
+          tint={muted}
+          margin={2}
+        />
+        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 6 }}>
+          <LabelBtn k="accept" id="fz:accept" w={56} h={190} labelW={24} bg={good} onTap={() => acceptFzInvite()} />
+          <LabelBtn k="decline" id="fz:decline" w={56} h={190} labelW={22} bg={btnDark} onTap={() => fzDecline()} />
+        </UiEntity>
+        {/* time left before the invite lapses */}
+        <UiEntity
+          uiTransform={{ width: 6, height: barLen, margin: 4, flexDirection: 'column-reverse' }}
+          uiBackground={{ color: Color4.create(0.08, 0.05, 0.06, 0.7) }}
+        >
+          <UiEntity
+            uiTransform={{ width: '100%', height: Math.round(barLen * fzInviteLeft()) }}
+            uiBackground={{ color: gold }}
+          />
+        </UiEntity>
+      </UiEntity>
+    </UiEntity>
+  )
+}
+
 /** One lobby seat plate's contents: who sits there and which faces they field. */
-type SeatRow = { name: string; ready: boolean; defIds: string[] }
+type SeatRow = { name: string; address: string; ready: boolean; defIds: string[] }
 
 function riftRow(seat: RiftSeat): SeatRow {
-  return { name: seat.name, ready: seat.ready, defIds: [seat.defId] }
+  return { name: seat.name, address: seat.address, ready: seat.ready, defIds: [seat.defId] }
 }
 
 /** Duel picks arrive sealed (empty hands) while the ring is in the lobby: my
@@ -57,7 +532,7 @@ function duelRow(seat: DuelSeat, mode: DuelMode): SeatRow {
     const mine = seat.address === getMyAddress() ? myDuelPickFaces(mode) : []
     defIds = mine.length > 0 ? mine : new Array<string>(mode === '1v1' ? 1 : 4).fill('')
   }
-  return { name: seat.name, ready: seat.ready, defIds }
+  return { name: seat.name, address: seat.address, ready: seat.ready, defIds }
 }
 
 /** A face-down card: a rival's sealed pick, revealed when the fight starts. */
@@ -80,6 +555,8 @@ function SeatColumn(props: {
   rowH?: number
   nameW?: number
   readyW?: number
+  /** Account-level badge size under the name. */
+  badgeW?: number
   /** Duel lobby: keep empty plates bright so they read across the rift art. */
   brightEmpty?: boolean
   /** Label drawn on empty plates ('empty-seat' unless the plate is an action). */
@@ -131,6 +608,8 @@ function SeatColumn(props: {
                     <UiEntity key={f}>{id ? <Face id={id} w={faceW} h={faceW} /> : <MysteryCard w={faceW} />}</UiEntity>
                   ))}
                   <NameTag name={seat.name} w={props.nameW ?? 18} tint={cream} />
+                  <UiEntity uiTransform={{ height: 6 }} />
+                  <LevelBadge level={levelOf(seat.address)} w={props.badgeW ?? 12} />
                 </UiEntity>
               ) : (
                 <Img
@@ -194,6 +673,19 @@ function RiftLobby() {
   const seat = mySeat()
   const enter = LABELS['rift-enter']
   const canReady = !!seat
+  const readyCount = pub.seats.filter((entry) => entry.ready).length
+  const full = pub.seats.length >= RIFT_SEATS
+  // One instruction at a time, tracking exactly where the player is in the
+  // sit -> ready -> wait flow, so the lobby always says what to do next.
+  const hintK = !seat
+    ? full
+      ? undefined // spectating a full lobby: nothing for them to do
+      : 'pick-your-champion'
+    : !seat.ready
+      ? 'tap-enter-ready'
+      : readyCount < pub.seats.length
+        ? 'waiting-for-allies'
+        : undefined
   return (
     <UiEntity
       uiTransform={{
@@ -204,16 +696,23 @@ function RiftLobby() {
         justifyContent: 'center'
       }}
     >
+      {/* room header: title, live state chip, READY n/m, and what to do next */}
       <UiEntity
         uiTransform={{
-          width: 140,
+          width: 190,
           height: '100%',
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center'
         }}
       >
-        <Img k="multiplayer-raid" w={16} tint={gold} margin={4} />
+        <Img k="arena-raid" w={26} tint={gold} margin={4} />
+        <Img k="coop-hint" w={13} tint={muted} margin={2} />
+        <StatusChip status={roomStatus(pub.phase, pub.startIn, pub.resetIn)} />
+        <ReadyCount seats={pub.seats} slots={RIFT_SEATS} />
+        {hintK ? <Img k={hintK} w={24} tint={gold} margin={6} /> : null}
+        {seat && !full ? <InviteBtn /> : null}
+        {seat && !full && fz.sentFlash <= 0 ? <Img k="invite-hint" w={12} tint={muted} margin={2} /> : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: 48, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
         <Img k="rift-ribbon" w={40} tint={Color4.White()} margin={0} />
@@ -268,13 +767,19 @@ function RiftLobby() {
         ) : null}
         <Img k="rift-energy" w={56} tint={Color4.White()} margin={6} />
       </UiEntity>
-      {!seat && pub.seats.length < 4 ? (
+      {/* unseated with room: pick to sit; seated but not ready: pick to swap */}
+      {(!seat && pub.seats.length < 4) || (seat && !seat.ready) ? (
         <HeroPickStrip
-          hint="join-raid"
+          hint={seat ? 'swap-hero' : 'join-raid'}
           withHero={true}
+          selectedUid={seat?.uid}
           onPick={(uid) => {
+            if (seat) {
+              if (uid !== seat.uid) riftSit(uid)
+              return
+            }
             if (!DEBUG.unlimitedEnergy && game.energy < RIFT_ENERGY_COST) {
-              game.notice = 'no-coin'
+              game.notice = 'no-energy'
               return
             }
             riftSit(uid)
@@ -282,6 +787,7 @@ function RiftLobby() {
         />
       ) : null}
       <Notice />
+      <StartingOverlay startIn={pub.startIn} />
     </UiEntity>
   )
 }
@@ -323,8 +829,8 @@ function RiftBattle() {
 
 /** WIN/LOSE plaque wreathed in a faint gold laurel on a win, or the muted
  * spectator tag — same verdict treatment as the campaign battle report.
- * Spectators also get the reopen countdown: NEXT RAID/DUEL | seconds. */
-function EndVerdict(props: { won: boolean; seated: boolean; nextIn?: number; nextWord?: string }) {
+ * The reopen countdown and the PLAY AGAIN / LEAVE actions live in EndButtons. */
+function EndVerdict(props: { won: boolean; seated: boolean }) {
   const laurel = LABELS['road-laurel']
   return (
     <UiEntity uiTransform={{ width: 230, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
@@ -351,16 +857,7 @@ function EndVerdict(props: { won: boolean; seated: boolean; nextIn?: number; nex
           <Img k={props.won ? 'win' : 'lose'} w={190} tint={Color4.White()} margin={0} />
         </UiEntity>
       ) : (
-        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', justifyContent: 'center' }}>
-          <Img k="watching" w={36} tint={muted} margin={0} />
-          {props.nextIn !== undefined ? (
-            <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 10 }}>
-              <NameTag name={props.nextWord ?? 'next'} w={16} tint={cream} />
-              <UiEntity uiTransform={{ height: 8 }} />
-              <Digits value={props.nextIn} w={26} tint={gold} />
-            </UiEntity>
-          ) : null}
-        </UiEntity>
+        <Img k="watching" w={36} tint={muted} margin={0} />
       )}
     </UiEntity>
   )
@@ -435,10 +932,6 @@ function RiftEnd() {
   const me = getMyAddress()
   const mine = seated ? pub.rewards?.find((reward) => reward.address === me) : undefined
   const frame = LABELS['party-tile']
-  const dismiss = () => {
-    goHome()
-    lockNav()
-  }
   return (
     <UiEntity
       uiTransform={{
@@ -448,9 +941,8 @@ function RiftEnd() {
         alignItems: 'center',
         justifyContent: 'center'
       }}
-      onMouseDown={dismiss}
     >
-      <EndVerdict won={won} seated={seated} nextIn={seated ? undefined : pub.resetIn} nextWord="next raid" />
+      <EndVerdict won={won} seated={seated} />
       {won && pub.rewards ? (
         <SpoilsPanel>
           {pub.rewards.map((reward, i) => {
@@ -498,32 +990,51 @@ function RiftEnd() {
           </UiEntity>
         </UiEntity>
       ) : null}
-      <UiEntity uiTransform={{ width: 60, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <NameTag name={'continue'} w={14} tint={muted} />
-      </UiEntity>
+      <EndButtons arena="raid" seated={seated} resetIn={pub.resetIn} />
     </UiEntity>
   )
 }
 
 // ---- duels ------------------------------------------------------------------------
 
-/** 1V1 | 4V4 picker, stacked under the friendzone title. The active mode sits
- * on a translucent gold chip so the selection reads at a glance. */
+/** 1V1 | 4V4 tabs under the PLAYER VS PLAYER title: two thumb-sized chips
+ * side by side on the phone, the live ring on lit leather with a gold rule. */
 function DuelModeToggle() {
   return (
     <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', justifyContent: 'center' }}>
       {DUEL_MODES.map((mode) => {
         const active = fz.duelMode === mode
+        const id = `duel:mode-${mode}`
         return (
           <UiEntity
             key={mode}
-            uiTransform={{ padding: 10, margin: 6, alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={active ? { color: Color4.create(0.82, 0.62, 0.28, 0.3) } : undefined}
-            onMouseDown={tap(() => {
-              fz.duelMode = mode
-            })}
+            uiTransform={{ width: 78, height: 250, margin: 5, flexDirection: 'row' }}
+            onMouseDown={
+              active
+                ? undefined
+                : press(
+                    id,
+                    tap(() => {
+                      fz.duelMode = mode
+                    })
+                  )
+            }
           >
-            <Img k={`duel-${mode}`} w={56} tint={active ? gold : Color4.White()} margin={0} />
+            <UiEntity
+              uiTransform={{ flexGrow: 1, height: '100%', alignItems: 'center', justifyContent: 'center', ...PASS }}
+              uiBackground={{
+                color: pressTint(
+                  id,
+                  active ? Color4.create(0.28, 0.17, 0.06, 0.85) : Color4.create(0.06, 0.04, 0.05, 0.7)
+                )
+              }}
+            >
+              <Img k={`duel-${mode}`} w={44} tint={active ? gold : muted} margin={0} />
+            </UiEntity>
+            <UiEntity
+              uiTransform={{ width: 5, height: '100%', ...PASS }}
+              uiBackground={{ color: active ? gold : Color4.create(0, 0, 0, 0) }}
+            />
           </UiEntity>
         )
       })}
@@ -531,166 +1042,16 @@ function DuelModeToggle() {
   )
 }
 
-/** Opens the full-screen win-ladder board; sits where the crammed panel was. */
-function LeaderboardBtn() {
-  const panel = LABELS['fest-panel']
-  const id = 'duel:board'
-  return (
-    <UiEntity
-      uiTransform={{
-        width: 150,
-        height: 280,
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-      onMouseDown={press(
-        id,
-        tap(() => {
-          fz.board = true
-        })
-      )}
-    >
-      <UiEntity
-        uiTransform={{
-          width: 150 - pressShrink(id, 150),
-          height: 280 - pressShrink(id, 280),
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: 10,
-          pointerFilter: 'none'
-        }}
-        uiBackground={
-          panel
-            ? { textureMode: 'stretch', texture: { src: panel.src }, uvs: panel.uvs, color: pressTint(id) }
-            : { color: pressTint(id, panelDim) }
-        }
-      >
-        <Img k="leaderboard" w={36} tint={gold} margin={4} />
-      </UiEntity>
-    </UiEntity>
-  )
-}
-
-const MEDAL_TINTS = [gold, Color4.create(0.78, 0.78, 0.85, 1), Color4.create(0.8, 0.52, 0.28, 1)]
-
-/** One ranked entry, a physical row: medal/rank | name | win count. */
-function LadderRow(props: { key?: number; rank: number; entry: DuelRank }) {
-  const top3 = props.rank <= 3
-  const laurel = LABELS['road-laurel']
-  return (
-    <UiEntity
-      uiTransform={{
-        width: top3 ? 74 : 56,
-        height: '94%',
-        flexDirection: 'column-reverse',
-        alignItems: 'center',
-        justifyContent: 'flex-start',
-        margin: 3,
-        padding: { top: 14, bottom: 14 }
-      }}
-      uiBackground={{ color: top3 ? Color4.create(0.32, 0.2, 0.07, 0.62) : Color4.create(0.1, 0.07, 0.08, 0.6) }}
-    >
-      <UiEntity
-        uiTransform={{ width: top3 ? 64 : 44, height: top3 ? 64 : 44, alignItems: 'center', justifyContent: 'center' }}
-        uiBackground={
-          top3 && laurel
-            ? {
-                textureMode: 'stretch',
-                texture: { src: laurel.src },
-                uvs: laurel.uvs,
-                color: MEDAL_TINTS[props.rank - 1]
-              }
-            : undefined
-        }
-      >
-        <Digits value={props.rank} w={top3 ? 20 : 16} tint={top3 ? cream : muted} tight />
-      </UiEntity>
-      <UiEntity uiTransform={{ height: 16 }} />
-      <NameTag name={props.entry.name} w={top3 ? 32 : 26} tint={props.rank === 1 ? gold : cream} />
-      <UiEntity uiTransform={{ flexGrow: 1 }} />
-      <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center' }}>
-        <Digits value={props.entry.wins} w={top3 ? 32 : 26} tint={gold} tight />
-        <Img k="wins" w={top3 ? 26 : 22} tint={cream} margin={3} />
-      </UiEntity>
-    </UiEntity>
-  )
-}
-
-/** The win-ladder board as its own full screen: the ornate LEADERBOARD plate
- * takes the gutter strip (swapped in by RiftScreen), a 1V1|4V4 tab rail sits
- * on the physical top edge, and the ranked list fills the rest — the top three
- * take a tinted laurel. Tapping anywhere outside the tabs goes back. */
-function LeaderboardScreen() {
-  const ladder = activeDuel().ladder
-  const close = tap(() => {
-    fz.board = false
-  })
-  return (
-    <UiEntity
-      uiTransform={{
-        flexGrow: 1,
-        height: '100%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-      onMouseDown={close}
-    >
-      {/* ring tabs on the physical top edge, mirroring FzTabs */}
-      <UiEntity
-        uiTransform={{
-          width: 100,
-          height: '100%',
-          flexDirection: 'column-reverse',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        {DUEL_MODES.map((mode) => {
-          const active = fz.duelMode === mode
-          return (
-            <UiEntity
-              key={mode}
-              uiTransform={{ padding: 10, margin: 6, alignItems: 'center', justifyContent: 'center' }}
-              uiBackground={active ? { color: Color4.create(0.82, 0.62, 0.28, 0.3) } : undefined}
-              onMouseDown={tap(() => {
-                fz.duelMode = mode
-              })}
-            >
-              <Img k={`duel-${mode}`} w={52} tint={active ? gold : cream} margin={0} />
-            </UiEntity>
-          )
-        })}
-      </UiEntity>
-      {/* ranked list, physically top-to-bottom */}
-      <UiEntity
-        uiTransform={{
-          flexGrow: 1,
-          height: '92%',
-          alignSelf: 'center',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: ladder.length === 0 ? 'center' : 'flex-start',
-          padding: 10,
-          margin: { top: 6, bottom: 6 }
-        }}
-        uiBackground={{ color: Color4.create(0.05, 0.03, 0.04, 0.55) }}
-      >
-        {ladder.length === 0 ? (
-          <Img k="no-travelers" w={30} tint={cream} margin={4} />
-        ) : (
-          ladder.slice(0, 12).map((entry, i) => <LadderRow key={i} rank={i + 1} entry={entry} />)
-        )}
-      </UiEntity>
-      {/* tap-to-return hint on the physical bottom, like the end screens */}
-      <UiEntity uiTransform={{ width: 56, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <NameTag name={'continue'} w={14} tint={muted} />
-      </UiEntity>
-    </UiEntity>
-  )
-}
-
+/** The duel lobby, reading down the phone in four bands sized for thumbs:
+ *
+ *   header  - PLAYER VS PLAYER, the 1V1 | 4V4 tabs, and the room's state chip
+ *             beside READY n/m (one phone row, so the header stays short)
+ *   seats   - two tall plates side by side; a free plate is the action: JOIN
+ *             for an unseated 4v4 party, INVITE for a seated player waiting
+ *             on a foe (the SENT flash lands there too)
+ *   action  - the one thing to do next in gold, the big ENTER, the cost line
+ *   picks   - the hero strip while there is a champion to choose or swap
+ */
 function DuelLobby() {
   const pub = activeDuel()
   const mode = fz.duelMode
@@ -698,17 +1059,18 @@ function DuelLobby() {
   const enter = LABELS['rift-enter']
   const canReady = !!seat
   const cost = DUEL_ENERGY_COST[mode]
+  const full = pub.seats.length >= DUEL_SEATS
   // One instruction at a time, tracking exactly where the player is in the
   // sit -> ready -> wait flow, so the lobby always says what to do next.
   const hintK = !seat
-    ? pub.seats.length < DUEL_SEATS
+    ? !full
       ? mode === '1v1'
         ? 'pick-your-champion'
         : 'tap-join-party'
       : undefined // spectating a full lobby: nothing for them to do
     : !seat.ready
       ? 'tap-enter-ready'
-      : pub.seats.length < DUEL_SEATS
+      : !full
         ? 'awaiting-foe'
         : 'foe-not-ready'
   const sitParty = () => {
@@ -717,11 +1079,24 @@ function DuelLobby() {
       return
     }
     if (!DEBUG.unlimitedEnergy && game.energy < cost) {
-      game.notice = 'no-coin'
+      game.notice = 'no-energy'
       return
     }
     duelSit('4v4')
   }
+  // What the empty plate says and does: JOIN (4v4, unseated), INVITE (seated,
+  // someone to ask), the SENT flash, or just an empty seat.
+  const joinPlate = mode === '4v4' && !seat
+  const invitePlate = !!seat && !full && presentPlayers.size > 0
+  const emptyK = joinPlate ? 'join-duel' : invitePlate ? (fz.sentFlash > 0 ? 'invite-sent' : 'invite') : 'empty-seat'
+  const onEmptyTap = joinPlate
+    ? sitParty
+    : invitePlate && fz.sentFlash <= 0
+      ? () => {
+          fz.inviting = true
+        }
+      : undefined
+  const ENTER_W = 184
   return (
     <UiEntity
       uiTransform={{
@@ -732,58 +1107,57 @@ function DuelLobby() {
         justifyContent: 'center'
       }}
     >
+      {/* header band */}
       <UiEntity
         uiTransform={{
-          width: 150,
+          width: 230,
           height: '100%',
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center'
         }}
       >
-        <Img k="player-vs-player" w={36} tint={gold} margin={6} />
+        <Img k="player-vs-player" w={40} tint={gold} margin={4} />
         <DuelModeToggle />
+        <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', justifyContent: 'center' }}>
+          <StatusChip status={roomStatus(pub.phase, pub.startIn, pub.resetIn)} w={24} />
+          <UiEntity uiTransform={{ width: 14 }} />
+          <ReadyCount seats={pub.seats} slots={DUEL_SEATS} big />
+        </UiEntity>
       </UiEntity>
+      {/* seats band */}
       <SeatColumn
         rows={pub.seats.map((entry) => duelRow(entry, mode))}
         slots={DUEL_SEATS}
-        emptyW={mode === '4v4' && !seat ? 48 : 36}
-        seatW={400}
+        emptyW={emptyK === 'empty-seat' ? 40 : 52}
+        seatW={420}
         rowH={320}
-        nameW={28}
-        readyW={56}
+        nameW={34}
+        readyW={64}
+        badgeW={16}
         brightEmpty
-        emptyK={mode === '4v4' && !seat ? 'join-duel' : 'empty-seat'}
-        onEmptyTap={mode === '4v4' && !seat ? sitParty : undefined}
+        emptyK={emptyK}
+        onEmptyTap={onEmptyTap}
       />
+      {/* action band: the instruction, ENTER, what it costs */}
       <UiEntity
         uiTransform={{
-          width: 240,
+          width: 300,
           height: '100%',
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center'
         }}
       >
-        {hintK ? <Img k={hintK} w={36} tint={gold} margin={4} /> : null}
-        <LeaderboardBtn />
-      </UiEntity>
-      <UiEntity
-        uiTransform={{
-          width: 180,
-          height: '100%',
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
+        {hintK ? <Img k={hintK} w={44} tint={gold} margin={6} /> : null}
         {enter ? (
           <UiEntity
             uiTransform={{
-              width: 168,
-              height: Math.round((168 * enter.h) / enter.w),
+              width: ENTER_W,
+              height: Math.round((ENTER_W * enter.h) / enter.w),
               alignItems: 'center',
-              justifyContent: 'center'
+              justifyContent: 'center',
+              margin: 4
             }}
             onMouseDown={
               canReady
@@ -796,8 +1170,8 @@ function DuelLobby() {
           >
             <UiEntity
               uiTransform={{
-                width: 168 - pressShrink('duel:ready', 168),
-                height: Math.round(((168 - pressShrink('duel:ready', 168)) * enter.h) / enter.w),
+                width: ENTER_W - pressShrink('duel:ready', ENTER_W),
+                height: Math.round(((ENTER_W - pressShrink('duel:ready', ENTER_W)) * enter.h) / enter.w),
                 pointerFilter: 'none'
               }}
               uiBackground={{
@@ -812,15 +1186,21 @@ function DuelLobby() {
             />
           </UiEntity>
         ) : null}
-        <Img k={mode === '1v1' ? 'duel-cost' : 'duel-cost4'} w={36} tint={cream} margin={6} />
+        <Img k={mode === '1v1' ? 'duel-cost' : 'duel-cost4'} w={40} tint={cream} margin={6} />
       </UiEntity>
-      {!seat && pub.seats.length < DUEL_SEATS && mode === '1v1' ? (
+      {/* 1v1: unseated with room picks a champion; seated-not-ready swaps it */}
+      {mode === '1v1' && ((!seat && pub.seats.length < DUEL_SEATS) || (seat && !seat.ready)) ? (
         <HeroPickStrip
-          hint="join-duel"
+          hint={seat ? 'swap-hero' : 'join-duel'}
           withHero={true}
+          selectedUid={seat ? myDuelPickUid('1v1') : undefined}
           onPick={(uid) => {
+            if (seat) {
+              if (uid !== myDuelPickUid('1v1')) duelSit('1v1', uid)
+              return
+            }
             if (!DEBUG.unlimitedEnergy && game.energy < cost) {
-              game.notice = 'no-coin'
+              game.notice = 'no-energy'
               return
             }
             duelSit('1v1', uid)
@@ -828,6 +1208,7 @@ function DuelLobby() {
         />
       ) : null}
       <Notice />
+      <StartingOverlay startIn={pub.startIn} />
     </UiEntity>
   )
 }
@@ -880,10 +1261,6 @@ function DuelEnd() {
   const won = pub.winner === me
   const victor = pub.seats.find((seat) => seat.address === pub.winner)
   const laurel = LABELS['road-laurel']
-  const dismiss = () => {
-    goHome()
-    lockNav()
-  }
   return (
     <UiEntity
       uiTransform={{
@@ -893,9 +1270,8 @@ function DuelEnd() {
         alignItems: 'center',
         justifyContent: 'center'
       }}
-      onMouseDown={dismiss}
     >
-      <EndVerdict won={won} seated={seated} nextIn={seated ? undefined : pub.resetIn} nextWord="next duel" />
+      <EndVerdict won={won} seated={seated} />
       {/* the victor's podium: champion's face on a gold laurel, name in gold */}
       <UiEntity
         uiTransform={{
@@ -946,53 +1322,18 @@ function DuelEnd() {
           })}
         </SpoilsPanel>
       ) : null}
-      <UiEntity uiTransform={{ width: 60, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <NameTag name={'continue'} w={14} tint={muted} />
-      </UiEntity>
+      <EndButtons arena={pub.mode} seated={seated} resetIn={pub.resetIn} />
     </UiEntity>
   )
 }
 
 // ---- the friendzone shell ----------------------------------------------------------
 
-/** RAIDS | DUELS rail on the physical top edge of the friendzone. */
-function FzTabs() {
-  return (
-    <UiEntity
-      uiTransform={{
-        width: 100,
-        height: '100%',
-        flexDirection: 'column-reverse',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}
-    >
-      <UiEntity
-        uiTransform={{ padding: 10, margin: 6, alignItems: 'center', justifyContent: 'center' }}
-        onMouseDown={tap(() => {
-          fz.tab = 'raids'
-          fz.board = false
-        })}
-      >
-        <Img k="raids" w={56} tint={fz.tab === 'raids' ? gold : cream} margin={0} />
-      </UiEntity>
-      <UiEntity
-        uiTransform={{ padding: 10, margin: 6, alignItems: 'center', justifyContent: 'center' }}
-        onMouseDown={tap(() => {
-          fz.tab = 'duels'
-          fz.board = false
-        })}
-      >
-        <Img k="duels" w={56} tint={fz.tab === 'duels' ? gold : cream} margin={0} />
-      </UiEntity>
-    </UiEntity>
-  )
-}
-
+/** The hub lists the rooms; a room shows its lobby, fight, or spoils. BACK
+ * (chrome) steps room -> hub -> home, see nav.back. */
 export function RiftScreen() {
   const raidPub = riftView.pub
   const duelPub = activeDuel()
-  const board = fz.tab === 'duels' && duelPub.phase === 'lobby' && fz.board
   return (
     <UiEntity
       uiTransform={{
@@ -1004,9 +1345,8 @@ export function RiftScreen() {
       }}
     >
       <MpBackdrop k="map-rift" />
-      {board ? null : <FzTabs />}
-      {board ? (
-        <LeaderboardScreen />
+      {fz.tab === 'hub' ? (
+        <ArenaHub />
       ) : (
         <UiEntity uiTransform={{ flexGrow: 1, height: '100%' }}>
           {fz.tab === 'raids' ? (
@@ -1026,7 +1366,8 @@ export function RiftScreen() {
           )}
         </UiEntity>
       )}
-      <MenuTitle k={board ? 'board-banner' : 'rift-title'} />
+      <InvitePicker />
+      <MenuTitle k="rift-title" />
     </UiEntity>
   )
 }

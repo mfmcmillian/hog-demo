@@ -37,10 +37,18 @@ export const TIPS: Record<TipId, TipPage[]> = {
     { lines: ['tut-settings-1a', 'tut-settings-1b', 'tut-settings-1c'], pointer: { left: '33%', top: '38%' } }
   ],
   events: [
-    // page 1: the realm goal bar panel
-    { lines: ['tut-events-1a', 'tut-events-1b', 'tut-events-1c'], pointer: { left: '38%', top: '38%' } },
-    // page 2: the SEND button in the gift panel
-    { lines: ['tut-events-2a', 'tut-events-2b', 'tut-events-2c'], pointer: { left: '58%', top: '42%' } }
+    // The hall is two tabbed pages; festival.tsx shows page 0 for tip pages
+    // 1-2 and page 1 for tip pages 3-4 (see festPage). Pointer lefts are the
+    // panel centers on the 1600 stage: tab bar 74, then dailies 520 + 640
+    // wide or realm 100 + 460 + 460, the whole row centered in the well.
+    // page 1: the login streak track
+    { lines: ['tut-events-3a', 'tut-events-3b', 'tut-events-3c'], pointer: { left: '31%', top: '38%' } },
+    // page 2: the task board's GO buttons
+    { lines: ['tut-events-4a', 'tut-events-4b', 'tut-events-4c'], pointer: { left: '67%', top: '42%' } },
+    // page 3: the realm goal bar panel
+    { lines: ['tut-events-1a', 'tut-events-1b', 'tut-events-1c'], pointer: { left: '40%', top: '38%' } },
+    // page 4: the SEND button in the gift panel
+    { lines: ['tut-events-2a', 'tut-events-2b', 'tut-events-2c'], pointer: { left: '69%', top: '42%' } }
   ],
   fuse: [
     // page 1: the hero-face bench
@@ -64,6 +72,11 @@ export const TIPS: Record<TipId, TipPage[]> = {
     { lines: ['tut-friendzone-2a', 'tut-friendzone-2b', 'tut-friendzone-2c'] },
     // page 3: the raids/duels tabs
     { lines: ['tut-friendzone-3a', 'tut-friendzone-3b', 'tut-friendzone-3c'], pointer: { left: '14%', top: '30%' } }
+  ],
+  hall: [
+    // page 1: the board tabs along the physical top of the hall
+    { lines: ['tut-hall-1a', 'tut-hall-1b', 'tut-hall-1c'], pointer: { left: '14%', top: '30%' } },
+    { lines: ['tut-hall-2a', 'tut-hall-2b', 'tut-hall-2c'] }
   ],
   // No dialog: 'go' is only the pointer on the home GO button (goPointerShowing).
   go: []
@@ -129,7 +142,7 @@ export function questingPointerShowing(): boolean {
 
 /** No home dialog or overlay holding the screen. */
 function homeClear(): boolean {
-  return !game.dropTalk && !game.fireTalk && !game.onlineOpen && !tipShowing()
+  return !game.dropTalk && !game.fireTalk && !game.lockTalk && !game.onlineOpen && !tipShowing()
 }
 
 /**

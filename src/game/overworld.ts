@@ -35,6 +35,7 @@ import {
   owWalkable
 } from './owdefs'
 import { grantOwItem, hasOwFlag, hasOwItem, npcQuestPending, npcTalkId, owTalkActive, setOwFlag, startOwTalk } from './owTalk'
+import { grantAccountXp, XP } from './level'
 import { game } from './store'
 
 // Pokemon-style overworld: 9x16 tile grids over pre-rotated backdrops
@@ -180,8 +181,10 @@ export function enterOverworld() {
   toastT = TOAST_S // name the place you just walked into, same as a realm swap
   resetPuzzles()
   placePlayer(OW_SPAWN_GX, OW_SPAWN_GY, 'down')
-  // First time on the map: the elder explains walking and the light, once.
-  if (!hasOwFlag('guide-village')) {
+  // Until the elder has been reached, every fresh entry from the village
+  // button opens on his guide: follow the light to him to get started (the
+  // flag itself only retires the home-screen pointer at the questing door).
+  if (!hasOwFlag('elder-met')) {
     setOwFlag('guide-village')
     startOwTalk('guide-village')
   }
@@ -295,13 +298,16 @@ function triggerWildBattle(mon: { key: string; id: string }): boolean {
  * roamer to the server (or remembers the felled warlord in the save) and
  * resumes the realm right where contact happened. A loss wakes you on the
  * Antrom plaza — the questing area never drops you back to home. */
-export function returnFromWildBattle(): boolean {
+export function returnFromWildBattle(won: boolean): boolean {
   const stash = wildReturn
   wildReturn = undefined
   if (!stash) return false
-  if (game.battle?.winner === 'you') {
-    if (isOwBossKey(stash.key)) setOwFlag(bossSlainFlag(stash.id))
-    else sendOwSlay(stash.key)
+  if (won) {
+    if (isOwBossKey(stash.key)) {
+      setOwFlag(bossSlainFlag(stash.id))
+      // Roamers pay their XP through sendOwSlay; a warlord is worth a raid.
+      grantAccountXp(XP.raid)
+    } else sendOwSlay(stash.key)
     realmId = stash.realm
     placePlayer(stash.gx, stash.gy, stash.facing)
   } else {

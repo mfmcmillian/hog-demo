@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { playCancel, tap } from '../game/audio'
 import { focused, setCursor } from '../game/nav'
 import { PACKS, PackDef } from '../game/packs'
@@ -142,6 +143,7 @@ function PackConfirm() {
   return (
     <ModalScrim
       alpha={0.85}
+      buttons
       onMouseDown={() => {
         if (!fx.active) {
           playCancel()
@@ -149,6 +151,9 @@ function PackConfirm() {
         }
       }}
     >
+      {/* The panel blocks the pointer (a tap here is not a cancel) without a
+       * handler of its own: the desktop explorer hands a click to the nearest
+       * handler up the tree, so an empty handler here would eat ACCEPT/DECLINE. */}
       <UiEntity
         uiTransform={{
           width: 820,
@@ -156,9 +161,9 @@ function PackConfirm() {
           flexDirection: 'row',
           alignItems: 'center',
           justifyContent: 'center',
-          padding: 30
+          padding: 30,
+          pointerFilter: 'block'
         }}
-        onMouseDown={() => {}}
       >
         {frame ? (
           <UiEntity
@@ -203,6 +208,7 @@ function PackConfirm() {
             acceptTint={afford ? Color4.White() : muted}
             onAccept={tap(() => {
               if (afford) openPendingChest()
+              else game.notice = 'no-coin' // say so instead of swallowing the tap
             })}
             onDecline={() => {
               playCancel()

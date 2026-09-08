@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { advanceFightTalk, FIGHT_TALK_PAGES, skipBattle } from '../game/campaign'
 import { game } from '../game/store'

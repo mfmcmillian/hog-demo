@@ -1,16 +1,18 @@
 import { cycleHero, pickHero } from './account'
 import { listOathkin } from './allies'
 import { playCancel, playClick, playRift } from './audio'
-import { duelLeave, myDuelSeat, mySeat, riftLeave, tradeCancel } from '../mp/session'
-import { duelViews, gift, riftView } from '../mp/views'
-import { DUEL_MODES } from '../mp/protocol'
+import { duelLeave, duelSit, myDuelSeat, mySeat, presentPlayers, riftLeave, riftSit, tradeCancel } from '../mp/session'
+import { duelViews, fz, gift, hall, riftView } from '../mp/views'
+import { Arena, DUEL_ENERGY_COST, DUEL_MODES, DUEL_SEATS, RIFT_ENERGY_COST, RIFT_SEATS } from '../mp/protocol'
+import type { DailyTaskId } from './daily'
+import { DEBUG } from './debug'
 import { enterGame, isBootFilled, isBootReady } from './boot'
 import { advanceBanner, advanceFightTalk, openFinalBattle, skipBattle } from './campaign'
 import { canFuse, fuse, fuseFaces, pickFuseHero, prepareFuse } from './fuse'
 import { advanceIntro, endCredits, skipIntro } from './intro'
 import { cycleHeroCard, goHome, resetMenu, revealAcquisition } from './menu'
 import { PACKS, packAt } from './packs'
-import { benchUnits, tapBenchHero, tapPartySlot } from './party'
+import { benchUnits, partyUnits, strongestOwned, tapBenchHero, tapPartySlot } from './party'
 import { frontierFloor } from './progress'
 import { ROADS } from './quests'
 import { makeOwned } from './familiars'
@@ -19,6 +21,7 @@ import { isLastQuest, owQuest, questRewardFlag, questRewarded, resetBosses } fro
 import { advanceOwTalk, dismissOwTalk, owTalkActive, setOwFlag } from './owTalk'
 import { leaveHeroCard, leaveResult, openLevels, startFloor } from './roads'
 import { cancelPack, openPendingChest, requestPack } from './shop'
+import { grantAccountXp, XP } from './level'
 import { findOwned, game } from './store'
 import { advanceTip, dismissTip, maybeStartTip, questingUnlocked, tipShowing } from './tutorial'
 import { PARTY_SIZE, Phase, TipId } from './types'
@@ -52,7 +55,8 @@ const PHASE_TIP: { [P in Phase]?: TipId } = {
   fuse: 'fuse',
   shop: 'shop',
   trade: 'trade',
-  rift: 'friendzone'
+  rift: 'friendzone',
+  hall: 'hall'
 }
 
 /** A home screen opened from inside a cottage (the merchant's shop, the
@@ -65,8 +69,15 @@ export function open(phase: Phase) {
   screenFromOverworld = '' // opened from the home screen: back goes home
   resetMenu()
   if (phase === 'quest') game.cursor = Math.min(game.cleared, ROADS.length - 1)
-  if (phase === 'rift') playRift()
+  if (phase === 'rift') {
+    playRift()
+    // The friendzone always opens on the arena hub, overlays closed.
+    fz.tab = 'hub'
+    fz.inviting = false
+  }
   if (phase === 'fuse') prepareFuse()
+  if (phase === 'festival') game.festPage = 0 // the dailies are the reason you came
+  if (phase === 'hall') hall.tab = 'level' // the board everyone is on
   if (phase === 'overworld') enterOverworld()
   // Fresh cards are discovered the moment the bench is on screen.
   if (phase === 'party') game.freshUids = []
@@ -74,12 +85,96 @@ export function open(phase: Phase) {
   if (tip) maybeStartTip(tip)
 }
 
+/** Accept a raid/duel invite toast: land in that room and take a seat. */
+export function acceptFzInvite() {
+  const invite = fz.invite
+  if (!invite) return
+  fz.invite = undefined
+  open('rift')
+  enterArena(invite.arena)
+  lockNav()
+}
+
+/** JOIN on the hub, ACCEPT on an invite, GO on a daily task: show the room
+ * and, when its lobby has a free seat, sit straight down - the strongest
+ * card you own for a raid or 1v1, your party for 4v4. One tap to be in.
+ * The lobby still offers the hero strip to swap before readying up. */
+export function enterArena(arena: Arena) {
+  fz.inviting = false
+  if (arena === 'raid') {
+    fz.tab = 'raids'
+  } else {
+    fz.tab = 'duels'
+    fz.duelMode = arena
+  }
+  sitInArena(arena)
+}
+
+/** Take a seat in `arena` if it is open; false (with a notice) when it is
+ * not - the room may be mid-fight (spectate), full, or cost more energy
+ * than you have. Server re-checks all of this. */
+export function sitInArena(arena: Arena): boolean {
+  if (arena === 'raid') {
+    const pub = riftView.pub
+    if (pub.phase !== 'lobby' || pub.seats.length >= RIFT_SEATS || mySeat()) return false
+    if (!DEBUG.unlimitedEnergy && game.energy < RIFT_ENERGY_COST) {
+      game.notice = 'no-energy'
+      return false
+    }
+    const card = strongestOwned()
+    if (!card) return false
+    riftSit(card.uid)
+    return true
+  }
+  const pub = duelViews[arena].pub
+  if (pub.phase !== 'lobby' || pub.seats.length >= DUEL_SEATS || myDuelSeat(arena)) return false
+  if (arena === '4v4' && partyUnits().length < 4) {
+    game.notice = 'need-four'
+    return false
+  }
+  if (!DEBUG.unlimitedEnergy && game.energy < DUEL_ENERGY_COST[arena]) {
+    game.notice = 'no-energy'
+    return false
+  }
+  if (arena === '1v1') {
+    const card = strongestOwned()
+    if (!card) return false
+    duelSit('1v1', card.uid)
+  } else {
+    duelSit('4v4')
+  }
+  return true
+}
+
+/** GO on a daily task row: jump to where that task gets done. */
+export function goDailyTask(id: DailyTaskId) {
+  if (id === 'floors') open('quest')
+  else if (id === 'wild') openOverworld()
+  else if (id === 'pack') open('shop')
+  else if (id === 'fuse') open('fuse')
+  else if (id === 'trade') open('trade')
+  else if (id === 'raid' || id === 'duel') {
+    open('rift')
+    enterArena(id === 'raid' ? 'raid' : '1v1')
+  } else if (id === 'gift') {
+    // Already on the events page: pop the recipient picker, or say why not.
+    if (presentPlayers.size === 0) {
+      gift.blocked = 'gone'
+      gift.blockedAge = 0
+    } else {
+      gift.picking = true
+    }
+  }
+  lockNav()
+}
+
 /** The home village button: resume the map where you left it this session,
  * or spawn on the plaza the first time. */
 export function openOverworld() {
-  // Locked until the Moor Gate road is cleared (see tutorial.questingUnlocked).
+  // Locked until the Moor Gate road is cleared (see tutorial.questingUnlocked):
+  // the elder says so and points at the map, rather than a dead tap.
   if (!questingUnlocked()) {
-    game.notice = 'clear-road'
+    game.lockTalk = true
     return
   }
   if (!owVisited()) {
@@ -105,6 +200,7 @@ export function runOwTalkThen(then: string) {
   const quest = owQuest(arg)
   if (!quest || questRewarded(quest.id)) return
   setOwFlag(questRewardFlag(quest.id))
+  grantAccountXp(XP.sideQuest)
   if (isLastQuest(quest.id)) {
     // The line is done: the warlords stand again for a second run (coins
     // only), and closing the regent's card rolls the credits, then home —
@@ -243,6 +339,8 @@ export function primary() {
   }
   if (game.phase === 'home') {
     if (game.dropTalk) game.dropTalk = false
+    if (game.lockTalk) game.lockTalk = false
+    if (game.levelCard) game.levelCard = false
     return
   }
   if (game.phase === 'quest') {
@@ -340,6 +438,18 @@ export function back() {
     lockNav()
     return
   }
+  if (game.phase === 'home' && game.lockTalk) {
+    playCancel()
+    game.lockTalk = false
+    lockNav()
+    return
+  }
+  if (game.phase === 'home' && game.levelCard) {
+    playCancel()
+    game.levelCard = false
+    lockNav()
+    return
+  }
   if (game.phase === 'party' && game.nftTalk) {
     playCancel()
     game.nftTalk = ''
@@ -398,6 +508,19 @@ export function back() {
     lockNav()
     return
   }
+  if (game.phase === 'rift' && fz.inviting) {
+    fz.inviting = false
+    lockNav()
+    return
+  }
+  if (game.phase === 'rift' && fz.tab !== 'hub') {
+    // Inside a room: back steps out to the arena hub (standing up from a
+    // lobby seat), not all the way home.
+    leaveRoomSeats()
+    fz.tab = 'hub'
+    lockNav()
+    return
+  }
   if (game.phase === 'trade' || game.phase === 'rift') {
     leaveMultiplayerScreen()
     return
@@ -406,15 +529,19 @@ export function back() {
   lockNav()
 }
 
+/** Stand up from any lobby seat I hold, and forget a pending PLAY AGAIN. */
+function leaveRoomSeats() {
+  fz.requeue = undefined
+  if (riftView.pub.phase === 'lobby' && mySeat()) riftLeave()
+  for (const mode of DUEL_MODES) {
+    if (duelViews[mode].pub.phase === 'lobby' && myDuelSeat(mode)) duelLeave(mode)
+  }
+}
+
 /** Trade + Friendzone screens exit through here so the server hears about it. */
 function leaveMultiplayerScreen() {
   if (game.phase === 'trade') tradeCancel()
-  if (game.phase === 'rift' && riftView.pub.phase === 'lobby' && mySeat()) riftLeave()
-  if (game.phase === 'rift') {
-    for (const mode of DUEL_MODES) {
-      if (duelViews[mode].pub.phase === 'lobby' && myDuelSeat(mode)) duelLeave(mode)
-    }
-  }
+  if (game.phase === 'rift') leaveRoomSeats()
   goHome()
   lockNav()
 }

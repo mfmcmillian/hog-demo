@@ -60,22 +60,39 @@ export function setupFest(
     }
   }
 
+  const sendGift = (address: string, update: GiftUpdate) =>
+    room.send('giftUpdate', { address, json: JSON.stringify(update) })
+
   executeTask(async () => {
     try {
       const raw = await Storage.get<string>(FEST_KEY)
+      let current = false
       if (raw) {
         const stored = JSON.parse(raw) as FestStore
+        // A stored tally from an earlier window (or the old fixed-date event)
+        // is stale: this week starts clean.
         if (stored && stored.week === fest.week) {
           fest = { ...fest, ...stored, contributors: stored.contributors ?? {}, claimed: stored.claimed ?? {} }
+          current = true
         }
       }
       festReady = true
-      // A missing key resolves null (no throw). Seed it now so the write
-      // path is proven at boot and restarts stop re-reading an absent key.
-      if (!raw) persistFest()
+      // A missing or stale key: write this window now so the write path is
+      // proven at boot and restarts stop re-reading it.
+      if (!current) persistFest()
     } catch (error) {
       console.log(`[Server] fest load failed: ${error}`)
     }
+    publishFest()
+  })
+
+  /** The window closed: open the next one. Checked every frame (cheap) so a
+   * long-lived server rolls over without a restart. */
+  engine.addSystem(() => {
+    if (!festReady || Date.now() < fest.endsAt) return
+    fest = { ...emptyFest(), contributors: {}, claimed: {} }
+    console.log(`[Server] festival window ${fest.week} begins`)
+    persistFest()
     publishFest()
   })
 
@@ -91,10 +108,12 @@ export function setupFest(
     ctx.persistSave(address)
     persistFest()
     ctx.pushSave(address)
+    // The chest opens on their screen and reveals the card (giftClient).
+    sendGift(address, { type: 'goal', dropDefId: drop.defId, dropUid: drop.uid })
   }
 
   function festBump(floors: number): void {
-    if (Date.now() > fest.endsAt) return // the festival is over; the tally freezes
+    if (Date.now() > fest.endsAt) return // between windows; the system above opens the next
     fest.count += floors
     for (const seat of deps.getRiftSeats()) {
       fest.contributors[seat.address] = (fest.contributors[seat.address] ?? 0) + floors
@@ -119,7 +138,6 @@ export function setupFest(
       return
     }
     if (msg.type !== 'send') return
-    const sendGift = (address: string, update: GiftUpdate) => room.send('giftUpdate', { address, json: JSON.stringify(update) })
     const to = (msg.to || '').toLowerCase()
     const giver = ctx.saves.get(sender)
     const taker = ctx.saves.get(to)

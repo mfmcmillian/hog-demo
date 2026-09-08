@@ -14,11 +14,14 @@ $tsPath = Join-Path $root 'src\ui\labels.ow.gen.ts'
 $font = New-LabelFont 26
 
 $lines = [ordered]@{
-  # First step onto the map: the elder's two-page welcome.
-  'ow-guide-1a'       = 'HOLD THE PAD TO WALK.'
-  'ow-guide-1b'       = 'FOLLOW THE LIGHT.'
-  'ow-guide-2a'       = 'FIGHT WHAT YOU MEET ON THE ROAD SOUTH.'
-  'ow-guide-2b'       = 'THE BACK BUTTON TAKES YOU HOME.'
+  # Stepping onto the map before the elder is met: where the light leads
+  # and why, then how to walk and leave. Repeats each fresh entry until
+  # the elder has been reached (see overworld.enterOverworld).
+  'ow-guide-1a'       = 'SEE THE LIGHT ON THE PATH? FOLLOW IT.'
+  'ow-guide-1b'       = 'IT LEADS TO THE ELDER. HE HAS YOUR QUEST.'
+  'ow-guide-2a'       = 'HOLD THE PAD TO WALK.'
+  'ow-guide-2b'       = 'FIGHT WHAT YOU MEET ON THE ROAD SOUTH.'
+  'ow-guide-2c'       = 'THE BACK BUTTON TAKES YOU HOME.'
   'ow-elder-hint-1a'  = 'THE REED LAMP SLEEPS'
   'ow-elder-hint-1b'  = 'IN THE BONE GLADE.'
   'ow-elder-hint-1c'  = 'BRING IT BACK AND THE FEN WILL OPEN.'

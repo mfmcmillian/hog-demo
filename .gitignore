@@ -16,3 +16,6 @@ yarn-debug.log*
 yarn-error.log*
 # Local secrets (ELEVENLABS_API_KEY for the tools/gen-*-vo.mjs narration scripts).
 .env
+
+# ElevenLabs voice cache written by tools/gen-*-vo.mjs (account-specific id).
+sounds/vo/voice-id.txt

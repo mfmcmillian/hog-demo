@@ -1,14 +1,15 @@
 import { engine } from '@dcl/sdk/ecs'
 import { tickDuelMirror } from './duelClient'
+import { setupFzClient, tickFzTimers } from './fzClient'
 import { setupGiftClient, tickGiftDropReveal, tickGiftTimers } from './giftClient'
 import { setupPresence, tickIdentity } from './identity'
 import { tickOwMirror } from './owClient'
-import { FestPub } from './protocol'
+import { BoardsPub, FestPub } from './protocol'
 import { tickRiftDropReveal, tickRiftMirror } from './riftClient'
 import { setupSaveSync, tickSavePush } from './saveSync'
 import { setupTradeClient } from './tradeClient'
-import { MpFestState } from './transport'
-import { festView } from './views'
+import { MpBoardsState, MpFestState, MpLevelsState } from './transport'
+import { boardsView, festView, levelsView } from './views'
 
 // Client side of multiplayer. The server owns saves, trade tables, and the
 // rift room; this module hydrates the local `game` from the server, pushes
@@ -16,8 +17,18 @@ import { festView } from './views'
 
 export { getMyAddress, getMyName, presentPlayers } from './identity'
 export { canGiftToday, giftSend } from './giftClient'
-export { mySeat, riftLeave, riftReady, riftSit } from './riftClient'
-export { duelLeave, duelReady, duelSeatCount, duelSit, myDuelPickFaces, myDuelSeat } from './duelClient'
+export { mySeat, riftLeave, riftReady, riftRequeue, riftSit } from './riftClient'
+export {
+  duelLeave,
+  duelReady,
+  duelRequeue,
+  duelSeatCount,
+  duelSit,
+  myDuelPickFaces,
+  myDuelPickUid,
+  myDuelSeat
+} from './duelClient'
+export { fzDecline, fzInvite, fzInviteLeft } from './fzClient'
 export { isHydrated, pushAccountReset } from './saveSync'
 export {
   trade,
@@ -33,7 +44,19 @@ export {
 
 // riftView / festView / gift live in ./views (leaf) so audio and FX modules
 // can read them without importing this module. Re-exported for the UI.
-export { activeDuel, duelViews, festView, fz, gift, riftView } from './views'
+export {
+  activeDuel,
+  boardsView,
+  currentArena,
+  duelViews,
+  festView,
+  fz,
+  gift,
+  hall,
+  levelOf,
+  myBoardRank,
+  riftView
+} from './views'
 
 // --- Wiring ----------------------------------------------------------------------
 
@@ -47,18 +70,48 @@ export function initMultiplayerSession(): void {
   setupSaveSync()
   setupTradeClient()
   setupGiftClient()
+  setupFzClient()
 
   engine.addSystem((dt) => {
     if (!tickIdentity()) return
     tickRiftMirror()
     tickDuelMirror()
     tickFestMirror()
+    tickLevelsMirror()
+    tickBoardsMirror()
     tickOwMirror(dt)
     tickGiftTimers(dt)
+    tickFzTimers(dt)
     tickGiftDropReveal()
     tickRiftDropReveal()
     tickSavePush(dt)
   })
+}
+
+function tickLevelsMirror(): void {
+  for (const [, state] of engine.getEntitiesWith(MpLevelsState)) {
+    if (state.revision === levelsView.revision) break
+    levelsView.revision = state.revision
+    try {
+      levelsView.levels = JSON.parse(state.json) as Record<string, number>
+    } catch {
+      // keep the last good roster
+    }
+    break
+  }
+}
+
+function tickBoardsMirror(): void {
+  for (const [, state] of engine.getEntitiesWith(MpBoardsState)) {
+    if (state.revision === boardsView.revision) break
+    boardsView.revision = state.revision
+    try {
+      boardsView.pub = JSON.parse(state.json) as BoardsPub
+    } catch {
+      // keep the last good wall
+    }
+    break
+  }
 }
 
 function tickFestMirror(): void {

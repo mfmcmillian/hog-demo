@@ -1,5 +1,6 @@
 import { AssetLoad, engine, executeTask } from '@dcl/sdk/ecs'
 import { boot } from '../game/boot'
+import { rollDailyTasks } from '../game/daily'
 import { HERO_IDS } from '../game/familiars'
 import { OW_REALMS, OwRealmId } from '../game/owdefs'
 import { owRealmId } from '../game/overworld'
@@ -9,6 +10,10 @@ import { Phase } from '../game/types'
 import { allFxSrcs, campfireSheet, sheetSrcOf } from './flipbook'
 import { RAY_SRC, SPARKS_SRC } from './fx/reveal'
 import { hallSrc } from './halls'
+import { giftDayOf } from '../mp/protocol'
+import './labels.daily.gen'
+import './labels.duel.gen'
+import './labels.hall.gen'
 import { LABELS } from './labels.gen'
 import { INTRO_LABELS } from './labels.intro.gen'
 import { OW_LABELS } from './labels.ow.gen'
@@ -59,10 +64,12 @@ const HOME_KEYS = [
   'home-rift',
   'home-fuse',
   'home-overworld',
+  'home-hall',
   'shop',
   'trade',
   'fuse',
   'questing',
+  'hall-of-heroes',
   'fire-grows',
   'fire-line1',
   'fire-line2',
@@ -74,7 +81,25 @@ const HOME_KEYS = [
   'btn-settings',
   'btn-event',
   'fest-panel',
-  'no-travelers'
+  'no-travelers',
+  // the elder's sealed-gate talk (LockTalk) and its pointer
+  'tut-lock-1a',
+  'tut-lock-1b',
+  'tut-lock-1c',
+  'tut-continue',
+  'road-lock',
+  // account level: HUD badge, level card, level-up ceremony (can fire anywhere)
+  'lv',
+  'acct-level',
+  'level-up',
+  'max-level',
+  'xp-to-next',
+  'energy-refilled',
+  'max-energy',
+  'new-hero-joins',
+  'free-hero-at',
+  'level-hint',
+  'level-rewards'
 ]
 // The map is one tap from home, so the village cast rides in the critical set.
 const OW_BASE_KEYS = [
@@ -96,6 +121,12 @@ const EXTRA = [
   'images/maps/home-b.png',
   'images/ads/koa-c.png',
   'images/ads/decentracraft-c.png',
+  // the button halo (widgets.Halo) and the tutorial pointer, used on most screens
+  'images/hud/tut-ring.png',
+  'images/hud/tut-pointer.png',
+  // rarity light behind hero faces (widgets.RarityAura) on party / fuse tiles
+  'images/hud/aura.png',
+  'images/hud/select-frame.png',
   campfireSheet()
 ]
 
@@ -139,7 +170,10 @@ function ownedSheetSrcs(): string[] {
   return uniq(game.collection.map((owned) => sheetSrcOf(owned.defId) ?? ''))
 }
 
-function battleSrcs(): string[] {
+/** `live` is the screen we're on; a neighbor warm-up skips the skill FX
+ * sheets (the biggest textures here), which bind on entering the fight and
+ * are first needed seconds later. */
+function battleSrcs(live: boolean): string[] {
   const ids = [
     ...game.party.filter(Boolean).map((uid) => game.collection.find((owned) => owned.uid === uid)?.defId ?? ''),
     ...(game.battle?.you.map((unit) => unit.defId) ?? []),
@@ -148,12 +182,12 @@ function battleSrcs(): string[] {
   return uniq([
     ...ids.map((id) => sheetSrcOf(id) ?? ''),
     ...ids.map((id) => hallSrc(id)),
-    ...allFxSrcs(),
+    ...(live ? allFxSrcs() : []),
     ...labelSrcs(['map-clash-q1', 'map-clash-q3', 'map-clash-q4', 'map-clash-q6', 'win', 'lose', 'xp'])
   ])
 }
 
-function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
+function phaseSrcs(phase: Phase | 'overworld-next', live: boolean): string[] {
   if (phase === 'overworld' || phase === 'overworld-next') {
     const here = owRealmId()
     const next = OW_REALMS[here].exits.map((exit) => exit.to)
@@ -212,7 +246,115 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
         ...ownedSheetSrcs()
       ])
     case 'rift':
+      return uniq([
+        ...labelSrcs([
+          'map-rift',
+          'rift-title',
+          'fest-panel',
+          'rift-seat',
+          'rift-enter',
+          'rift-floors',
+          'rift-ready-on',
+          'rift-ready-off',
+          'rift-energy',
+          'rift-ribbon',
+          'road-ring',
+          'fest-cancel',
+          'empty-seat',
+          'players-online',
+          // hub cards + lobby chrome
+          'choose-your-arena',
+          'arena-raid',
+          'duel-1v1',
+          'duel-4v4',
+          'coop-hint',
+          'pvp-hint',
+          'pvp4-hint',
+          'lobby-open',
+          'in-battle',
+          'starting-in',
+          'reopens-in',
+          'join',
+          'spectate',
+          'seated',
+          'ready',
+          'invite',
+          'invite-hint',
+          'invite-sent',
+          'choose-a-player',
+          'no-travelers',
+          'pick-your-champion',
+          'tap-enter-ready',
+          'waiting-for-allies',
+          'player-vs-player',
+          'join-raid',
+          'join-duel',
+          'swap-hero',
+          'invites-you',
+          'play-again',
+          'leave',
+          'next-raid-in',
+          'next-duel-in',
+          'spoils',
+          'watching',
+          'win',
+          'lose',
+          'no-energy'
+        ]),
+        ...ownedSheetSrcs()
+      ])
     case 'festival':
+      return labelSrcs([
+        'map-settings',
+        'fest-banner',
+        'fest-panel',
+        'fest-plate',
+        'fest-bar-frame',
+        'fest-bar-fill',
+        'fest-gift',
+        'fest-send',
+        'fest-realm-goal',
+        'fest-daily-gift',
+        'crate-crown',
+        'crate-ember',
+        'crate-vow',
+        'road-laurel',
+        'daily-rewards',
+        'daily-tasks',
+        'task-go',
+        'page-dailies',
+        'page-realm',
+        'dot',
+        'streak',
+        'day',
+        'claim',
+        'claimed',
+        'come-back-tomorrow',
+        'streak-hint',
+        'all-done-bonus',
+        'new-tasks-in',
+        'icon-bolt',
+        'icon-coins',
+        ...rollDailyTasks(giftDayOf(Date.now())).map((id) => `task-${id}`)
+      ])
+    case 'hall':
+      return labelSrcs([
+        'map-hall-of-heroes',
+        'hall-title',
+        'hall-hint',
+        'board-level',
+        'board-roads',
+        'board-raids',
+        'board-duels',
+        'your-rank',
+        'rank-hash',
+        'unranked',
+        'hall-empty',
+        'hall-first',
+        'road-laurel',
+        'lv',
+        'wins'
+      ])
     case 'settings':
     case 'quest':
     case 'levels':
@@ -221,7 +363,7 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
     case 'banner':
     case 'report':
     case 'heroCard':
-      return battleSrcs()
+      return battleSrcs(live)
     case 'credits':
       return []
     default:
@@ -232,7 +374,10 @@ function phaseSrcs(phase: Phase | 'overworld-next'): string[] {
 const NEIGHBORS: Record<string, Phase[]> = {
   intro: ['start'],
   start: ['home'],
-  home: ['overworld', 'party', 'settings', 'festival', 'shop', 'quest', 'trade', 'fuse', 'rift'],
+  // The events hall and the friendzone are one tap away too, but their word
+  // strips run to ~80 textures between them; PhaseFade hides their first
+  // binds. Warming them from home was ~80 extra UI nodes every frame.
+  home: ['overworld', 'party', 'settings', 'shop', 'quest', 'trade', 'fuse', 'hall'],
   // The questing area only leads home or into a fight (and back via report).
   overworld: ['home', 'battle'],
   quest: ['levels', 'home'],
@@ -249,6 +394,7 @@ const NEIGHBORS: Record<string, Phase[]> = {
   rift: ['home'],
   settings: ['home'],
   festival: ['home'],
+  hall: ['home'],
   credits: ['home']
 }
 
@@ -257,11 +403,27 @@ const NEIGHBORS: Record<string, Phase[]> = {
  * covers the first 400ms. This is what keeps decoded GPU memory flat. */
 export function bindSrcs(): string[] {
   if (!boot.ready) return CRITICAL_SRCS
+  // PreloadTiles asks every UI frame; the answer only changes with the
+  // screen and what it shows, so rebuild it only when this key moves.
+  const key = [
+    game.phase,
+    game.collection.length,
+    game.party.join(','),
+    game.battle ? game.battle.foe.map((unit) => unit.defId).join(',') : '',
+    owRealmId(),
+    giftDayOf(Date.now())
+  ].join('|')
+  if (key === bindKey) return bindCache
   const phase = game.phase
-  const srcs = [...labelSrcs(CHROME_KEYS), ...phaseSrcs(phase)]
-  for (const next of NEIGHBORS[phase] ?? []) srcs.push(...phaseSrcs(next))
-  return uniq(srcs)
+  const srcs = [...labelSrcs(CHROME_KEYS), ...phaseSrcs(phase, true)]
+  for (const next of NEIGHBORS[phase] ?? []) srcs.push(...phaseSrcs(next, false))
+  bindKey = key
+  bindCache = uniq(srcs)
+  return bindCache
 }
+
+let bindKey = ''
+let bindCache: string[] = []
 
 boot.total = CRITICAL_SRCS.length
 

@@ -1,6 +1,7 @@
 import { InputAction, inputSystem } from '@dcl/sdk/ecs'
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { ScreenInsetArea, UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs, { ScreenInsetArea } from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { DEBUG } from '../game/debug'
 import { back, primary, shiftFromPad } from '../game/nav'
 import { owPadDir, setPadDir, type OwDir } from '../game/overworld'
@@ -8,6 +9,7 @@ import { game } from '../game/store'
 import { backPointerShowing } from '../game/tutorial'
 import { canvasV } from './canvas'
 import { revealReady } from './flipbook'
+import { landscape } from './grip'
 import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { bindSrcs } from './preload'
@@ -103,6 +105,8 @@ function Dpad(props: { ghost?: boolean } = {}) {
  * even while the full HUD stays off. */
 export function OverworldHud() {
   if (game.phase !== 'overworld') return null
+  // Desktop walks with WASD / arrows; the thumb pad would only cover the map.
+  if (landscape()) return null
   return (
     <ScreenInsetArea uiTransform={PASS}>
       <UiEntity
@@ -250,6 +254,7 @@ export function PreloadTiles() {
     >
       {srcs.map((src) => (
         <UiEntity
+          key={src}
           uiTransform={{
             positionType: 'absolute',
             width: 2,
@@ -379,20 +384,30 @@ const AD_ROTATE_MS = 8000
 export function AdBanner() {
   if (!DEBUG.showAds) return null
   const src = AD_SRCS[Math.floor(Date.now() / AD_ROTATE_MS) % AD_SRCS.length]
+  // Upright on a monitor the canvas is far wider than the stage, so the banner
+  // spans only the stage's width (canvas height) and centers with it.
+  const height = landscape() ? STAGE_H : '100%'
   return (
     <UiEntity
       uiTransform={{
         positionType: 'absolute',
         position: { right: 0, top: 0 },
-        width: 116,
+        width: '100%',
         height: '100%',
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
         pointerFilter: 'none'
       }}
-      uiBackground={{
-        textureMode: 'stretch',
-        texture: { src },
-        color: Color4.White()
-      }}
-    />
+    >
+      <UiEntity
+        uiTransform={{ width: 116, height, pointerFilter: 'none' }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src },
+          color: Color4.White()
+        }}
+      />
+    </UiEntity>
   )
 }

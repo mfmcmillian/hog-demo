@@ -27,4 +27,19 @@ export function rarityBg(rarity: Rarity): Color4 {
   return Color4.create(0.16, 0.14, 0.15, 1)
 }
 
+/** Account XP bar / level accents: a cool blue so it never reads as energy (gold). */
+export const xpBlue = Color4.create(0.36, 0.62, 0.98, 1)
+
+/** Rarity as a badge color drawn *over* dark leather (rarityBg is a dark
+ * fill; these are saturated so they read at tile size): the usual grey /
+ * green / blue / purple / gold / ember ladder. */
+export function rarityGlow(rarity: Rarity): Color4 {
+  if (rarity === 'mythic') return Color4.create(0.96, 0.42, 0.14, 1)
+  if (rarity === 'legendary') return Color4.create(0.96, 0.74, 0.26, 1)
+  if (rarity === 'epic') return Color4.create(0.66, 0.32, 0.88, 1)
+  if (rarity === 'rare') return Color4.create(0.3, 0.52, 0.95, 1)
+  if (rarity === 'uncommon') return Color4.create(0.3, 0.72, 0.36, 1)
+  return Color4.create(0.55, 0.55, 0.6, 1)
+}
+
 export const PASS: { pointerFilter: 'none' } = { pointerFilter: 'none' }

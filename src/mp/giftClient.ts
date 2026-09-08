@@ -1,3 +1,4 @@
+import { dailyBump } from '../game/daily'
 import { isCeremonyBusy, openHeroCard } from '../game/menu'
 import { findOwned, game } from '../game/store'
 import { getMyAddress } from './identity'
@@ -34,9 +35,16 @@ export function setupGiftClient(): void {
       // The gift chest ceremony auto-starts: tickFlipbook watches gift.received.
       return
     }
+    if (update.type === 'goal') {
+      // The realm goal paid out: same chest ceremony, then the card reveal.
+      gift.received = { name: '', coins: 0, dropDefId: update.dropDefId, goal: true }
+      giftDropUid = update.dropUid
+      return
+    }
     if (update.type === 'sent') {
       gift.blessing = update.coins
       gift.blessAge = 0
+      dailyBump('gift')
       return
     }
     gift.blocked = update.reason

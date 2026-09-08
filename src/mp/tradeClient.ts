@@ -1,3 +1,4 @@
+import { dailyBump } from '../game/daily'
 import { openHeroCard, resetMenu } from '../game/menu'
 import { game } from '../game/store'
 import { maybeStartTip } from '../game/tutorial'
@@ -109,6 +110,7 @@ export function setupTradeClient(): void {
     if (update.type === 'done') {
       trade.table = undefined
       trade.sentTo = ''
+      dailyBump('trade')
       // saveLoaded landed just before this; the received card is in the collection.
       const received = game.collection.find((owned) => owned.uid === update.receivedUid)
       if (received) {

@@ -1,3 +1,4 @@
+import { dailyBump } from './daily'
 import { makeOwned } from './familiars'
 import { revealAcquisition } from './menu'
 import { PACKS, PackId, packAt, rollPack } from './packs'
@@ -10,6 +11,7 @@ function buyPack(id?: string) {
     return
   }
   game.coins -= pack.cost
+  dailyBump('pack')
   revealAcquisition(makeOwned(rollPack(pack).id), 'shop')
 }
 

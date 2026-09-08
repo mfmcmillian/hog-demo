@@ -15,10 +15,11 @@ export type OwTalkPage = { lines: string[] }
 export type OwTalk = { face?: string; pages: OwTalkPage[]; then?: string }
 
 export const OW_TALKS: Record<string, OwTalk> = {
-  // First step onto the map: how to walk, what the light is, how to leave.
+  // Stepping onto the map before the elder is met: follow the light to him
+  // to start the quest, then how to walk and how to leave.
   'guide-village': {
     face: 'elder',
-    pages: [{ lines: ['ow-guide-1a', 'ow-guide-1b'] }, { lines: ['ow-guide-2a', 'ow-guide-2b'] }]
+    pages: [{ lines: ['ow-guide-1a', 'ow-guide-1b'] }, { lines: ['ow-guide-2a', 'ow-guide-2b', 'ow-guide-2c'] }]
   },
   'elder-hint': {
     face: 'elder',

@@ -1,4 +1,5 @@
 import { engine } from '@dcl/sdk/ecs'
+import { dailyBump } from '../game/daily'
 import { openHeroCard } from '../game/menu'
 import { findOwned, game } from '../game/store'
 import { getMyAddress } from './identity'
@@ -28,6 +29,18 @@ export function riftReady(ready: boolean): void {
   sendRift({ type: 'ready', ready })
 }
 
+export function riftInvite(to: string): void {
+  sendRift({ type: 'invite', to })
+}
+
+/** PLAY AGAIN on the spoils screen: hold my hero and sit back down the moment
+ * the room reopens (the server clears every seat when it resets). */
+export function riftRequeue(): void {
+  const seat = mySeat()
+  if (!seat) return
+  fz.requeue = { arena: 'raid', heroUid: seat.uid }
+}
+
 export function mySeat() {
   return riftView.pub.seats.find((seat) => seat.address === getMyAddress())
 }
@@ -42,14 +55,22 @@ export function tickRiftMirror(): void {
     } catch {
       break
     }
+    const phase = riftView.pub.phase
     // My raid just kicked off while I was looking at the duel ring: pull me
     // back. Edge-triggered so parallel raid+duel fights don't wrestle the tab.
-    if (riftView.pub.phase === 'battle' && lastRiftPhase === 'lobby' && mySeat()) fz.tab = 'raids'
-    lastRiftPhase = riftView.pub.phase
-    if (riftView.pub.phase === 'won') {
+    if (phase === 'battle' && lastRiftPhase === 'lobby' && mySeat()) fz.tab = 'raids'
+    if (phase === 'won' && lastRiftPhase !== 'won') {
       const mine = riftView.pub.rewards?.find((reward) => reward.address === getMyAddress())
       if (mine?.dropUid) riftDropUid = mine.dropUid
+      if (mySeat()) dailyBump('raid')
     }
+    // The room reopened after a run I asked to replay: sit straight back down.
+    if (phase === 'lobby' && lastRiftPhase !== 'lobby' && fz.requeue?.arena === 'raid') {
+      const uid = fz.requeue.heroUid
+      fz.requeue = undefined
+      if (uid && findOwned(uid) && game.phase === 'rift') riftSit(uid)
+    }
+    lastRiftPhase = phase
     break
   }
   // Spectate: the server-simulated battle feeds the regular battle UI/FX.

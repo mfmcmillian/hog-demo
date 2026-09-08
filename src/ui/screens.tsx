@@ -1,4 +1,5 @@
-import ReactEcs, { ReactEcsRenderer, UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs, { ReactEcsRenderer } from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { boot } from '../game/boot'
 import { DEBUG } from '../game/debug'
 import { game } from '../game/store'
@@ -10,17 +11,20 @@ import { AdBanner, CanvasReadout, OverworldHud, PhaseFade, PlayHud, PreloadTiles
 import { CreditsScreen } from './credits'
 import { FestivalScreen, GiftCeremony } from './festival'
 import { FuseScreen } from './fuse'
+import { landscape } from './grip'
+import { HallScreen } from './hall'
 import { HeroCardScreen } from './heroCard'
 import { HomeScreen } from './home'
 import { IntroScreen } from './intro'
 import { LevelsScreen } from './levels'
 import { OverworldScreen } from './overworld'
+import { LevelUpCeremony } from './level'
 import { OwTalkOverlay } from './owTalk'
 import { PartyScreen } from './party'
 import { startPreload } from './preload'
 import { QuestScreen } from './quest'
 import { BannerScreen, ReportScreen } from './results'
-import { RiftScreen } from './rift'
+import { FzInviteToast, RiftScreen } from './rift'
 import { SettingsScreen } from './settings'
 import { ShopScreen } from './shop'
 import { StartScreen } from './start'
@@ -126,8 +130,11 @@ function Root() {
             {game.phase === 'festival' ? <FestivalScreen /> : null}
             {game.phase === 'credits' ? <CreditsScreen /> : null}
             {game.phase === 'overworld' ? <OverworldScreen /> : null}
+            {game.phase === 'hall' ? <HallScreen /> : null}
             <TradeInviteToast />
+            <FzInviteToast />
             <GiftCeremony />
+            <LevelUpCeremony />
             <TutorialOverlay />
             <OwTalkOverlay />
           </ScreenChrome>
@@ -150,11 +157,15 @@ export function setupUi() {
   // the composition to exactly 1600x720. screenInset stays 'none' so full-bleed
   // layers reach the physical edges; edge-anchored chrome wraps itself in
   // ScreenInsetArea instead (see chrome.tsx).
+  //
+  // Landscape grip (desktop): the same tree is drawn upright by ui.tsx, so the
+  // virtual canvas is the stage turned on end (720x1600) and the client
+  // contain-fits that: a phone-shaped column, full height, centered.
   startPreload()
   startCanvasWatch()
   ReactEcsRenderer.setUiRenderer(Root, {
-    virtualWidth: STAGE_W,
-    virtualHeight: STAGE_H,
+    virtualWidth: landscape() ? STAGE_H : STAGE_W,
+    virtualHeight: landscape() ? STAGE_W : STAGE_H,
     screenInset: 'none'
   })
 }

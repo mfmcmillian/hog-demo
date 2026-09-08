@@ -1,4 +1,5 @@
 import { engine } from '@dcl/sdk/ecs'
+import { dailyBump } from '../game/daily'
 import { OW_STEP_S, OW_SUB, OwDir, OwRealmId, owSpawnByKey } from '../game/owdefs'
 import { game } from '../game/store'
 import { getMyAddress } from './identity'
@@ -63,6 +64,7 @@ const slainPending = new Set<string>()
 export function sendOwSlay(key: string): void {
   slainPending.add(key)
   remoteMonsters.delete(key)
+  dailyBump('wild')
   sendOw({ type: 'slay', key })
 }
 
@@ -208,7 +210,8 @@ export function tickOwMirror(dt: number): void {
   }
 
   // Advance the glide lerps.
-  for (const remote of remotePlayers.values()) if (remote.t < 1) remote.t = Math.min(1, remote.t + dt / (OW_STEP_S * OW_SUB))
+  for (const remote of remotePlayers.values())
+    if (remote.t < 1) remote.t = Math.min(1, remote.t + dt / (OW_STEP_S * OW_SUB))
   for (const remote of remoteMonsters.values()) if (remote.t < 1) remote.t = Math.min(1, remote.t + dt / MONSTER_STEP_S)
 
   if (slayFeed) {

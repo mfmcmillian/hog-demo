@@ -1,4 +1,5 @@
 import { beginFloor } from './campaign'
+import { dailyBump } from './daily'
 import { DEBUG } from './debug'
 import { prepareFuse } from './fuse'
 import { goHome, openHeroCard, resetMenu } from './menu'
@@ -153,9 +154,13 @@ export function leaveResult() {
   if (run && game.battle && !oath && !run.replay && climbing) {
     if (game.battle.winner !== 'you') rememberFloor(run.roadId, run.floor)
     else if (run.floor < FLOORS) rememberFloor(run.roadId, run.floor + 1)
-    else if ((run.star ?? 1) >= MAX_STARS) rememberFloor(run.roadId, FLOORS) // mastered: boss stays open
+    else if ((run.star ?? 1) >= MAX_STARS)
+      rememberFloor(run.roadId, FLOORS) // mastered: boss stays open
     else clearFloor(run.roadId)
   }
+  // Any road floor won (replays and farm runs included) counts for the daily
+  // board; the card-reveal re-entry finds game.run cleared, so no double count.
+  if (run && game.battle && !oath && game.battle.winner === 'you') dailyBump('floors')
   // Road fights return to where the next fight starts, never the village:
   // the road's floor grid, or the road map after a boss clear (that's where
   // the next road just unlocked).
@@ -172,12 +177,18 @@ export function leaveResult() {
     game.reveal = undefined
   }
   if (game.reveal) {
+    // The card ceremony re-enters here afterwards, so the fight stays around.
     openHeroCard(game.reveal.uid, game.dropBack)
     return
   }
+  // Past this point the fight is history. Drop it so the floor map's warm
+  // preload stops binding the last foe's sheets (every fight brought new
+  // 2048px sheets along and the map kept them all bound).
+  const battle = game.battle
+  game.battle = undefined
   // Wild overworld fights: a win resumes the realm at the contact tile;
   // a loss falls through to the blackout-home default below.
-  if (returnFromWildBattle()) return
+  if (returnFromWildBattle(battle?.winner === 'you')) return
   const dest = resultReturn
   resultReturn = undefined
   if (dest && dest.roadIndex >= 0) {
@@ -197,12 +208,12 @@ export function leaveResult() {
   }
   // First arrival at the hall: tease the hound's card drop so the player
   // follows the badge to the party screen (where the card waits undiscovered).
-  if (oath && game.battle?.winner === 'you' && game.freshUids.length > 0) {
+  if (oath && battle?.winner === 'you' && game.freshUids.length > 0) {
     game.dropTalk = true
   }
   // Gates of Antrom is the campaign ending: the epilogue (then credits)
   // plays after every win. Card reveal detoured above.
-  if (game.battle?.finalBattle && game.battle.winner === 'you') {
+  if (battle?.finalBattle && battle.winner === 'you') {
     game.storyId = 'epilogue'
     game.introPage = 0
     game.phase = 'intro'

@@ -25,6 +25,12 @@ export const TUT_LABELS: Record<string, LabelInfo> = {
   'tut-events-2a': { src: 'images/labels/tut-events-2a.png', w: 57, h: 539 },
   'tut-events-2b': { src: 'images/labels/tut-events-2b.png', w: 57, h: 669 },
   'tut-events-2c': { src: 'images/labels/tut-events-2c.png', w: 57, h: 550 },
+  'tut-events-3a': { src: 'images/labels/tut-events-3a.png', w: 57, h: 765 },
+  'tut-events-3b': { src: 'images/labels/tut-events-3b.png', w: 57, h: 433 },
+  'tut-events-3c': { src: 'images/labels/tut-events-3c.png', w: 57, h: 411 },
+  'tut-events-4a': { src: 'images/labels/tut-events-4a.png', w: 57, h: 662 },
+  'tut-events-4b': { src: 'images/labels/tut-events-4b.png', w: 57, h: 655 },
+  'tut-events-4c': { src: 'images/labels/tut-events-4c.png', w: 57, h: 754 },
   'tut-fuse-1a': { src: 'images/labels/tut-fuse-1a.png', w: 57, h: 712 },
   'tut-fuse-1b': { src: 'images/labels/tut-fuse-1b.png', w: 57, h: 596 },
   'tut-fuse-1c': { src: 'images/labels/tut-fuse-1c.png', w: 57, h: 623 },
@@ -52,6 +58,15 @@ export const TUT_LABELS: Record<string, LabelInfo> = {
   'tut-friendzone-3a': { src: 'images/labels/tut-friendzone-3a.png', w: 57, h: 608 },
   'tut-friendzone-3b': { src: 'images/labels/tut-friendzone-3b.png', w: 57, h: 654 },
   'tut-friendzone-3c': { src: 'images/labels/tut-friendzone-3c.png', w: 57, h: 572 },
+  'tut-hall-1a': { src: 'images/labels/tut-hall-1a.png', w: 57, h: 724 },
+  'tut-hall-1b': { src: 'images/labels/tut-hall-1b.png', w: 57, h: 546 },
+  'tut-hall-1c': { src: 'images/labels/tut-hall-1c.png', w: 57, h: 327 },
+  'tut-hall-2a': { src: 'images/labels/tut-hall-2a.png', w: 57, h: 649 },
+  'tut-hall-2b': { src: 'images/labels/tut-hall-2b.png', w: 57, h: 596 },
+  'tut-hall-2c': { src: 'images/labels/tut-hall-2c.png', w: 57, h: 180 },
+  'tut-lock-1a': { src: 'images/labels/tut-lock-1a.png', w: 57, h: 643 },
+  'tut-lock-1b': { src: 'images/labels/tut-lock-1b.png', w: 57, h: 702 },
+  'tut-lock-1c': { src: 'images/labels/tut-lock-1c.png', w: 57, h: 475 },
   'tut-continue': { src: 'images/labels/tut-continue.png', w: 57, h: 353 }
 }
 

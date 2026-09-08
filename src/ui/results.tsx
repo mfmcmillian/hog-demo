@@ -1,5 +1,6 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { advanceBanner } from '../game/campaign'
 import { lockNav } from '../game/nav'
 import { FLOORS } from '../game/quests'

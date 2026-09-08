@@ -20,12 +20,14 @@ import {
   DuelRank,
   DuelSeat,
   ENERGY_MAX,
+  LOBBY_COUNTDOWN_S,
   PlayerSave,
   RiftReward,
   emptyDuel
 } from '../mp/protocol'
 import { DUEL_SYNC_IDS, MpDuelState, room } from '../mp/transport'
 import { ServerCtx } from './ctx'
+import { relayFzInvite } from './fz'
 
 // The friendzone duel rings: two players face off, 1v1 (champion vs champion)
 // or 4v4 (full party vs full party) - same trust model as the rift, no shared
@@ -36,7 +38,10 @@ export type DuelRoom = { duel: DuelPub; publishDuel: () => void; duelReset: () =
 
 type Ring = DuelRoom & { onMsg: (sender: string, msg: DuelMsg) => void }
 
-export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
+export function setupDuels(
+  ctx: ServerCtx,
+  deps: { onWin: (address: string) => void }
+): { rooms: DuelRoom[]; allWins: () => Record<string, { name: string; wins: number }> } {
   // --- The win ladders (persisted) -------------------------------------------------
   const LADDER_KEY = 'hog-duel-ladder-v1'
   type LadderStore = Record<DuelMode, Record<string, { name: string; wins: number }>>
@@ -73,6 +78,20 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
     entry.name = name // keep the freshest display name
     ladder[mode][address] = entry
     persistLadder()
+    deps.onWin(address)
+  }
+
+  /** Every duelist's wins across both rings (the Hall of Heroes duels board). */
+  function allWins(): Record<string, { name: string; wins: number }> {
+    const out: Record<string, { name: string; wins: number }> = {}
+    for (const mode of DUEL_MODES) {
+      for (const [address, entry] of Object.entries(ladder[mode])) {
+        const row = (out[address] ??= { name: entry.name, wins: 0 })
+        row.wins += entry.wins
+        row.name = entry.name
+      }
+    }
+    return out
   }
 
   // --- The rings (one per mode) -----------------------------------------------------
@@ -130,7 +149,27 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
       duel.winner = undefined
       duel.rewards = undefined
       duel.resetIn = undefined
+      duel.startIn = undefined
       publishDuel()
+    }
+
+    /** A duel needs a full ring: both seats taken, both ready. */
+    function allReady(): boolean {
+      return duel.seats.length === DUEL_SEATS && duel.seats.every((entry) => entry.ready)
+    }
+
+    /** Arm the 3-2-1 when the ring just became all-ready; cancel it when a
+     * duelist stood up or unreadied (the ticker fires duelStart). */
+    function syncCountdown(): void {
+      if (duel.phase !== 'lobby') return
+      if (allReady()) {
+        if (duel.startIn === undefined) {
+          duelWait = LOBBY_COUNTDOWN_S
+          duel.startIn = LOBBY_COUNTDOWN_S
+        }
+      } else {
+        duel.startIn = undefined
+      }
     }
 
     /** The fighters a sitter brings: their champion in 1v1, their party in 4v4. */
@@ -167,6 +206,7 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
       const [a, b] = duel.seats
       duel.battle = buildDuelBattle(a.heroes.map(toOwned), b.heroes.map(toOwned))
       duel.phase = 'battle'
+      duel.startIn = undefined
       duelWait = 2.4
       publishDuel()
     }
@@ -206,13 +246,22 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
 
     function onMsg(sender: string, msg: DuelMsg): void {
       if (msg.type === 'sit') {
-        if (duel.phase !== 'lobby' || duel.seats.length >= DUEL_SEATS) return
-        if (duel.seats.some((seat) => seat.address === sender)) return
+        if (duel.phase !== 'lobby') return
+        const mine = duel.seats.find((seat) => seat.address === sender)
+        if (!mine && duel.seats.length >= DUEL_SEATS) return
         const save = ctx.saves.get(sender)
         if (!save) return
         const heroes = fighters(save, msg.heroUid)
         // 1v1 needs a valid champion; 4v4 needs the full party (clients also gate).
         if (mode === '1v1' ? heroes.length !== 1 : heroes.length < 4) return
+        if (mine) {
+          // Already seated: swap the pick and un-ready (cancels a live countdown).
+          mine.heroes = heroes
+          mine.ready = false
+          syncCountdown()
+          publishDuel()
+          return
+        }
         // Not enough energy: refuse the seat (clients also gate this).
         if (!DEBUG.unlimitedEnergy && save.energy < DUEL_ENERGY_COST[mode]) return
         const seat: DuelSeat = { address: sender, name: ctx.nameFor(sender), ready: false, heroes }
@@ -223,6 +272,7 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
       if (msg.type === 'leave') {
         if (duel.phase !== 'lobby') return
         duel.seats = duel.seats.filter((seat) => seat.address !== sender)
+        syncCountdown()
         publishDuel()
         return
       }
@@ -231,17 +281,37 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
         const seat = duel.seats.find((entry) => entry.address === sender)
         if (!seat) return
         seat.ready = msg.ready === true
-        // A duel needs a full ring: both seats taken, both ready.
-        if (duel.seats.length === DUEL_SEATS && duel.seats.every((entry) => entry.ready)) {
-          duelStart()
-          return
-        }
+        syncCountdown()
         publishDuel()
+        return
+      }
+      if (msg.type === 'invite') {
+        relayFzInvite(ctx, sender, msg.to, mode)
       }
     }
 
     // --- Duel ticker ----------------------------------------------------------------
     engine.addSystem((dt) => {
+      if (duel.phase === 'lobby') {
+        if (duel.startIn === undefined) return
+        // Presence may have pulled a duelist out from under the countdown.
+        if (!allReady()) {
+          duel.startIn = undefined
+          publishDuel()
+          return
+        }
+        duelWait -= dt
+        if (duelWait <= 0) {
+          duelStart()
+          return
+        }
+        const secs = Math.ceil(duelWait)
+        if (secs !== duel.startIn) {
+          duel.startIn = secs
+          publishDuel()
+        }
+        return
+      }
       if (duel.phase === 'done') {
         duelWait -= dt
         if (duelWait <= 0) {
@@ -286,5 +356,5 @@ export function setupDuels(ctx: ServerCtx): { rooms: DuelRoom[] } {
     rooms.find((entry) => entry.duel.mode === msg.mode)?.onMsg(sender, msg)
   })
 
-  return { rooms }
+  return { rooms, allWins }
 }

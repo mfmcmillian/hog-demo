@@ -1,13 +1,14 @@
 import { Color4 } from '@dcl/sdk/math'
-import ReactEcs, { UiEntity } from '@dcl/sdk/react-ecs'
+import ReactEcs from '@dcl/sdk/react-ecs'
+import { UiEntity } from './ui'
 import { isNftHero } from '../game/familiars'
 import { game } from '../game/store'
 import { OwnedFamiliar } from '../game/types'
 import { dropRaySheet, revealBurstSheet, sparksSheet } from './flipbook'
 import { press, pressShrink, pressTint } from './fx/press'
 import { LABELS, LabelInfo } from './labels.gen'
-import { cream, gold, muted, panelDim } from './theme'
-import { Face, Img, NameTag, SlotChrome } from './widgets'
+import { cream, gold, muted, panelDim, PASS } from './theme'
+import { Face, Img, LevelBadge, NameTag, SlotChrome } from './widgets'
 
 function tradeables(): OwnedFamiliar[] {
   // NFT wearable-gated heroes stay with the wearables - never on the table.
@@ -274,6 +275,9 @@ export function ModalScrim(props: {
   flexDirection?: 'row'
   justifyContent?: 'center' | 'flex-start'
   onMouseDown?: () => void
+  /** The content holds its own buttons (ACCEPT, player plates): keep the
+   * dismiss handler off their ancestor chain. See below. */
+  buttons?: boolean
 }) {
   const transform: {
     positionType: 'absolute'
@@ -292,12 +296,26 @@ export function ModalScrim(props: {
     justifyContent: props.justifyContent ?? 'center'
   }
   if (props.flexDirection) transform.flexDirection = props.flexDirection
+  const wash = props.color ?? Color4.create(0.02, 0.01, 0.02, props.alpha ?? 0.86)
+  if (!props.buttons) {
+    // Tap-anywhere dialogs (talks, ceremonies): the whole scrim is the handler.
+    return (
+      <UiEntity uiTransform={transform} uiBackground={{ color: wash }} onMouseDown={props.onMouseDown}>
+        {props.children}
+      </UiEntity>
+    )
+  }
+  // Dialogs with buttons inside: the dismiss handler lives on a full-size
+  // sibling *behind* the content, never on an ancestor of the buttons. The
+  // desktop explorer resolves a click to an enclosing handler before the
+  // button under the cursor, so a listening container swallowed ACCEPT.
   return (
-    <UiEntity
-      uiTransform={transform}
-      uiBackground={{ color: props.color ?? Color4.create(0.02, 0.01, 0.02, props.alpha ?? 0.86) }}
-      onMouseDown={props.onMouseDown}
-    >
+    <UiEntity uiTransform={{ ...transform, ...PASS }}>
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { top: 0, left: 0 }, width: '100%', height: '100%' }}
+        uiBackground={{ color: wash }}
+        onMouseDown={props.onMouseDown ?? (() => {})}
+      />
       {props.children}
     </UiEntity>
   )
@@ -409,12 +427,22 @@ export function AcceptDecline(props: {
 export function TravelerPlate(props: {
   name: string
   tint?: Color4
+  /** Account level shown under the name (0 / omitted = none). */
+  level?: number
   onTap?: () => void
   children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component
   key?: string | number
 }) {
   const plate = LABELS['trade-name']
-  const tag = <NameTag name={props.name} w={24} tint={props.tint ?? cream} />
+  const tag = props.level ? (
+    <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center' }}>
+      <NameTag name={props.name} w={24} tint={props.tint ?? cream} />
+      <UiEntity uiTransform={{ width: 6 }} />
+      <LevelBadge level={props.level} w={12} />
+    </UiEntity>
+  ) : (
+    <NameTag name={props.name} w={24} tint={props.tint ?? cream} />
+  )
   return (
     <UiEntity
       uiTransform={{

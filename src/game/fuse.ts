@@ -1,3 +1,4 @@
+import { dailyBump } from './daily'
 import { makeOwned, nextUid } from './familiars'
 import { revealAcquisition } from './menu'
 import { bestPerFace, seatInParty } from './party'
@@ -104,6 +105,7 @@ export function fuse() {
   game.noticeArg = child.defId
   game.starBurstFrom = fromStars
   game.starBurstTo = child.stars
+  dailyBump('fuse')
   revealAcquisition(child, 'fuse')
 }
 

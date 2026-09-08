@@ -54,6 +54,30 @@ export const MpOwState = engine.defineComponent('hog-mp-ow-state', {
 
 MpOwState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
 
+/** Sync id for the roster entity: every present player's account level. */
+export const LEVELS_SYNC_ID = 6006
+
+/** `json` is a Record<address, level> for players in the scene, so lobbies,
+ * the trade table and the gift list can show who they are dealing with. */
+export const MpLevelsState = engine.defineComponent('hog-mp-levels-state', {
+  json: Schemas.String,
+  revision: Schemas.Int
+})
+
+MpLevelsState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+
+/** Sync id for the Hall of Heroes entity: the leaderboards. */
+export const BOARDS_SYNC_ID = 6007
+
+/** `json` is a BoardsPub: the top rows of each board plus every present
+ * player's rank on each, rebuilt by the server when a row changes. */
+export const MpBoardsState = engine.defineComponent('hog-mp-boards-state', {
+  json: Schemas.String,
+  revision: Schemas.Int
+})
+
+MpBoardsState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+
 export const MpMessages = {
   // Client -> server: push my PlayerSave JSON ('' asks for a load only).
   saveRequest: Schemas.Map({ json: Schemas.String }),
@@ -75,7 +99,9 @@ export const MpMessages = {
   // Server -> clients: a GiftUpdate addressed to one wallet.
   giftUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String }),
   // Client -> server: one OwMsg (overworld move / leave / monster slay).
-  owMsg: Schemas.Map({ json: Schemas.String })
+  owMsg: Schemas.Map({ json: Schemas.String }),
+  // Server -> clients: an FzUpdate (raid/duel invite) addressed to one wallet.
+  fzUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String })
 }
 
 export const room = registerMessages(MpMessages)

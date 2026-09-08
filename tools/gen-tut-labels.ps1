@@ -45,6 +45,12 @@ $lines = [ordered]@{
   'tut-events-2a'     = 'TAP SEND TO GIFT A PLAYER.'
   'tut-events-2b'     = 'ONE GIFT A DAY - AND THE SENDER'
   'tut-events-2c'     = 'IS BLESSED WITH COINS TOO.'
+  'tut-events-3a'     = 'CLAIM YOUR LOGIN REWARD EVERY DAY.'
+  'tut-events-3b'     = 'SEVEN DAYS IN A ROW'
+  'tut-events-3c'     = 'EARNS A HERO CARD.'
+  'tut-events-4a'     = 'THREE NEW TASKS ROLL EACH DAY.'
+  'tut-events-4b'     = 'TAP GO TO HEAD STRAIGHT THERE,'
+  'tut-events-4c'     = 'THEN COME BACK TO CLAIM THE COINS.'
   # fuse
   'tut-fuse-1a'       = 'TAP A HERO FACE, THEN A STAR RANK'
   'tut-fuse-1b'       = 'WHERE YOU OWN TWO COPIES.'
@@ -76,6 +82,17 @@ $lines = [ordered]@{
   'tut-friendzone-3a' = 'DUELS PIT HERO AGAINST HERO.'
   'tut-friendzone-3b' = 'TWO TRAVELERS ENTER THE RING -'
   'tut-friendzone-3c' = 'THE VICTOR TAKES THE PURSE.'
+  # hall of heroes
+  'tut-hall-1a'       = 'THE REALM REMEMBERS ITS GREATEST.'
+  'tut-hall-1b'       = 'TAP A BOARD: LEVEL, ROADS,'
+  'tut-hall-1c'       = 'RAIDS OR DUELS.'
+  'tut-hall-2a'       = 'THE TOP TEN HANG ON THE WALL.'
+  'tut-hall-2b'       = 'YOUR OWN RANK SITS BELOW -'
+  'tut-hall-2c'       = 'CLIMB IT.'
+  # home: tapping the locked questing gate
+  'tut-lock-1a'       = 'THE WILDS ARE SEALED FOR NOW.'
+  'tut-lock-1b'       = 'CLEAR THE MOOR GATE ROAD FIRST -'
+  'tut-lock-1c'       = 'TAP THE MAP TO FIND IT.'
   # shared
   'tut-continue'      = 'TAP TO CONTINUE'
 }

@@ -1,4 +1,4 @@
-import { FAMILIARS, HERO_IDS, pickWeighted, rarityWeight } from './familiars'
+import { FAMILIARS, HERO_IDS, pickWeighted, RARITY_RANK, rarityWeight } from './familiars'
 import { FamiliarDef, Rarity } from './types'
 
 export type PackId = 'ember' | 'vow' | 'crown'
@@ -32,17 +32,15 @@ export const PACKS: PackDef[] = [
   }
 ]
 
-const RANK: Rarity[] = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic']
-
 export function packAt(index: number) {
   return PACKS[index] ?? PACKS[0]
 }
 
 export function rollPack(pack: PackDef): FamiliarDef {
-  const floor = RANK.indexOf(pack.min)
+  const floor = RARITY_RANK.indexOf(pack.min)
   const pool = FAMILIARS.filter((def) => {
     if (HERO_IDS.indexOf(def.id) >= 0) return false
-    return RANK.indexOf(def.rarity) >= floor
+    return RARITY_RANK.indexOf(def.rarity) >= floor
   })
   const weightOf = (rarity: Rarity) => pack.weights?.[rarity] ?? rarityWeight(rarity)
   return pickWeighted(pool, (def) => weightOf(def.rarity))

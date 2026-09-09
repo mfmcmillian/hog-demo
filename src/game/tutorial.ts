@@ -1,5 +1,6 @@
 import { hasOwFlag } from './owTalk'
 import { benchUnits, partyUnits } from './party'
+import { ROADS } from './quests'
 import { game } from './store'
 import { TipId } from './types'
 
@@ -121,12 +122,14 @@ export function partyPointerShowing(): boolean {
 }
 
 /**
- * The questing area opens once the Moor Gate road is cleared: that first
- * boss pays the guaranteed legendary, so the player walks into Antrom Green
- * with a real party. Until then the home POI sits dark under a lock.
+ * The questing area opens after the first fight on the Moor Gate road is won
+ * (floor 1 down, so floorAt has moved past it) - that fight pays the first-road
+ * card, so the player walks into Antrom Green with a second hero. Until then
+ * the home POI sits dark under a lock. Clearing the road counts too, for
+ * saves where the floor marker has since been reset.
  */
 export function questingUnlocked(): boolean {
-  return game.cleared >= 1
+  return game.cleared >= 1 || (game.floorAt[ROADS[0].id] ?? 1) >= 2
 }
 
 /**

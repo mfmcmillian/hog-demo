@@ -91,7 +91,7 @@ $lines = [ordered]@{
   'tut-hall-2c'       = 'CLIMB IT.'
   # home: tapping the locked questing gate
   'tut-lock-1a'       = 'THE WILDS ARE SEALED FOR NOW.'
-  'tut-lock-1b'       = 'CLEAR THE MOOR GATE ROAD FIRST -'
+  'tut-lock-1b'       = 'WIN ONE FIGHT ON THE MOOR GATE -'
   'tut-lock-1c'       = 'TAP THE MAP TO FIND IT.'
   # shared
   'tut-continue'      = 'TAP TO CONTINUE'

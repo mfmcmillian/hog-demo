@@ -65,7 +65,7 @@ export const TUT_LABELS: Record<string, LabelInfo> = {
   'tut-hall-2b': { src: 'images/labels/tut-hall-2b.png', w: 57, h: 596 },
   'tut-hall-2c': { src: 'images/labels/tut-hall-2c.png', w: 57, h: 180 },
   'tut-lock-1a': { src: 'images/labels/tut-lock-1a.png', w: 57, h: 643 },
-  'tut-lock-1b': { src: 'images/labels/tut-lock-1b.png', w: 57, h: 702 },
+  'tut-lock-1b': { src: 'images/labels/tut-lock-1b.png', w: 57, h: 721 },
   'tut-lock-1c': { src: 'images/labels/tut-lock-1c.png', w: 57, h: 475 },
   'tut-continue': { src: 'images/labels/tut-continue.png', w: 57, h: 353 }
 }

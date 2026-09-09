@@ -29,7 +29,7 @@ Everything is designed phone-first. Hold the phone portrait and the whole game �
 
 ### Walk the overworld
 
-Clear the first Road and Antrom Green opens: a top-down world you walk tile by tile with the other players in the scene. Ten hand-painted realms — two villages (one under snow), wilds and a fen, a crow-haunted road, the Moor Gate, four dungeons — with villagers to talk to, chests to find, and a five-quest storyline paid in cards. Every monster you fell has a chance to leave its own card behind (roamers rarely, path guards more often, and the warlords once you have beaten the story and they stand again). Dungeons are real puzzles: push stones onto marks to open gates, find the key for a sealed door, hop one-way ledges, and walk under the painting's own arches. The world is shared — any player's kill clears a blocked path for everyone — but the warlords at the end of each act are yours to fell. Finish the line and the credits roll; the warlords stand again for another run, this time dropping their own cards.
+Win your first fight on the Moor Gate and Antrom Green opens: a top-down world you walk tile by tile with the other players in the scene. Ten hand-painted realms — two villages (one under snow), wilds and a fen, a crow-haunted road, the Moor Gate, four dungeons — with villagers to talk to, chests to find, and a five-quest storyline paid in cards. Every monster you fell has a chance to leave its own card behind (roamers rarely, path guards more often, and the warlords once you have beaten the story and they stand again). Dungeons are real puzzles: push stones onto marks to open gates, find the key for a sealed door, hop one-way ledges, and walk under the painting's own arches. The world is shared — any player's kill clears a blocked path for everyone — but the warlords at the end of each act are yours to fell. Finish the line and the credits roll; the warlords stand again for another run, this time dropping their own cards.
 
 ### Raid with friends
 
@@ -37,17 +37,29 @@ Clear the first Road and Antrom Green opens: a top-down world you walk tile by t
 
 Assemble a live party and descend into the Rift. Chain your heroes' skills — flame strikes, sigil storms, volleys of emerald arrows — and bring down bosses no one survives alone. Every raider walks away with spoils, and the floors get deeper and deadlier.
 
+### Duel other players
+
+The arena hub next to the Rift holds two duel rings: **1v1**, where you field a single champion, and **4v4**, where your whole party fights another player's. Sit, invite a traveler straight from the empty seat, tap ENTER, and the server runs the fight for both of you — spectators can watch from the stands. Wins pay coins and XP and climb the Duels board.
+
 ### Trade face-to-face
 
 <img src="docs/img/hog-trade.webp" alt="Two players trading glowing hero cards across a table" width="640" />
 
 Sit across a real player at the trading table. Offer your cards, lock your side of the deal, and shake on it. No middlemen, no market bots — a lock-in system keeps every deal fair.
 
-### Festivals, realm goals & daily gifts
+### Festivals, dailies & gifts
 
 <img src="docs/img/hog-festival.webp" alt="Heroes celebrating at a festival under fireworks" width="640" />
 
-Join realm-wide festivals where the whole server pushes toward one goal. Send daily gifts to friends, open the ones they send back, and climb the event track for rewards nobody earns alone.
+Join realm-wide festivals where the whole server pushes toward one goal. The events hall also carries a **daily rewards** calendar with a login streak, a rotating slate of **daily tasks** (raid, duel, fuse, trade, clear floors, open a pack, send a gift…) with an all-done bonus, and a daily energy refill. Send gifts to friends, open the ones they send back, and climb the event track for rewards nobody earns alone.
+
+### Level up your account
+
+Every deed earns account XP — road floors and bosses, raids, duels, fusing, trades, gifts, dailies. Levels run to 50 with a HUD meter, a level-up ceremony, coin rewards, a growing energy cap, and hero packs at milestone levels. Your level shows next to your name in every lobby, trade, and gift list.
+
+### The Hall of Heroes
+
+A building in the village holds four persistent leaderboards — **Level**, **Roads**, **Raids**, and **Duels** — with the top ten on the wall and your own rank beneath. Standings are kept server-side and outlive restarts.
 
 ### Fuse duplicates into legends
 
@@ -96,8 +108,9 @@ Open the Decentraland preview, hold the phone portrait (or narrow the window), a
 
 ## Tech notes
 
-- **Decentraland SDK7** scene with an authoritative multiplayer server (`src/server`) — saves, trades, festivals, and raids are validated server-side.
+- **Decentraland SDK7** scene with an authoritative multiplayer server (`src/server`) — saves, trades, festivals, raids, duels, and leaderboards are validated server-side.
+- **Save safety**: saves are keyed by wallet with retried reads, regression guards (a fresh client can never overwrite an established save with an emptier one), a verified first push, and a rolling backup key.
 - **React-ECS UI**: the entire game is a screen-space UI rendered over a minimal 3D shell, tuned for portrait phones.
 - **Hand-built art pipeline**: every screen, button, and label is pre-rendered imagery; combat uses sprite-sheet flipbooks for hero attack animations. Overworld maps are painted from ASCII collision layouts (`tools/render-ow-layout.ps1` → painting → `tools/process-ow-map.ps1`), and each dungeon puzzle is verified solvable by a BFS solver before it ships.
-- **Energy is uncapped in this build**: there is no regen timer yet, so the energy bar never blocks play.
-- Deployed to the Decentraland World <code>hogdemo.dcl.eth</code>.
+- **Energy** regenerates on a timer; the cap grows with account level, and the daily refill tops it up.
+- Deployed to the Decentraland World <code>hogdemo.dcl.eth</code> (`npm run deploy:world`) and to Genesis City at <code>-17,123</code> (`npm run deploy`).

@@ -31,5 +31,8 @@
     "portableExperiences": "enabled"
   },
   "authoritativeMultiplayer": true,
+  "worldConfiguration": {
+    "name": "hogdemo.dcl.eth"
+  },
   "logsPermissions": ["0xfe2d424af0df49bb3316cb2e9f574b0d09cf98ad"]
 }

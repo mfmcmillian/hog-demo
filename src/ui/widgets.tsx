@@ -3,7 +3,7 @@ import ReactEcs from '@dcl/sdk/react-ecs'
 import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { game } from '../game/store'
-import { idlePoster, sparksSheet, starBurstFx } from './flipbook'
+import { facePoster, idlePoster, sparksSheet, starBurstFx } from './flipbook'
 import { press, pressAmt, pressShrink, pressTint } from './fx/press'
 import { LABELS } from './labels.gen'
 import { Rarity } from '../game/types'
@@ -316,12 +316,14 @@ export function Face(props: {
   fallback?: number
   tint?: Color4
   margin?: { left?: number; top?: number; right?: number; bottom?: number }
-  /** Prefer the standalone 1024px portrait over the sheet's 512px idle cell.
-   * For big draws (hero card at 560 units) the sheet cell blurs; small faces
-   * should stay on the sheet, which is already bound for battle anyway. */
+  /** Prefer the standalone 1024px portrait over the atlas's 128px face.
+   * For big draws (hero card at 560 units) the small face blurs. */
   hi?: boolean
+  /** Sample the hero's combat sheet instead of the face atlas: for screens
+   * that have the sheet bound anyway (the fight) and want its 256px cell. */
+  sheet?: boolean
 }) {
-  const sheet = props.hi ? null : idlePoster(props.id)
+  const sheet = props.hi ? null : props.sheet ? idlePoster(props.id) : facePoster(props.id)
   const art = !sheet ? charArt(props.id) : undefined
   if (!sheet && !art) return props.fallback ? <Img k={props.id} w={props.fallback} /> : null
   return (

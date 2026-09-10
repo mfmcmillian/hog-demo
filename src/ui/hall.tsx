@@ -4,6 +4,9 @@ import { UiEntity } from './ui'
 import { tap } from '../game/audio'
 import { BOARD_IDS, BOARD_TOP, BoardEntry, BoardId } from '../mp/protocol'
 import { boardsView, getMyAddress, getMyName, hall, myBoardRank, presentPlayers } from '../mp/session'
+import { HallTab } from '../mp/views'
+import { AvatarBust } from './avatar'
+import { FeedPanel } from './feed'
 import { press, pressTint } from './fx/press'
 import './labels.hall.gen'
 import { LABELS } from './labels.gen'
@@ -24,13 +27,16 @@ const rowTop = Color4.create(0.32, 0.2, 0.07, 0.7)
 const rowMine = Color4.create(0.16, 0.24, 0.42, 0.72)
 const MEDAL_TINTS = [gold, Color4.create(0.78, 0.78, 0.85, 1), Color4.create(0.8, 0.52, 0.28, 1)]
 
-/** The word strip that names each board, and the unit drawn by its number. */
-const BOARD_LABEL: Record<BoardId, string> = {
+/** The word strip that names each page, and the unit drawn by a board's number. */
+const BOARD_LABEL: Record<HallTab, string> = {
   level: 'board-level',
   roads: 'board-roads',
   raids: 'board-raids',
-  duels: 'board-duels'
+  duels: 'board-duels',
+  news: 'feed-title'
 }
+/** The pages along the physical top: the four boards, then the realm news. */
+const HALL_TABS: HallTab[] = [...BOARD_IDS, 'news']
 const BOARD_UNIT: Record<BoardId, string> = {
   level: 'lv',
   roads: 'board-roads',
@@ -46,7 +52,7 @@ const TAB_H = 118 // phone-wide
 const TAB_CLEAR = 100
 
 /** One board tab: the label plate, a gold rule under the live one. */
-function BoardTab(props: { key?: string; board: BoardId }) {
+function BoardTab(props: { key?: string; board: HallTab }) {
   const live = hall.tab === props.board
   const id = `hall:tab-${props.board}`
   return (
@@ -73,7 +79,7 @@ function BoardTab(props: { key?: string; board: BoardId }) {
         }}
         uiBackground={{ color: pressTint(id, live ? tabLit : tabDark) }}
       >
-        <Img k={BOARD_LABEL[props.board]} w={28} tint={live ? gold : muted} margin={0} />
+        <Img k={BOARD_LABEL[props.board]} w={props.board === 'news' ? 22 : 28} tint={live ? gold : muted} margin={0} />
       </UiEntity>
       <UiEntity
         uiTransform={{ width: 5, height: '100%', pointerFilter: 'none' }}
@@ -96,7 +102,7 @@ function BoardTabs() {
         padding: { bottom: TAB_CLEAR }
       }}
     >
-      {BOARD_IDS.map((board) => (
+      {HALL_TABS.map((board) => (
         <BoardTab key={board} board={board} />
       ))}
     </UiEntity>
@@ -149,7 +155,10 @@ function BoardRow(props: { key?: number; rank: number; entry: BoardEntry; board:
       >
         <Digits value={props.rank} w={top3 ? 20 : 16} tint={top3 ? cream : muted} tight />
       </UiEntity>
-      <UiEntity uiTransform={{ height: 14 }} />
+      <UiEntity uiTransform={{ height: 10 }} />
+      {/* their walker, as it looks in the overworld; strangers fall back to the default */}
+      <AvatarBust address={props.entry.address.toLowerCase()} w={top3 ? 54 : 42} margin={0} />
+      <UiEntity uiTransform={{ height: 6 }} />
       <NameTag name={entryName(props.entry)} w={top3 ? 30 : 24} tint={props.rank === 1 ? gold : cream} />
       {props.board === 'level' ? null : (
         <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', ...PASS }}>
@@ -173,7 +182,7 @@ function BoardRow(props: { key?: number; rank: number; entry: BoardEntry; board:
 
 /** The ranked list for the live board, top-to-bottom on the phone. */
 function BoardList() {
-  const board = hall.tab
+  const board = hall.tab === 'news' ? 'level' : hall.tab
   const rows = boardsView.pub.boards[board] ?? []
   const me = getMyAddress().toLowerCase()
   return (
@@ -208,7 +217,7 @@ function BoardList() {
 
 /** Where you stand on the live board, along the physical bottom edge. */
 function YourRank() {
-  const rank = myBoardRank(getMyAddress(), hall.tab)
+  const rank = myBoardRank(getMyAddress(), hall.tab === 'news' ? 'level' : hall.tab)
   return (
     <UiEntity
       uiTransform={{
@@ -270,8 +279,8 @@ export function HallScreen() {
     >
       {Backdrop({ label: 'map-hall-of-heroes', dim: 0.42, pass: true })}
       <BoardTabs />
-      <BoardList />
-      <YourRank />
+      {hall.tab === 'news' ? <FeedPanel /> : <BoardList />}
+      {hall.tab === 'news' ? null : <YourRank />}
       <Notice />
       <HallTitle />
     </UiEntity>

@@ -35,11 +35,19 @@ Win your first fight on the Moor Gate and Antrom Green opens: a top-down world y
 
 <img src="docs/img/hog-raid.webp" alt="A party of heroes battling a colossal ogre boss" width="640" />
 
-Assemble a live party and descend into the Rift. Chain your heroes' skills — flame strikes, sigil storms, volleys of emerald arrows — and bring down bosses no one survives alone. Every raider walks away with spoils, and the floors get deeper and deadlier.
+Assemble a live party and descend into the Rift. Chain your heroes' skills — flame strikes, sigil storms, volleys of emerald arrows — and bring down bosses no one survives alone. Every raider walks away with spoils, and the floors get deeper and deadlier. Raids cost no energy; the first three wins a day pay spoils, the rest pay XP and the board. Short-handed? The raid still goes — **ghost allies** (snapshots of other players' heroes) take the empty seats, and their owners get a cut of the purse when they next log in.
 
 ### Duel other players
 
-The arena hub next to the Rift holds two duel rings: **1v1**, where you field a single champion, and **4v4**, where your whole party fights another player's. Sit, invite a traveler straight from the empty seat, tap ENTER, and the server runs the fight for both of you — spectators can watch from the stands. Wins pay coins and XP and climb the Duels board.
+The arena hub next to the Rift holds two duel rings: **1v1**, where you field a single champion, and **4v4**, where your whole party fights another player's. Sit, invite a traveler straight from the empty seat, tap ENTER, and the server runs the fight for both of you — spectators can watch from the stands. Duels are free to enter; wins pay coins and XP and climb the Duels board. Nobody around? **FIGHT A GHOST**: the server keeps a snapshot of every duelist's last lineup, seats one across from you, and tells the owner when their ghost's record fell.
+
+### Realm news
+
+A live activity feed runs along the bottom of the screen and fills the **REALM NEWS** page of the Hall of Heroes: who just entered the village, who pulled a legendary or mythic hero, who cleared a road or felled a warlord, who won a raid or a duel, who set the round's hardest hit on the world boss or felled it, who hit a milestone level or a seven-day streak. Events are validated server-side and persist across restarts. Personal pushes tell you when someone passes you on a board or beats your ghost.
+
+### Your avatar, your walker
+
+Your overworld sprite is built from your Decentraland avatar: body shape picks the hairstyle, and skin and hair are tinted to your avatar's colors. Prefer something else? Settings has an **Appearance** block with skin and hair swatches and a hair-length toggle; the pick is saved with your account and shown to everyone. The same figure stands on your seat plate in every lobby, on the leaderboards, and next to your name in the feed.
 
 ### Trade face-to-face
 
@@ -60,6 +68,10 @@ Every deed earns account XP — road floors and bosses, raids, duels, fusing, tr
 ### The Hall of Heroes
 
 A building in the village holds four persistent leaderboards — **Level**, **Roads**, **Raids**, and **Duels** — with the top ten on the wall and your own rank beneath. Standings are kept server-side and outlive restarts.
+
+### The World Boss
+
+A war altar on the village's edge holds one warlord the whole realm fights together. Its HP pool is enormous and shared: every attack anyone lands comes off the same bar, live. An attack is your party against the boss for **one minute** — deal all you can before the clock or the boss stops you — and you get three a day, free. Only your **best single attack** counts, and the top ten hits of the round hang on the lair's board with your own rank beneath. Fell the boss and everyone who hit it is paid a bonus while a stronger warlord rises in its place; every **three days** the round turns and **everyone who attacked is paid** by rank, the top a little better than the rest, through the same spoils chest as the festival. Fights are simulated on the server, so the board can't be forged.
 
 ### Fuse duplicates into legends
 
@@ -108,7 +120,7 @@ Open the Decentraland preview, hold the phone portrait (or narrow the window), a
 
 ## Tech notes
 
-- **Decentraland SDK7** scene with an authoritative multiplayer server (`src/server`) — saves, trades, festivals, raids, duels, and leaderboards are validated server-side.
+- **Decentraland SDK7** scene with an authoritative multiplayer server (`src/server`) — saves, trades, festivals, raids, duels, the world boss, and leaderboards are validated server-side.
 - **Save safety**: saves are keyed by wallet with retried reads, regression guards (a fresh client can never overwrite an established save with an emptier one), a verified first push, and a rolling backup key.
 - **React-ECS UI**: the entire game is a screen-space UI rendered over a minimal 3D shell, tuned for portrait phones.
 - **Hand-built art pipeline**: every screen, button, and label is pre-rendered imagery; combat uses sprite-sheet flipbooks for hero attack animations. Overworld maps are painted from ASCII collision layouts (`tools/render-ow-layout.ps1` → painting → `tools/process-ow-map.ps1`), and each dungeon puzzle is verified solvable by a BFS solver before it ships.

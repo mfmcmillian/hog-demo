@@ -20,6 +20,8 @@ export function ElderTalk(props: {
   page?: { at: number; of: number }
   /** Another speaker in the frame (walk-sheet cell); default is the elder. */
   portrait?: { src: string; uvs: number[] }
+  /** Or anything else in the frame (e.g. the animated quest beacon). */
+  portraitNode?: ReactEcs.JSX.Component
   /** Extra content shown over the scrim above the band (e.g. a card back). */
   children?: ReactEcs.JSX.Component[] | ReactEcs.JSX.Component
 }) {
@@ -59,15 +61,17 @@ export function ElderTalk(props: {
               }}
               uiBackground={{ color: Color4.create(0.09, 0.07, 0.06, 1) }}
             >
-              <UiEntity
-                uiTransform={{ width: 140, height: 140, pointerFilter: 'none' }}
-                uiBackground={{
-                  textureMode: 'stretch',
-                  texture: { src: portrait.src },
-                  uvs: portrait.uvs,
-                  color: Color4.White()
-                }}
-              />
+              {props.portraitNode ?? (
+                <UiEntity
+                  uiTransform={{ width: 140, height: 140, pointerFilter: 'none' }}
+                  uiBackground={{
+                    textureMode: 'stretch',
+                    texture: { src: portrait.src },
+                    uvs: portrait.uvs,
+                    color: Color4.White()
+                  }}
+                />
+              )}
             </UiEntity>
           </UiEntity>
           {/* the lines, phone-right of the portrait */}

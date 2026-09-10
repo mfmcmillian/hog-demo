@@ -69,6 +69,8 @@ export type Phase =
   | 'credits'
   | 'overworld'
   | 'hall'
+  | 'wardrobe'
+  | 'boss'
 
 /** First-press tutorial tips: one per nav button and village building, plus
  * 'go' — the dialogless pointer on the home GO button after the first party

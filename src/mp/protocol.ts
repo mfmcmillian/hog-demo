@@ -48,6 +48,11 @@ export type PlayerSave = {
   /** Account XP (see game/level.ts). Missing = save predates levels; the
    * client back-fills it from roads and cards on load. */
   axp?: number
+  /** Settings > appearance: the walker's skin/hair the player picked. Missing
+   * = draw from their DCL avatar. */
+  look?: LookChoice
+  /** Armor suits bought from the tailor (ARMORS ids, 1-based). */
+  armory?: number[]
 }
 
 export function emptySave(): PlayerSave {
@@ -183,7 +188,24 @@ export type TradeUpdate =
 
 export const RIFT_FLOORS = 6 // 5 floors + the boss
 export const RIFT_SEATS = 4
-export const RIFT_ENERGY_COST = 5
+/** Raids cost nothing: the friendzone is where you go when the energy bar
+ * is empty, not what it blocks. Spoils are capped instead (RAID_SPOILS_PER_DAY). */
+export const RIFT_ENERGY_COST = 0
+/** Raid wins that pay coins and a card roll per UTC day; later wins pay XP
+ * and a rung on the raids board only, so free raids are not a card farm. */
+export const RAID_SPOILS_PER_DAY = 3
+/** Empty seats filled by ghost allies when the raid starts (see server/ghosts). */
+export const RIFT_GHOST_FILL = 3
+/** Coins owed to a ghost's owner each time their heroes raid in their absence. */
+export const GHOST_ALLY_COINS = 30
+/** Share of the duel purse a win over a ghost pays (ghosts are always available). */
+export const GHOST_DUEL_COIN_FRAC = 0.5
+/** Ghost seats carry this prefix on their address so no wallet can collide. */
+export const GHOST_PREFIX = 'ghost:'
+
+export function isGhostAddress(address: string): boolean {
+  return address.startsWith(GHOST_PREFIX)
+}
 /** Seconds between everyone readying up and the fight actually starting, so
  * the room gets a visible 3-2-1 and a last chance to bail (rift + duels). */
 export const LOBBY_COUNTDOWN_S = 3
@@ -203,6 +225,10 @@ export type RiftSeat = {
   stars: number
   level: number
   ready: boolean
+  /** A ghost ally: another player's hero, fielded by the server while they are away. */
+  ghost?: boolean
+  /** Spoils-paying wins this wallet has left today (RAID_SPOILS_PER_DAY). */
+  spoils?: number
 }
 
 export type RiftReward = { address: string; coins: number; xp: number; dropDefId?: string; dropUid?: string }
@@ -231,7 +257,8 @@ export const DUEL_MODES = ['1v1', '4v4'] as const
 export type DuelMode = (typeof DUEL_MODES)[number]
 
 export const DUEL_SEATS = 2
-export const DUEL_ENERGY_COST: Record<DuelMode, number> = { '1v1': 2, '4v4': 4 }
+/** Duels are free: they pay XP and a ladder rung, nothing farmable. */
+export const DUEL_ENERGY_COST: Record<DuelMode, number> = { '1v1': 0, '4v4': 0 }
 export const DUEL_WIN_COINS: Record<DuelMode, number> = { '1v1': 60, '4v4': 100 }
 /** XP per fighter, so the 4v4 winner spreads it across the party. */
 export const DUEL_WIN_XP: Record<DuelMode, number> = { '1v1': 40, '4v4': 20 }
@@ -244,6 +271,8 @@ export type DuelMsg =
   | { type: 'ready'; mode: DuelMode; ready: boolean }
   /** Challenge another present traveler to this ring (relayed as an FzUpdate). */
   | { type: 'invite'; mode: DuelMode; to: string }
+  /** Seated and alone: have the server seat a ghost (an absent rival's heroes). */
+  | { type: 'ghost'; mode: DuelMode }
 
 export type DuelFighter = { uid: string; defId: string; stars: number; level: number }
 
@@ -253,6 +282,8 @@ export type DuelSeat = {
   ready: boolean
   /** One champion in 1v1; the seated party in 4v4. */
   heroes: DuelFighter[]
+  /** A ghost: a snapshot of an absent player's picks, fought by the server. */
+  ghost?: boolean
 }
 
 export type DuelRank = { name: string; wins: number }
@@ -272,6 +303,8 @@ export type DuelPub = {
   resetIn?: number
   /** Both duelists ready: seconds until the fight kicks off (lobby only). */
   startIn?: number
+  /** Ghosts the server can seat in this ring right now (0 hides the plate). */
+  ghosts?: number
 }
 
 export function emptyDuel(mode: DuelMode): DuelPub {
@@ -304,6 +337,195 @@ export type BoardsPub = {
 export function emptyBoards(): BoardsPub {
   return { boards: { level: [], roads: [], raids: [], duels: [] }, ranks: {} }
 }
+
+// --- Realm feed -------------------------------------------------------------------
+
+/** Events the ring buffer keeps; late arrivals see the last few hours of life. */
+export const FEED_MAX = 30
+/** Seconds a feed toast hangs on screen. */
+export const FEED_TOAST_S = 4.5
+
+/**
+ * What happened. Public kinds ride the synced ring buffer for everyone;
+ * personal kinds are addressed to one wallet over feedUpdate (hall pushes).
+ *   enter    - `arg` realm id             (server-detected on overworld moves)
+ *   pull     - `arg` defId, legendary+    (client-reported, rarity checked)
+ *   road     - `n` roads cleared          (client-reported, monotonic)
+ *   raid     - won a rift raid            (server)
+ *   duel     - `arg` = the loser's name   (server)
+ *   warlord  - `arg` defId                (client-reported, known warlord)
+ *   level    - `n` account level, 10/20/..(client-reported, monotonic)
+ *   streak   - day 7 of the login streak  (client-reported, once a week)
+ *   ghostduel- `arg` = the ghost's name   (server: beat an absent rival's heroes)
+ *   boss     - `n` damage, `arg` defId    (server: a new realm-best hit on the world boss)
+ *   bossfell - `arg` defId, `n` tier      (server: the realm felled the world boss)
+ * personal:
+ *   record   - `name` beat your ghost
+ *   ghostraid- `name` raided with your heroes; `n` coins owed
+ *   passed   - `name` passed you on board `arg`
+ */
+export type FeedKind =
+  | 'enter'
+  | 'pull'
+  | 'road'
+  | 'raid'
+  | 'duel'
+  | 'warlord'
+  | 'level'
+  | 'streak'
+  | 'ghostduel'
+  | 'boss'
+  | 'bossfell'
+  | 'record'
+  | 'ghostraid'
+  | 'passed'
+
+export type FeedEvent = {
+  seq: number
+  /** Wall-clock ms. */
+  at: number
+  kind: FeedKind
+  address: string
+  name: string
+  arg?: string
+  n?: number
+}
+
+/** Personal kinds only reach the wallet they concern. */
+export const FEED_PERSONAL: FeedKind[] = ['record', 'ghostraid', 'passed']
+
+export type FeedPub = { events: FeedEvent[] }
+
+export function emptyFeed(): FeedPub {
+  return { events: [] }
+}
+
+// ---- looks ---------------------------------------------------------------------------
+
+/** How many wallets' looks the server remembers (most recently seen win). */
+export const LOOKS_MAX = 240
+
+/** One avatar look, packed: body shape letter, skin and hair as 6-digit hex,
+ * and a trailing 1 when the player picked it themselves (settings >
+ * appearance), which then beats whatever their DCL avatar reports. */
+export type PackedLook = [
+  body: 'm' | 'f',
+  skinHex: string,
+  hairHex: string,
+  chosen?: 0 | 1,
+  outfit?: number,
+  armor?: number
+]
+
+/** A player-chosen look, kept in their save. Hex without '#'; `outfit`
+ * indexes OUTFITS (the tailor's rack); `armor` is 1-based into ARMORS (0 /
+ * missing = none) and must be in the save's `armory`. */
+export type LookChoice = { skin: string; hair: string; body?: 'm' | 'f'; outfit?: number; armor?: number }
+
+/** The tailor's armor stand: suits (with helms) bought with coins, worn over
+ * the tunic and hair. `armor` in a look is index + 1
+ * (images/chars/player-walk-arm-<k>.png). Keep the order in step with
+ * ARMORS in tools/split-walk-layers.py. */
+export const ARMORS: { hex: string; name: string; cost: number }[] = [
+  { hex: '7a5230', name: 'arm-leather', cost: 200 },
+  { hex: '8a8f99', name: 'arm-chain', cost: 500 },
+  { hex: 'c4ccd8', name: 'arm-steel', cost: 1000 },
+  { hex: '4a3a5e', name: 'arm-shadow', cost: 2000 },
+  { hex: 'd9a83a', name: 'arm-royal', cost: 3500 }
+]
+
+/** A wearable armor id: 1..ARMORS.length. */
+export function validArmor(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= ARMORS.length
+}
+
+/** Owned armor ids, deduped and in range. */
+export function cleanArmory(raw: unknown): number[] {
+  const out: number[] = []
+  for (const id of Array.isArray(raw) ? raw.slice(0, ARMORS.length * 2) : []) {
+    if (validArmor(id) && out.indexOf(id) < 0) out.push(id)
+  }
+  return out
+}
+
+/** The tailor's rack: tunic dyes, one baked walk sheet each
+ * (images/chars/player-walk-fit-<k>.png). Index 0 is the painted villager blue.
+ * Hex is the dye at full light, for swatches; `name` is its label strip. */
+export const OUTFITS: { hex: string; name: string }[] = [
+  { hex: '2d4d71', name: 'fit-villager' },
+  { hex: '3f7a3a', name: 'fit-ranger' },
+  { hex: 'a8322b', name: 'fit-crimson' },
+  { hex: '6a3aa8', name: 'fit-royal' },
+  { hex: 'c9962e', name: 'fit-gilded' },
+  { hex: '3a3a42', name: 'fit-shadow' }
+]
+
+export function validOutfit(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 0 && value < OUTFITS.length
+}
+
+/** Settings > appearance swatches, light to deep. */
+export const SKIN_TONES = ['f6dcc8', 'edbd94', 'e0a877', 'c68642', 'a56a3a', '8d5524', '5c3a1e', '3b2314']
+/** Settings > appearance swatches: naturals, then a few dyes. */
+export const HAIR_COLORS = [
+  '1a1210',
+  '4a2c17',
+  '8c5429',
+  'b8763a',
+  'd9a441',
+  'ece0b8',
+  'b0342a',
+  '9a9fa8',
+  '3b6fd6',
+  'a83fb8'
+]
+
+export function sanitizeLook(raw: unknown): LookChoice | undefined {
+  if (!raw || typeof raw !== 'object') return undefined
+  const row = raw as Partial<LookChoice>
+  const hex = /^[0-9a-f]{6}$/i
+  if (typeof row.skin !== 'string' || !hex.test(row.skin)) return undefined
+  if (typeof row.hair !== 'string' || !hex.test(row.hair)) return undefined
+  const look: LookChoice = { skin: row.skin.toLowerCase(), hair: row.hair.toLowerCase() }
+  if (row.body === 'm' || row.body === 'f') look.body = row.body
+  if (validOutfit(row.outfit) && row.outfit > 0) look.outfit = row.outfit
+  if (validArmor(row.armor)) look.armor = row.armor
+  return look
+}
+
+/** Address -> packed look, published by the server for everyone it has seen. */
+export type LooksPub = Record<string, PackedLook>
+
+export function hexOfRgb(c: { r: number; g: number; b: number }): string {
+  const ch = (v: number) =>
+    Math.max(0, Math.min(255, Math.round(v * 255)))
+      .toString(16)
+      .padStart(2, '0')
+  return ch(c.r) + ch(c.g) + ch(c.b)
+}
+
+export function rgbOfHex(hex: string): { r: number; g: number; b: number } | undefined {
+  if (!/^[0-9a-f]{6}$/i.test(hex)) return undefined
+  return {
+    r: parseInt(hex.slice(0, 2), 16) / 255,
+    g: parseInt(hex.slice(2, 4), 16) / 255,
+    b: parseInt(hex.slice(4, 6), 16) / 255
+  }
+}
+
+/** Client -> server: the few feed-worthy moments only the client knows about. */
+export type FeedMsg =
+  | { type: 'pull'; defId: string }
+  | { type: 'road'; n: number }
+  | { type: 'warlord'; defId: string }
+  | { type: 'level'; n: number }
+  | { type: 'streak' }
+
+/** Account levels worth announcing. */
+export const FEED_LEVELS = [10, 20, 30, 40, 50]
+
+/** Realms worth announcing an arrival in (cottages and inns are not). */
+export const FEED_REALMS = ['village', 'wilds', 'deep', 'crow', 'fen', 'moorgate', 'rookhaven', 'crypt', 'well', 'hall']
 
 // --- Friendzone invites ----------------------------------------------------------
 
@@ -384,5 +606,113 @@ export type GiftUpdate =
   | { type: 'received'; name: string; coins: number; dropDefId?: string; dropUid?: string }
   /** The realm goal's crown chest landed in your collection: play the ceremony. */
   | { type: 'goal'; dropDefId: string; dropUid: string }
+  /** World boss spoils: the week's payout by rank (rank >= 1, maybe a card) or
+   * the kill bonus when the realm felled a boss you had hit (rank 0, coins only). */
+  | { type: 'boss'; rank: number; coins: number; dropDefId?: string; dropUid?: string }
   | { type: 'sent'; coins: number }
   | { type: 'blocked'; reason: 'daily' | 'gone' }
+
+// --- World Boss -------------------------------------------------------------------
+//
+// One warlord the whole realm hits together. An attack is your party fighting
+// it for BOSS_ATTACK_S seconds (simulated on the server, streamed to you); the
+// damage you deal in that minute is the attempt's score, and only your best
+// attempt stands on the round's board. The board and the boss live in a
+// rolling three-day UTC window (BOSS_WINDOW_MS); when it turns, everyone who
+// attacked is paid by rank. Fell the boss early and a stronger one rises at once.
+
+/** How long one boss board stands before it pays out and resets. */
+export const BOSS_WINDOW_MS = 3 * DAY_MS
+
+/** Window id stamped on the stored boss state (its `week` field). */
+export function bossWindowOf(now: number): number {
+  return Math.floor(now / BOSS_WINDOW_MS)
+}
+
+export function bossEndsAt(window: number): number {
+  return (window + 1) * BOSS_WINDOW_MS
+}
+
+export const BOSS_ATTACKS_PER_DAY = 3
+export const BOSS_ATTACK_S = 60
+/** Seconds between simulated actions (the rift steps at 1.6 too). */
+export const BOSS_STEP_S = 1.6
+export const BOSS_BASE_HP = 120_000
+/** Each boss the realm fells this round is this much tougher than the last. */
+export const BOSS_HP_GROWTH = 1.6
+/** Coins to everyone who hit a boss when the realm fells it. */
+export const BOSS_KILL_COINS = 120
+/** Rows shown on the damage board. */
+export const BOSS_TOP = 10
+
+export function bossHpFor(tier: number): number {
+  return Math.round(BOSS_BASE_HP * Math.pow(BOSS_HP_GROWTH, Math.max(0, tier - 1)))
+}
+
+/** The boss's blow. Tuned with tools/sim-boss.ts: a two-card day-one party
+ * lasts ~40s against tier 1 and a first-week party the whole minute (~600
+ * damage; a levelled party deals ~1700-2000, capped by the actions a minute
+ * holds); later tiers bite harder so surviving the minute needs a real party.
+ * With BOSS_BASE_HP, ~10 active players at 3 attacks a day fell tier 1 in
+ * about five days; 20 do it in two and meet tier 2. */
+export function bossAtk(tier: number): number {
+  return 10 + 4 * Math.max(1, tier)
+}
+
+/** The week's payout by final rank. Everyone who attacked is paid; the top
+ * is only slightly better - the boss is meant to be everyone's fight. */
+export type BossReward = { coins: number; pack?: 'crown' | 'vow' | 'ember' }
+
+export function bossRewardFor(rank: number): BossReward {
+  if (rank === 1) return { coins: 600, pack: 'crown' }
+  if (rank <= 3) return { coins: 450, pack: 'crown' }
+  if (rank <= 10) return { coins: 320, pack: 'vow' }
+  return { coins: 180, pack: 'ember' }
+}
+
+/** One wallet on the damage board: their best single attack this week. */
+export type BossEntry = { address: string; name: string; level: number; best: number; attacks: number }
+
+/** Where a present player stands: rank (0 = not yet attacked), best hit,
+ * attacks left today. */
+export type BossYou = { rank: number; best: number; left: number }
+
+/** The lair as one synced JSON snapshot. */
+export type BossPub = {
+  week: number
+  /** 1-based: how many bosses the realm has felled this week, plus one. */
+  tier: number
+  defId: string
+  hp: number
+  maxHp: number
+  endsAt: number
+  kills: number
+  board: BossEntry[]
+  you: Record<string, BossYou>
+  /** Attacks in progress right now (the lair feels alive). */
+  fighting: number
+}
+
+export function emptyBoss(now: number = Date.now()): BossPub {
+  const week = bossWindowOf(now)
+  return {
+    week,
+    tier: 1,
+    defId: 'moor-ogre',
+    hp: bossHpFor(1),
+    maxHp: bossHpFor(1),
+    endsAt: bossEndsAt(week),
+    kills: 0,
+    board: [],
+    you: {},
+    fighting: 0
+  }
+}
+
+export type BossMsg = { type: 'attack' }
+
+/** Server -> the attacker only: their private fight, step by step, then the verdict. */
+export type BossUpdate =
+  | { type: 'fight'; battle: BattleState; left: number; dealt: number }
+  | { type: 'done'; dealt: number; best: number; rank: number; kill?: boolean; wiped?: boolean }
+  | { type: 'blocked'; reason: 'none' | 'busy' | 'party' }

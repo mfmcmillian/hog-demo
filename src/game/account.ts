@@ -44,6 +44,8 @@ export function resetAccount() {
   game.roadPick = 0
   game.soundOn = true
   game.musicOn = true
+  game.look = undefined
+  game.armory = []
   game.giftDay = 0
   game.tutSeen = {}
   game.tutTip = ''

@@ -78,6 +78,43 @@ export const MpBoardsState = engine.defineComponent('hog-mp-boards-state', {
 
 MpBoardsState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
 
+/** Sync id for the realm feed entity: the last FEED_MAX public events. */
+export const FEED_SYNC_ID = 6008
+
+/** `json` is a FeedPub ring buffer, persisted, so someone arriving in an empty
+ * World still sees the last few hours of other people's play. */
+export const MpFeedState = engine.defineComponent('hog-mp-feed-state', {
+  json: Schemas.String,
+  revision: Schemas.Int
+})
+
+MpFeedState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+
+/** Sync id for the looks entity: how absent players' walkers should be drawn. */
+export const LOOKS_SYNC_ID = 6009
+
+/** `json` is a LooksPub: address -> packed avatar look (body, skin, hair) for
+ * the last LOOKS_MAX wallets the server saw, so hall rows and feed lines for
+ * people who have left still show their colors rather than the default villager. */
+export const MpLooksState = engine.defineComponent('hog-mp-looks-state', {
+  json: Schemas.String,
+  revision: Schemas.Int
+})
+
+MpLooksState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+
+/** Sync id for the world boss lair: the shared boss, its hp, the damage board. */
+export const BOSS_SYNC_ID = 6010
+
+/** `json` is a BossPub. Private fights are NOT in here - each attacker gets
+ * theirs over bossUpdate - only what the whole realm shares. */
+export const MpBossState = engine.defineComponent('hog-mp-boss-state', {
+  json: Schemas.String,
+  revision: Schemas.Int
+})
+
+MpBossState.validateBeforeChange((value) => value.senderAddress === AUTH_SERVER_PEER_ID)
+
 export const MpMessages = {
   // Client -> server: push my PlayerSave JSON ('' asks for a load only).
   saveRequest: Schemas.Map({ json: Schemas.String }),
@@ -101,7 +138,15 @@ export const MpMessages = {
   // Client -> server: one OwMsg (overworld move / leave / monster slay).
   owMsg: Schemas.Map({ json: Schemas.String }),
   // Server -> clients: an FzUpdate (raid/duel invite) addressed to one wallet.
-  fzUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String })
+  fzUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String }),
+  // Client -> server: one FeedMsg (a feed-worthy moment only the client saw).
+  feedMsg: Schemas.Map({ json: Schemas.String }),
+  // Server -> clients: a personal FeedEvent addressed to one wallet.
+  feedUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String }),
+  // Client -> server: one BossMsg (attack the world boss).
+  bossMsg: Schemas.Map({ json: Schemas.String }),
+  // Server -> clients: a BossUpdate (your private fight / verdict) addressed to one wallet.
+  bossUpdate: Schemas.Map({ address: Schemas.String, json: Schemas.String })
 }
 
 export const room = registerMessages(MpMessages)

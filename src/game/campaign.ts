@@ -10,6 +10,7 @@ import { FLOORS, ROADS, dropStarsFor, floorCoins, floorFoes, floorScale, starSca
 import { grantAccountXp, XP } from './level'
 import { findOwned, game } from './store'
 import { MAX_STARS, Rarity, XpLine } from './types'
+import { feedRoad } from '../mp/feedClient'
 
 const REPLAY_COIN_SCALE = 0.35
 
@@ -311,6 +312,7 @@ function settleBattle() {
     if (game.fightingIndex === game.cleared && game.cleared < ROADS.length) {
       game.cleared += 1
       grantAccountXp(XP.roadClear)
+      feedRoad(game.cleared) // realm news: another road open
     }
     // Ascension: felling the boss at the road's current tier raises the
     // tier and resets the climb. Lower-tier farm runs never move it.

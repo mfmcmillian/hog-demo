@@ -2,7 +2,7 @@ import { cycleHero, pickHero } from './account'
 import { listOathkin } from './allies'
 import { playCancel, playClick, playRift } from './audio'
 import { duelLeave, duelSit, myDuelSeat, mySeat, presentPlayers, riftLeave, riftSit, tradeCancel } from '../mp/session'
-import { duelViews, fz, gift, hall, riftView } from '../mp/views'
+import { bossView, duelViews, fz, gift, hall, riftView, wardrobe } from '../mp/views'
 import { Arena, DUEL_ENERGY_COST, DUEL_MODES, DUEL_SEATS, RIFT_ENERGY_COST, RIFT_SEATS } from '../mp/protocol'
 import type { DailyTaskId } from './daily'
 import { DEBUG } from './debug'
@@ -78,6 +78,13 @@ export function open(phase: Phase) {
   if (phase === 'fuse') prepareFuse()
   if (phase === 'festival') game.festPage = 0 // the dailies are the reason you came
   if (phase === 'hall') hall.tab = 'level' // the board everyone is on
+  if (phase === 'boss') {
+    // A fresh look at the lair: last attack's verdict is gone. An attack
+    // still running on the server re-attaches on its next step.
+    bossView.result = undefined
+    bossView.blocked = ''
+    bossView.tab = 'lair'
+  }
   if (phase === 'overworld') enterOverworld()
   // Fresh cards are discovered the moment the bench is on screen.
   if (phase === 'party') game.freshUids = []
@@ -186,11 +193,17 @@ export function openOverworld() {
 }
 
 /** What a closed talk leaves behind: a quest prize (owQuests table), or a
- * home screen the host keeps (merchant -> shop, innkeeper -> party bench). */
+ * screen the host keeps (merchant -> shop, innkeeper -> party bench, the
+ * tailor -> his rack). */
 export function runOwTalkThen(then: string) {
   if (!then) return
   const [kind, arg] = then.split(':')
-  if (kind === 'shop' || kind === 'party') {
+  if (kind === 'wardrobe') {
+    // The tailor shows his rack first; back returns to his cottage.
+    wardrobe.tab = 'clothes'
+    wardrobe.fromSettings = false
+  }
+  if (kind === 'shop' || kind === 'party' || kind === 'wardrobe') {
     open(kind)
     screenFromOverworld = kind
     lockNav()
@@ -503,6 +516,12 @@ export function back() {
     lockNav()
     return
   }
+  if (game.phase === 'wardrobe' && wardrobe.fromSettings) {
+    wardrobe.fromSettings = false
+    open('settings')
+    lockNav()
+    return
+  }
   if (game.phase === 'festival' && gift.picking) {
     gift.picking = false
     lockNav()
@@ -524,6 +543,13 @@ export function back() {
   if (game.phase === 'trade' || game.phase === 'rift') {
     leaveMultiplayerScreen()
     return
+  }
+  if (game.phase === 'boss') {
+    // The fight (if any) keeps running on the server and is still scored;
+    // only the spectating stops. Drop the borrowed battle snapshot so the
+    // combat FX don't linger on the next screen.
+    game.battle = undefined
+    bossView.result = undefined
   }
   goHome()
   lockNav()

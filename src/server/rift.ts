@@ -6,23 +6,31 @@ import { BOSS_IDS, grantXp, makeOwned, rollDef } from '../game/familiars'
 import { OwnedFamiliar } from '../game/types'
 import {
   ENERGY_MAX,
+  GHOST_ALLY_COINS,
+  GHOST_PREFIX,
   LOBBY_COUNTDOWN_S,
+  RAID_SPOILS_PER_DAY,
   RIFT_ENERGY_COST,
   RIFT_FLOORS,
+  RIFT_GHOST_FILL,
   RIFT_SEATS,
   RiftMsg,
   RiftPub,
   RiftReward,
   RiftSeat,
-  emptyRift
+  emptyRift,
+  giftDayOf,
+  isGhostAddress
 } from '../mp/protocol'
 import { MpRiftState, RIFT_SYNC_ID, room } from '../mp/transport'
 import { ServerCtx } from './ctx'
+import { FeedApi } from './feed'
 import { relayFzInvite } from './fz'
+import { GhostsApi } from './ghosts'
 
 export function setupRift(
   ctx: ServerCtx,
-  deps: { festBump: (floors: number) => void; raidWon: (address: string) => void }
+  deps: { festBump: (floors: number) => void; raidWon: (address: string) => void; feed: FeedApi; ghosts: GhostsApi }
 ): { rift: RiftPub; publishRift: () => void; riftReset: () => void } {
   // --- The Rift ---------------------------------------------------------------
   const riftEntity = engine.addEntity()
@@ -31,15 +39,56 @@ export function setupRift(
   /** Carried hp between floors, by unit uid. */
   let riftHp = new Map<string, number>()
   let riftWait = 0
+  /** Spoils-paying wins per wallet per UTC day (RAID_SPOILS_PER_DAY). Raids
+   * are free, so this is what keeps them from being a card farm. Session
+   * memory is enough: a restart at worst pays one extra day's spoils. */
+  const spoilsToday = new Map<string, { day: number; n: number }>()
+
+  function spoilsLeft(address: string): number {
+    const day = giftDayOf(Date.now())
+    const row = spoilsToday.get(address)
+    return Math.max(0, RAID_SPOILS_PER_DAY - (row && row.day === day ? row.n : 0))
+  }
+
+  function spendSpoils(address: string): void {
+    const day = giftDayOf(Date.now())
+    const row = spoilsToday.get(address)
+    spoilsToday.set(address, { day, n: (row && row.day === day ? row.n : 0) + 1 })
+  }
 
   MpRiftState.create(riftEntity, { json: JSON.stringify(rift), revision: riftRevision })
   syncEntity(riftEntity, [MpRiftState.componentId], RIFT_SYNC_ID)
 
   function publishRift(): void {
     riftRevision += 1
+    // Every seated human sees how many paying wins they have left today.
+    for (const seat of rift.seats) if (!seat.ghost) seat.spoils = spoilsLeft(seat.address)
     const state = MpRiftState.getMutable(riftEntity)
     state.json = JSON.stringify(rift)
     state.revision = riftRevision
+  }
+
+  /** Seats short of RIFT_GHOST_FILL get ghost allies: absent players' first
+   * party hero, fought by the server exactly like a seated one. */
+  function seatGhosts(): void {
+    const humans = rift.seats.filter((seat) => !seat.ghost)
+    const need = RIFT_GHOST_FILL - rift.seats.length
+    if (need <= 0) return
+    const exclude = humans.map((seat) => seat.address)
+    for (const ghost of deps.ghosts.pickRaiders(exclude, need)) {
+      const hero = ghost.party?.[0]
+      if (!hero) continue
+      rift.seats.push({
+        address: `${GHOST_PREFIX}${ghost.address.startsWith(GHOST_PREFIX) ? ghost.address.slice(GHOST_PREFIX.length) : ghost.address}`,
+        name: ghost.name,
+        uid: `${hero.uid}@ghost`,
+        defId: hero.defId,
+        stars: hero.stars,
+        level: hero.level,
+        ready: true,
+        ghost: true
+      })
+    }
   }
 
   function riftReset(): void {
@@ -130,12 +179,18 @@ export function setupRift(
       if (save) {
         // Mirrors the client's spendEnergy: the playtest flag refills instead
         // of draining, so the server copy never silently starves out sits.
-        save.energy = DEBUG.unlimitedEnergy ? ENERGY_MAX : Math.max(0, save.energy - RIFT_ENERGY_COST)
-        ctx.persistSave(seat.address)
-        ctx.pushSave(seat.address)
+        if (RIFT_ENERGY_COST > 0) {
+          save.energy = DEBUG.unlimitedEnergy ? ENERGY_MAX : Math.max(0, save.energy - RIFT_ENERGY_COST)
+          ctx.persistSave(seat.address)
+          ctx.pushSave(seat.address)
+        }
+        // Their party is now a ghost other raids can call on.
+        deps.ghosts.snapRaider(seat.address, save)
       }
       seat.ready = false
     }
+    // Short-handed: ghost allies take the empty seats.
+    seatGhosts()
     rift.floor = 1
     rift.startIn = undefined
     riftHp = new Map()
@@ -146,16 +201,27 @@ export function setupRift(
     rift.phase = won ? 'won' : 'lost'
     if (won) {
       const rewards: RiftReward[] = []
+      const humans = rift.seats.filter((seat) => !seat.ghost)
+      const withName = humans[0]?.name ?? 'a traveler'
       for (const seat of rift.seats) {
+        if (seat.ghost) {
+          // The owner is owed a cut, paid when they next arrive (or now, if here).
+          deps.ghosts.owe(seat.address, GHOST_ALLY_COINS, withName)
+          rewards.push({ address: seat.address, coins: GHOST_ALLY_COINS, xp: 0 })
+          continue
+        }
         deps.raidWon(seat.address) // a rung on the Hall of Heroes raids board
         const save = ctx.saves.get(seat.address)
-        const reward: RiftReward = { address: seat.address, coins: 90, xp: 46 }
-        if (Math.random() < 0.7) {
+        // Spoils pay RAID_SPOILS_PER_DAY times a day; after that XP and the board only.
+        const paying = spoilsLeft(seat.address) > 0
+        const reward: RiftReward = { address: seat.address, coins: paying ? 90 : 0, xp: 46 }
+        if (paying && Math.random() < 0.7) {
           const drop = makeOwned(rollDef().id)
           reward.dropDefId = drop.defId
           reward.dropUid = drop.uid
           save?.collection.push(drop)
         }
+        if (paying) spendSpoils(seat.address)
         if (save) {
           save.coins += reward.coins
           const owned = save.collection.find((entry) => entry.uid === seat.uid)
@@ -164,6 +230,7 @@ export function setupRift(
           ctx.pushSave(seat.address)
         }
         rewards.push(reward)
+        deps.feed.post('raid', seat.address, { n: rift.seats.length })
       }
       rift.rewards = rewards
     }
@@ -184,6 +251,7 @@ export function setupRift(
     }
     if (msg.type === 'sit') {
       if (rift.phase !== 'lobby') return
+      if (isGhostAddress(sender)) return
       const mine = rift.seats.find((seat) => seat.address === sender)
       if (!mine && rift.seats.length >= RIFT_SEATS) return
       const save = ctx.saves.get(sender)
@@ -202,7 +270,7 @@ export function setupRift(
         return
       }
       // Not enough energy: refuse the seat (clients also gate this).
-      if (!DEBUG.unlimitedEnergy && save.energy < RIFT_ENERGY_COST) return
+      if (RIFT_ENERGY_COST > 0 && !DEBUG.unlimitedEnergy && save.energy < RIFT_ENERGY_COST) return
       const seat: RiftSeat = {
         address: sender,
         name: ctx.nameFor(sender),
@@ -210,7 +278,8 @@ export function setupRift(
         defId: card.defId,
         stars: card.stars,
         level: card.level,
-        ready: false
+        ready: false,
+        spoils: spoilsLeft(sender)
       }
       rift.seats.push(seat)
       publishRift()

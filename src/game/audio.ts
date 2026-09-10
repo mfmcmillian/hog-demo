@@ -1,5 +1,5 @@
 import { AudioSource, Transform, engine, type Entity } from '@dcl/sdk/ecs'
-import { riftView } from '../mp/views'
+import { bossView, riftView } from '../mp/views'
 import { STORIES } from './stories'
 import { game } from './store'
 import { BattleFx, Phase, Rarity } from './types'
@@ -75,7 +75,11 @@ function musicBed(phase: Phase): { clip: string; loop: boolean; volume: number; 
     }
     return { clip: MUSIC.hub, loop: true, volume: VOL.musicHub, key: 'hub' }
   }
-  if (MATCH_PHASES.includes(phase) || (phase === 'rift' && riftView.pub.phase === 'battle')) {
+  if (
+    MATCH_PHASES.includes(phase) ||
+    (phase === 'rift' && riftView.pub.phase === 'battle') ||
+    (phase === 'boss' && !!bossView.fight)
+  ) {
     return { clip: MUSIC.match, loop: true, volume: VOL.musicMatch, key: 'match' }
   }
   return { clip: MUSIC.hub, loop: true, volume: VOL.musicHub, key: 'hub' }

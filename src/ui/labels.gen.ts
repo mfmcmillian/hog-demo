@@ -138,6 +138,7 @@ export const LABELS: Record<string, LabelInfo> = {
   'home-rift': { src: 'images/home/rift-a.png', w: 512, h: 512 },
   'home-fuse': { src: 'images/home/fuse-b.png', w: 512, h: 512 },
   'home-hall': { src: 'images/home/hall-a.png', w: 512, h: 512 },
+  'home-boss': { src: 'images/home/boss-a.png', w: 512, h: 512 },
   'map-hall-of-heroes': { src: 'images/maps/hall-of-heroes-a.jpg', w: 768, h: 512 },
   'hall-of-heroes': { src: 'images/labels/hall-of-heroes.png', w: 114, h: 532 },
   shop: { src: 'images/labels/shop.png', w: 47, h: 99 },

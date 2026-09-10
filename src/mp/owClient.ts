@@ -18,6 +18,8 @@ export const owView: { pub: OwPub; revision: number } = { pub: emptyOw(), revisi
 /** A mirrored entity mid-lerp: (fx,fy) -> (gx,gy) at progress t. */
 export type OwRemote = {
   name: string
+  /** Wallet ('' for monsters), so the map can draw their avatar's look. */
+  address: string
   realm: OwRealmId
   gx: number
   gy: number
@@ -156,6 +158,7 @@ export function tickOwMirror(dt: number): void {
       if (!remote) {
         remotePlayers.set(player.address, {
           name: player.name,
+          address: player.address,
           realm,
           gx: player.gx,
           gy: player.gy,
@@ -181,6 +184,7 @@ export function tickOwMirror(dt: number): void {
         remoteMonsters.set(monster.key, {
           id: monster.id,
           name: '',
+          address: '',
           realm,
           gx: monster.gx,
           gy: monster.gy,

@@ -5,6 +5,7 @@ import { levelForXp } from '../game/level'
 import { BOARD_IDS, BOARD_TOP, BoardEntry, BoardId, BoardsPub, PlayerSave } from '../mp/protocol'
 import { BOARDS_SYNC_ID, MpBoardsState } from '../mp/transport'
 import { ServerCtx } from './ctx'
+import { FeedApi } from './feed'
 
 /** One wallet's standing, kept for every player the hall has ever seen. */
 type Row = {
@@ -32,7 +33,7 @@ type BoardsStore = Record<string, Row>
  */
 export function setupBoards(
   ctx: ServerCtx,
-  deps: { duelWins: () => Record<string, { name: string; wins: number }> }
+  deps: { duelWins: () => Record<string, { name: string; wins: number }>; feed: FeedApi }
 ): { bumpRaid: (address: string) => void; bumpWin: (address: string) => void } {
   const BOARDS_KEY = 'hog-boards-v1'
   const entity = engine.addEntity()
@@ -43,6 +44,9 @@ export function setupBoards(
   /** A row changed since the last publish / persist. */
   let dirty = false
   let lastPresence = ''
+  /** Each present player's ranks at the last publish, so a slip is noticed
+   * and they hear who passed them (hall push over the personal feed). */
+  const lastRanks = new Map<string, Record<BoardId, number>>()
 
   MpBoardsState.create(entity, { json: JSON.stringify(emptyPub()), revision })
   syncEntity(entity, [MpBoardsState.componentId], BOARDS_SYNC_ID)
@@ -154,10 +158,34 @@ export function setupBoards(
     return pub
   }
 
+  /** Someone present slipped a rung: tell them who now stands just above. */
+  function pushSlips(pub: BoardsPub): void {
+    for (const address of ctx.present) {
+      const now = pub.ranks[address]
+      if (!now) continue
+      const before = lastRanks.get(address)
+      if (before) {
+        for (const board of BOARD_IDS) {
+          const was = before[board]
+          const is = now[board]
+          if (was <= 0 || is <= was) continue
+          const above = sorted(board)[is - 2]
+          if (!above) continue
+          const [who, row] = above
+          deps.feed.postTo(address, 'passed', { name: row.name || ctx.nameFor(who), arg: board })
+        }
+      }
+      lastRanks.set(address, { ...now })
+    }
+    for (const address of lastRanks.keys()) if (!ctx.present.has(address)) lastRanks.delete(address)
+  }
+
   function publish(): void {
     revision += 1
+    const pub = buildPub()
+    pushSlips(pub)
     const state = MpBoardsState.getMutable(entity)
-    state.json = JSON.stringify(buildPub())
+    state.json = JSON.stringify(pub)
     state.revision = revision
   }
 

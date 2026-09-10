@@ -5,7 +5,7 @@ import { goHome } from '../game/menu'
 import { game } from '../game/store'
 import { SeenStoryId, STORY_IDS, TipId } from '../game/types'
 import { getMyAddress } from './identity'
-import { MP_VERSION, PlayerSave, mergeDaily, sanitizeDaily } from './protocol'
+import { MP_VERSION, PlayerSave, cleanArmory, mergeDaily, sanitizeDaily, sanitizeLook } from './protocol'
 import { room } from './transport'
 
 /** True once the server confirmed a storage-backed save round-trip. */
@@ -52,7 +52,9 @@ function mySave(): PlayerSave {
     owFlags: game.owFlags,
     owItems: game.owItems,
     daily: game.daily,
-    axp: game.axp
+    axp: game.axp,
+    look: game.look,
+    armory: game.armory
   }
 }
 
@@ -94,6 +96,8 @@ function applySave(save: PlayerSave): void {
   // Older saves predate the daily hooks; missing means a fresh streak.
   game.daily = sanitizeDaily(save.daily)
   setAccountXp(saveXp(save))
+  game.look = sanitizeLook(save.look)
+  game.armory = cleanArmory(save.armory)
   applyDebugGrants()
 }
 
@@ -122,9 +126,15 @@ function applyServerUpdate(save: PlayerSave): void {
   const items = game.owItems.slice()
   const dailyLocal = game.daily
   const xpLocal = game.axp
+  const lookLocal = game.look
+  const armoryLocal = game.armory.slice()
   applySave(save)
   // XP is client-earned and forward-moving, like roads.
   setAccountXp(Math.max(xpLocal, game.axp))
+  // The appearance pick is client-owned: a push racing a fresh swatch tap keeps the tap.
+  if (lookLocal) game.look = lookLocal
+  // Bought armor is client-owned too: a push racing a purchase keeps the suit.
+  game.armory = unionIds(armoryLocal, game.armory)
   game.cleared = cleared
   game.floorAt = floorAt
   game.roadStar = roadStar
@@ -141,6 +151,12 @@ function applyServerUpdate(save: PlayerSave): void {
   // Daily claims/progress are client-driven too: a push racing a just-tapped
   // CLAIM must not hand the reward back.
   game.daily = mergeDaily(dailyLocal, game.daily)
+}
+
+function unionIds(a: number[], b: number[]): number[] {
+  const out = a.slice()
+  for (const id of b) if (out.indexOf(id) < 0) out.push(id)
+  return out
 }
 
 function unionOw(a: string[], b: string[]): string[] {
@@ -180,6 +196,8 @@ function mergeSave(save: PlayerSave): void {
   game.owItems = unionOw(game.owItems, save.owItems ?? [])
   game.daily = mergeDaily(game.daily, sanitizeDaily(save.daily))
   setAccountXp(Math.max(game.axp, saveXp(save)))
+  if (!game.look) game.look = sanitizeLook(save.look)
+  game.armory = unionIds(game.armory, cleanArmory(save.armory))
   applyDebugGrants()
 }
 

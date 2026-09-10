@@ -1,4 +1,4 @@
-import { DailyState, emptyDaily } from '../mp/protocol'
+import { DailyState, emptyDaily, LookChoice } from '../mp/protocol'
 import { PackId } from './packs'
 import { BattleState, NoticeCode, OwnedFamiliar, Phase, RoadRun, SeenStoryId, StoryId, TipId, XpLine } from './types'
 
@@ -109,6 +109,10 @@ export const game = {
   daily: emptyDaily() as DailyState,
   /** Account XP (game/level.ts); persisted. Level and energy cap derive from it. */
   axp: 0,
+  /** Settings > appearance pick; persisted. Undefined = use the DCL avatar. */
+  look: undefined as LookChoice | undefined,
+  /** Armor suits bought from the tailor (protocol ARMORS ids, 1-based). */
+  armory: [] as number[],
   /** Level-up ceremony waiting to play / showing; undefined = none. */
   levelUp: undefined as LevelUpInfo | undefined,
   /** Level card (what XP is, next rewards) open on the home screen. */

@@ -30,6 +30,8 @@ import { canGiftToday, festView, gift, giftSend, levelOf, presentPlayers } from 
 import { chestOpenSheet, giftFx, loopSparksUvs, sparksSheet, stopGiftFx } from './flipbook'
 import { press, pressShrink, pressTint } from './fx/press'
 import './labels.daily.gen'
+import './labels.boss.gen' // boss-spoils / boss-felled on the spoils chest
+import './labels.hall.gen' // rank-hash
 import { LABELS } from './labels.gen'
 import { ChestStage, ModalScrim } from './panels'
 import { cream, danger, gold, muted, panelDim } from './theme'
@@ -754,10 +756,24 @@ export function GiftCeremony() {
         {got.goal ? (
           // The realm goal's crown chest: the goal's own title, no sender.
           <Img k="fest-realm-goal" w={42} tint={Color4.White()} margin={4} />
+        ) : got.boss !== undefined ? (
+          // World boss spoils: the week's rank it paid, or the kill bonus.
+          <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center' }}>
+            <Img k="boss-spoils" w={34} tint={gold} margin={4} />
+            <UiEntity uiTransform={{ width: 10 }} />
+            {got.boss > 0 ? (
+              <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center' }}>
+                <Img k="rank-hash" w={24} tint={cream} margin={0} />
+                <Digits value={got.boss} w={34} tint={cream} tight />
+              </UiEntity>
+            ) : (
+              <Img k="boss-felled" w={24} tint={cream} margin={4} />
+            )}
+          </UiEntity>
         ) : (
           <Img k="fest-gift-from" w={30} tint={gold} margin={4} />
         )}
-        {got.goal ? null : <NameTag name={got.name} w={26} tint={cream} />}
+        {got.goal || got.boss !== undefined ? null : <NameTag name={got.name} w={26} tint={cream} />}
       </UiEntity>
       <ChestStage fx={fx} stage={330} margin={8} light={light} chestSrc={sheet} chestUvs={fx.chestUvs} />
       {fx.settled ? (

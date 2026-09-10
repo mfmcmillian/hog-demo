@@ -11,8 +11,11 @@ import { msToNextEnergy } from '../game/energy'
 import { levelProgress } from '../game/level'
 import { findOwned, game } from '../game/store'
 import { goPointerShowing, partyPointerShowing, questingPointerShowing, questingUnlocked } from '../game/tutorial'
-import { canGiftToday, duelSeatCount, getMyName, levelOf, presentPlayers } from '../mp/session'
+import { lookOf } from '../mp/looks'
+import { canGiftToday, duelSeatCount, getMyAddress, getMyName, levelOf, myBoss, presentPlayers } from '../mp/session'
+import './labels.boss.gen' // the lair's POI plate (world-boss)
 import { riftView } from '../mp/views'
+import { AvatarBust } from './avatar'
 import { campfireSheet, campfireUvs, villagerSheet, villagerTalkUvs } from './flipbook'
 import { press, pressShrink, pressTint } from './fx/press'
 import { cardBackArt } from './halls'
@@ -207,11 +210,114 @@ function HomePoi(props: {
   )
 }
 
+// ---- the fireside ------------------------------------------------------------------
+//
+// Everyone in the scene right now sits in a ring around the village fire as
+// their walker (mp/looks.ts: their picked skin, hair, tunic and armor, or
+// their DCL avatar snapped to the palette), you included. Seats are dealt in
+// wallet order so nobody hops when someone arrives; the far side draws
+// before the fire so the flames overlap them, the near side after. Tapping
+// a figure shows its name.
+
+/** The fire quad's center in the field: left 32% of the 735 field + 85,
+ * top 41% of the chrome well (90% of the 720 stage) + 85. */
+const FIRE_CX = Math.round(0.32 * 735) + 85
+/** A seated figure: the bust's zoomed figure rect, phone-tall by phone-wide. */
+const SEAT_W = 90
+const SEAT_H = Math.round((SEAT_W * 0.42) / 0.72)
+/** Walk-sheet rows (game/overworld FACING_ROW): down, left, right, up. */
+const FACE_DOWN = 0
+const FACE_LEFT = 1
+const FACE_RIGHT = 2
+const FACE_UP = 3
+
+/** Fireside seats, hand-placed in the clear ground between the village's
+ * buildings (canvas left/top of the figure's box; x runs physically down, y
+ * physically right-to-left). Dealt in this order, so a lone traveler sits at
+ * the fire's left, facing it. Fire quad: x 235..405, y 266..436; the trade
+ * post starts at x 367 / y 441, the hall at x 514, the fuse forge ends at
+ * x 209 above y 402, the shop ends at x 191 below y 223. */
+const FIRE_SEATS: { left: number; top: number; cell: number }[] = [
+  { left: 255, top: 445, cell: FACE_RIGHT }, // left of the fire
+  { left: 262, top: 205, cell: FACE_LEFT }, // right of the fire
+  { left: 415, top: 300, cell: FACE_UP }, // in front, before the hall
+  { left: 155, top: 348, cell: FACE_DOWN }, // behind, left of center
+  { left: 155, top: 258, cell: FACE_DOWN }, // behind, right of center
+  { left: 60, top: 330, cell: FACE_DOWN } // up the lane
+]
+const FIRESIDE_MAX = FIRE_SEATS.length
+
+/** Whose name is up at the fire (their address), if any. */
+let fireTagged = ''
+
+type Seat = { address: string; name: string; left: number; top: number; cell: number; near: boolean }
+
+function firesideSeats(): Seat[] {
+  const me = getMyAddress()
+  const addresses = [...presentPlayers.keys()].filter((address) => address !== me)
+  addresses.sort()
+  addresses.unshift(me)
+  // Seated still: nudging six layered figures every frame re-laid-out the
+  // whole home tree each frame for a two-pixel breath nobody saw.
+  return addresses.slice(0, FIRESIDE_MAX).map((address, i) => {
+    const spot = FIRE_SEATS[i]
+    return {
+      address,
+      name: address === me ? getMyName() : (presentPlayers.get(address) ?? address.slice(0, 8)),
+      left: spot.left,
+      top: spot.top,
+      cell: spot.cell,
+      // Below the fire's center draws over the flames; above, behind them.
+      near: spot.left + SEAT_W / 2 > FIRE_CX
+    }
+  })
+}
+
+function FiresideFigure(props: { key?: string; seat: Seat }) {
+  const { seat } = props
+  const tagged = fireTagged === seat.address
+  return (
+    <UiEntity
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: seat.left, top: seat.top },
+        width: SEAT_W,
+        height: SEAT_H
+      }}
+      onMouseDown={tap(() => {
+        fireTagged = tagged ? '' : seat.address
+      })}
+    >
+      <AvatarBust look={lookOf(seat.address)} cell={seat.cell} w={SEAT_W} margin={0} />
+      {tagged ? (
+        // The name, physically under the figure, on a dark strip.
+        <UiEntity
+          uiTransform={{
+            positionType: 'absolute',
+            position: { left: SEAT_W - 2, top: -40 },
+            width: 22,
+            height: SEAT_H + 80,
+            flexDirection: 'column-reverse',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerFilter: 'none'
+          }}
+          uiBackground={{ color: Color4.create(0.02, 0.01, 0.02, 0.7) }}
+        >
+          <NameTag name={seat.name} w={14} tint={gold} />
+        </UiEntity>
+      ) : null}
+    </UiEntity>
+  )
+}
+
 function HomeField() {
   const village = LABELS['map-home']
   // The village fire grows with every player in the scene.
   const online = presentPlayers.size + 1
   const fireSize = Math.min(220, 84 + (online - 1) * 32)
+  const seats = firesideSeats()
+  if (fireTagged && !seats.some((seat) => seat.address === fireTagged)) fireTagged = ''
   return (
     <UiEntity
       uiTransform={{
@@ -224,6 +330,11 @@ function HomeField() {
         color: Color4.White()
       }}
     >
+      {seats
+        .filter((seat) => !seat.near)
+        .map((seat) => (
+          <FiresideFigure key={seat.address} seat={seat} />
+        ))}
       <UiEntity
         uiTransform={{
           positionType: 'absolute',
@@ -248,6 +359,11 @@ function HomeField() {
           })}
         />
       </UiEntity>
+      {seats
+        .filter((seat) => seat.near)
+        .map((seat) => (
+          <FiresideFigure key={seat.address} seat={seat} />
+        ))}
       <HomePoi k="home-shop" label="shop" left="8%" top="14%" size={132} onTap={() => open('shop')} />
       <HomePoi k="home-trade" label="trade" left="50%" top="68%" size={140} onTap={() => open('trade')} />
       <HomePoi
@@ -263,6 +379,17 @@ function HomeField() {
       {/* The Hall of Heroes: the leaderboards, in the clear ground on the
           village's east side between the friendzone gate and the trade post. */}
       <HomePoi k="home-hall" label="hall-of-heroes" left="70%" top="37%" size={134} onTap={() => open('hall')} />
+      {/* The world boss lair: a war banner on the village's south-east edge.
+          The badge counts the attacks you still have today. */}
+      <HomePoi
+        k="home-boss"
+        label="world-boss"
+        left="73%"
+        top="66%"
+        size={140}
+        badge={myBoss().left}
+        onTap={() => open('boss')}
+      />
       {/* The quest map: locked until the Moor Gate road is cleared, then
           resumes where you left it this session. */}
       <HomePoi

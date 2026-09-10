@@ -255,7 +255,14 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
   },
   // Village homes: quest rooms (a host with a hint, sometimes a chest or a
   // side quest). Menus live on the home screen, not behind these doors.
-  'hut-weaver': hut('village', DOOR_TL, { id: 'weaver', talk: 'weaver', sheet: 'woman-walk' }),
+  // The weaver's cottage doubles as the tailor's: he stands by the rug's
+  // east edge and his talk opens the wardrobe (skin, hair, tunic dyes).
+  'hut-weaver': hut(
+    'village',
+    DOOR_TL,
+    { id: 'weaver', talk: 'weaver', sheet: 'woman-walk' },
+    { npcs: [{ gx: 6, gy: 8, id: 'tailor', talk: 'tailor', sheet: 'man-walk' }] }
+  ),
   'hut-hunter': hut(
     'village',
     DOOR_TR,
@@ -442,9 +449,24 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       { gx: 6, gy: 1, fx: 'wisp' }
     ],
     signs: [{ gx: 1, gy: 13, talk: 'sign-deep' }],
-    blocks: [{ gx: 4, gy: 10 }, { gx: 3, gy: 11 }],
-    switches: [{ gx: 4, gy: 11 }, { gx: 5, gy: 11 }],
-    locks: [{ gx: 4, gy: 4, needSwitch: [{ gx: 4, gy: 11 }, { gx: 5, gy: 11 }] }]
+    blocks: [
+      { gx: 4, gy: 10 },
+      { gx: 3, gy: 11 }
+    ],
+    switches: [
+      { gx: 4, gy: 11 },
+      { gx: 5, gy: 11 }
+    ],
+    locks: [
+      {
+        gx: 4,
+        gy: 4,
+        needSwitch: [
+          { gx: 4, gy: 11 },
+          { gx: 5, gy: 11 }
+        ]
+      }
+    ]
   },
   // Crow Road (Act 2): a single-file switchback through the dead forest, off
   // the village's west road. Rows authored against assets/crow-map-grid.png.
@@ -666,10 +688,24 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
       { gx: 6, gy: 7, id: 'chest-well-coins', loot: { coins: 20 } },
       { gx: 7, gy: 12, id: 'chest-well-key', loot: { item: 'bone-key' } }
     ],
-    blocks: [{ gx: 3, gy: 9 }, { gx: 2, gy: 10 }, { gx: 6, gy: 10 }],
-    switches: [{ gx: 0, gy: 9 }, { gx: 8, gy: 9 }],
+    blocks: [
+      { gx: 3, gy: 9 },
+      { gx: 2, gy: 10 },
+      { gx: 6, gy: 10 }
+    ],
+    switches: [
+      { gx: 0, gy: 9 },
+      { gx: 8, gy: 9 }
+    ],
     locks: [
-      { gx: 4, gy: 8, needSwitch: [{ gx: 0, gy: 9 }, { gx: 8, gy: 9 }] },
+      {
+        gx: 4,
+        gy: 8,
+        needSwitch: [
+          { gx: 0, gy: 9 },
+          { gx: 8, gy: 9 }
+        ]
+      },
       { gx: 4, gy: 2, needItem: 'bone-key' }
     ]
   },
@@ -723,8 +759,14 @@ export const OW_REALMS: Record<OwRealmId, OwRealm> = {
     ],
     signs: [{ gx: 5, gy: 10, talk: 'sign-hall' }],
     chests: [{ gx: 1, gy: 6, id: 'chest-hall-key', loot: { item: 'oath-key' } }],
-    blocks: [{ gx: 3, gy: 11 }, { gx: 4, gy: 6 }],
-    switches: [{ gx: 2, gy: 11 }, { gx: 1, gy: 5 }],
+    blocks: [
+      { gx: 3, gy: 11 },
+      { gx: 4, gy: 6 }
+    ],
+    switches: [
+      { gx: 2, gy: 11 },
+      { gx: 1, gy: 5 }
+    ],
     locks: [
       { gx: 4, gy: 9, needSwitch: [{ gx: 2, gy: 11 }] },
       { gx: 4, gy: 4, needSwitch: [{ gx: 1, gy: 5 }] },

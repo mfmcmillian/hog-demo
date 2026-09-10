@@ -3,7 +3,7 @@ import { getDef } from '../game/familiars'
 import { ROADS } from '../game/quests'
 import { MAX_LEVEL, MAX_STARS, OwnedFamiliar, PARTY_SIZE, STORY_IDS, TIP_IDS } from '../game/types'
 import { energyCapFor, levelForXp, retroXp, XP_HARD_CAP } from '../game/level'
-import { PlayerSave, emptySave, sanitizeDaily } from '../mp/protocol'
+import { PlayerSave, cleanArmory, emptySave, sanitizeDaily, sanitizeLook } from '../mp/protocol'
 import { room } from '../mp/transport'
 
 const SAVE_KEY = 'hog-save-v1'
@@ -59,7 +59,10 @@ function sanitizeSave(raw: unknown): PlayerSave {
   save.axp =
     typeof row.axp === 'number'
       ? Math.max(0, Math.min(XP_HARD_CAP, Math.floor(row.axp)))
-      : Math.min(XP_HARD_CAP, retroXp({ collection: save.collection, cleared: save.cleared, finalWon: row.finalWon === true }))
+      : Math.min(
+          XP_HARD_CAP,
+          retroXp({ collection: save.collection, cleared: save.cleared, finalWon: row.finalWon === true })
+        )
   save.energy = Math.max(0, Math.min(energyCapFor(levelForXp(save.axp)), Math.floor(Number(row.energy) || 0)))
   // The regen anchor can't sit in the future (that would stall the refill).
   save.energyAt = Math.max(0, Math.min(Date.now(), Math.floor(Number(row.energyAt) || 0)))
@@ -95,6 +98,11 @@ function sanitizeSave(raw: unknown): PlayerSave {
   save.owFlags = cleanOwList(row.owFlags)
   save.owItems = cleanOwList(row.owItems)
   save.daily = sanitizeDaily(row.daily)
+  save.armory = cleanArmory(row.armory)
+  const look = sanitizeLook(row.look)
+  // Armor is worn only if it was bought.
+  if (look?.armor !== undefined && save.armory.indexOf(look.armor) < 0) delete look.armor
+  if (look) save.look = look
   return save
 }
 
@@ -180,7 +188,11 @@ async function readWithRetry(address: string, key: string, attempts = 3): Promis
   return undefined
 }
 
-export type SaveGrants = { maybeGrantFest: (address: string) => void }
+export type SaveGrants = {
+  maybeGrantFest: (address: string) => void
+  maybeGrantGhost: (address: string) => void
+  maybeGrantBoss: (address: string) => void
+}
 
 export function setupSaves(grants: SaveGrants): {
   saves: Map<string, PlayerSave>
@@ -277,12 +289,16 @@ export function setupSaves(grants: SaveGrants): {
         }
         saveReady.add(address)
         if (restored) {
-          console.log(`[Server] save RESTORED from backup for ${address}: ${loaded!.collection.length} card(s), ${loaded!.cleared} road(s)`)
+          console.log(
+            `[Server] save RESTORED from backup for ${address}: ${loaded!.collection.length} card(s), ${loaded!.cleared} road(s)`
+          )
           writeKey(address, SAVE_KEY, loaded!, 'save')
         }
         // One line per arrival so the hosted log shows storage is answering.
         console.log(`[Server] save loaded for ${address}: ${saves.get(address)?.collection.length ?? 0} card(s)`)
         grants.maybeGrantFest(address) // contributor arriving after the goal completed
+        grants.maybeGrantGhost(address) // their heroes raided as ghosts while they were away
+        grants.maybeGrantBoss(address) // world boss spoils banked while they were away
       } catch (error) {
         console.log(`[Server] save load failed for ${address}: ${error}`)
         saveReady.delete(address)
@@ -331,10 +347,15 @@ export function setupSaves(grants: SaveGrants): {
             readWithRetry(sender, SAVE_KEY, 2).catch(() => undefined),
             readWithRetry(sender, BACKUP_KEY, 2).catch(() => undefined)
           ])
-          const found = richer(again ? sanitizeSave(again) : undefined, backupAgain ? sanitizeSave(backupAgain) : undefined)
+          const found = richer(
+            again ? sanitizeSave(again) : undefined,
+            backupAgain ? sanitizeSave(backupAgain) : undefined
+          )
           if (found && established(found)) {
             backups.set(sender, richer(found, backups.get(sender))!)
-            console.log(`[Server] late storage hit for ${sender}: ${found.collection.length} card(s), ${found.cleared} road(s)`)
+            console.log(
+              `[Server] late storage hit for ${sender}: ${found.collection.length} card(s), ${found.cleared} road(s)`
+            )
           }
         } finally {
           const latest = verifying.get(sender) ?? incoming

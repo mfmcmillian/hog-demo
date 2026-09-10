@@ -1,7 +1,6 @@
-import { CAMPFIRE_SRC, VILLAGER_SRC } from './fx/ambient'
 import { SKILL_FX_SRC, tickCombatEarly, tickCombatLate } from './fx/combatFx'
-import { CHEST_OPEN_SRCS, tickChest } from './fx/chest'
-import { BURST_SRC, RAY_SRC, SPARKS_SRC, tickReveal } from './fx/reveal'
+import { tickChest } from './fx/chest'
+import { tickReveal } from './fx/reveal'
 import { tickAttack, tickIdle, tickPunch } from './fx/sheets'
 
 export { campfireSheet, campfireUvs, chestWobble, loopSparksUvs, villagerSheet, villagerTalkUvs } from './fx/ambient'
@@ -33,6 +32,7 @@ export {
 } from './fx/reveal'
 export {
   allSheetSrcs,
+  facePoster,
   heroPoster,
   idleMotion,
   idlePoster,
@@ -44,16 +44,12 @@ export {
   stopAttack
 } from './fx/sheets'
 
+/** What a fight draws that nothing else warms: the skill flipbooks. The
+ * reveal, chest and ambient sheets bind on the screens that show them. (This
+ * used to be every fx sheet: ~220 MB of 2048px textures bound on the hero
+ * card, the report and the banner, which is what made pack openings lag.) */
 export function allFxSrcs(): string[] {
-  return [
-    ...Object.values(SKILL_FX_SRC),
-    RAY_SRC,
-    BURST_SRC,
-    SPARKS_SRC,
-    CAMPFIRE_SRC,
-    VILLAGER_SRC,
-    ...Object.values(CHEST_OPEN_SRCS)
-  ]
+  return Object.values(SKILL_FX_SRC)
 }
 
 export function tickFlipbook(dt: number) {

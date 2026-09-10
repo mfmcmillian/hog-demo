@@ -19,3 +19,4 @@ yarn-error.log*
 
 # ElevenLabs voice cache written by tools/gen-*-vo.mjs (account-specific id).
 sounds/vo/voice-id.txt
+scene.json.land-bak

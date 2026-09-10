@@ -17,7 +17,20 @@ import { Digits, Face, FillBar, Gain, Halo, Img, NameTag, Stars } from './widget
 // the HUD badge. Layout is canvas column-reverse = phone rows, like the rest.
 
 /** Screens where a ceremony may take over; fights, reveals and the intro finish first. */
-const CEREMONY_PHASES: Phase[] = ['home', 'festival', 'party', 'fuse', 'shop', 'quest', 'levels', 'overworld', 'rift', 'trade', 'allies']
+const CEREMONY_PHASES: Phase[] = [
+  'home',
+  'festival',
+  'party',
+  'fuse',
+  'shop',
+  'quest',
+  'levels',
+  'overworld',
+  'rift',
+  'boss',
+  'trade',
+  'allies'
+]
 
 let sounded = 0
 
@@ -92,10 +105,12 @@ export function LevelCard() {
   const close = tap(() => {
     game.levelCard = false
   })
-  if (!LABELS["acct-level"]) return null
+  if (!LABELS['acct-level']) return null
   return (
     <ModalScrim alpha={0.8} onMouseDown={close}>
-      <UiEntity uiTransform={{ positionType: 'absolute', position: { left: '58%', top: '6%' }, width: 360, height: '88%' }}>
+      <UiEntity
+        uiTransform={{ positionType: 'absolute', position: { left: '58%', top: '6%' }, width: 360, height: '88%' }}
+      >
         <TalkPanel width="100%" height="100%" onMouseDown={close}>
           <UiEntity
             uiTransform={{

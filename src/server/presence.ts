@@ -2,6 +2,7 @@ import { AvatarBase, PlayerIdentityData, engine } from '@dcl/sdk/ecs'
 import { RiftPub } from '../mp/protocol'
 import { ServerCtx } from './ctx'
 import { DuelRoom } from './duel'
+import { LooksApi } from './looks'
 import { TradeSession } from './trades'
 
 export function setupPresence(
@@ -17,6 +18,7 @@ export function setupPresence(
     riftReset: () => void
     duelRooms: DuelRoom[]
     dropOwPlayer: (address: string) => void
+    looks: LooksApi
   }
 ): void {
   // --- Presence -----------------------------------------------------------------
@@ -26,8 +28,10 @@ export function setupPresence(
       const address = identity.address.toLowerCase()
       inScene.add(address)
       if (AvatarBase.has(entity)) {
-        const name = (AvatarBase.get(entity).name ?? '').trim().slice(0, 16)
+        const base = AvatarBase.get(entity)
+        const name = (base.name ?? '').trim().slice(0, 16)
         if (name && !/^0x[0-9a-f]/i.test(name)) ctx.displayNames.set(address, name)
+        hooks.looks.note(address, base)
       }
     }
 
@@ -45,20 +49,32 @@ export function setupPresence(
       for (const ring of hooks.duelRooms) {
         if (ring.duel.phase === 'lobby' && ring.duel.seats.some((seat) => seat.address === address)) {
           ring.duel.seats = ring.duel.seats.filter((seat) => seat.address !== address)
+          // A ghost called by the departed waits for nobody.
+          if (!ring.duel.seats.some((seat) => !seat.ghost)) ring.duel.seats = []
           ring.publishDuel()
         }
       }
     }
 
     // Mid-run wipeout of humans: nobody left to watch, reopen the room.
-    if (hooks.rift.phase !== 'lobby' && hooks.rift.seats.length > 0 && !hooks.rift.seats.some((seat) => inScene.has(seat.address))) {
+    // (Ghost seats never count as present, so a ghost-filled raid whose
+    // one human left resets too.)
+    if (
+      hooks.rift.phase !== 'lobby' &&
+      hooks.rift.seats.length > 0 &&
+      !hooks.rift.seats.some((seat) => inScene.has(seat.address))
+    ) {
       console.log('[Server] rift: all participants left; resetting')
       hooks.riftReset()
     }
 
     // Both duelists gone mid-fight: nothing left to settle, reopen the ring.
     for (const ring of hooks.duelRooms) {
-      if (ring.duel.phase !== 'lobby' && ring.duel.seats.length > 0 && !ring.duel.seats.some((seat) => inScene.has(seat.address))) {
+      if (
+        ring.duel.phase !== 'lobby' &&
+        ring.duel.seats.length > 0 &&
+        !ring.duel.seats.some((seat) => inScene.has(seat.address))
+      ) {
         console.log(`[Server] duel ${ring.duel.mode}: all participants left; resetting`)
         ring.duelReset()
       }

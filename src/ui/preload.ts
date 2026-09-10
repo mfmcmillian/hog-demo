@@ -1,20 +1,59 @@
 import { AssetLoad, engine, executeTask } from '@dcl/sdk/ecs'
 import { boot } from '../game/boot'
 import { rollDailyTasks } from '../game/daily'
-import { HERO_IDS } from '../game/familiars'
+import { getDef, HERO_IDS } from '../game/familiars'
 import { OW_REALMS, OwRealmId } from '../game/owdefs'
 import { owRealmId } from '../game/overworld'
 import { STORIES } from '../game/stories'
 import { game } from '../game/store'
 import { Phase } from '../game/types'
+import { AVATAR_SRCS, avatarSrcs } from './avatar'
+import { myLook } from '../mp/looks'
+import { ARMORS, OUTFITS } from '../mp/protocol'
+import './labels.wardrobe.gen'
+import { FACE_ATLAS_SRC } from './faces.gen'
 import { allFxSrcs, campfireSheet, sheetSrcOf } from './flipbook'
-import { RAY_SRC, SPARKS_SRC } from './fx/reveal'
-import { hallSrc } from './halls'
+import { BEACON_SHAFT_SRC, BEACON_SRC } from './fx/beacon'
+import { BURST_SRC, RAY_SRC, SPARKS_SRC } from './fx/reveal'
+import { cardBackArt, hallSrc } from './halls'
+import { charArt } from './widgets'
 import { giftDayOf } from '../mp/protocol'
 import './labels.daily.gen'
 import './labels.duel.gen'
+import './labels.feed.gen'
 import './labels.hall.gen'
+import { BOSS_LABELS } from './labels.boss.gen'
 import { LABELS } from './labels.gen'
+import { ROADS } from '../game/quests'
+import { bossView } from '../mp/views'
+
+/** Every lair word strip plus the hall strips the lair borrows. */
+/** What the lair draws the moment it opens (the tab rail, the title, the
+ * warlord's page): the neighbor warm-up from home binds only these, so the
+ * home screen carries ~20 hidden tiles for the lair rather than ~46. */
+const BOSS_FIRST_KEYS = [
+  'boss-tab-lair',
+  'boss-tab-board',
+  'boss-title',
+  'boss-hint',
+  'tier',
+  'boss-kills',
+  'boss-fighting',
+  'world-hp',
+  'boss-ends-in',
+  'attacks-left',
+  'your-best',
+  'your-rank',
+  'rank-hash',
+  'unranked',
+  'attack',
+  'boss-minute',
+  'no-attacks',
+  'road-slash',
+  'dot'
+]
+/** Everything the lair can show: the board, the fight, the verdict, the spoils. */
+const BOSS_KEYS = [...Object.keys(BOSS_LABELS), ...BOSS_FIRST_KEYS, 'hall-first', 'road-laurel', 'lv']
 import { INTRO_LABELS } from './labels.intro.gen'
 import { OW_LABELS } from './labels.ow.gen'
 
@@ -65,11 +104,13 @@ const HOME_KEYS = [
   'home-fuse',
   'home-overworld',
   'home-hall',
+  'home-boss',
   'shop',
   'trade',
   'fuse',
   'questing',
   'hall-of-heroes',
+  'world-boss',
   'fire-grows',
   'fire-line1',
   'fire-line2',
@@ -102,8 +143,8 @@ const HOME_KEYS = [
   'level-rewards'
 ]
 // The map is one tap from home, so the village cast rides in the critical set.
+// (The player's own walker is the layered AVATAR_SRCS set, not 'player-walk'.)
 const OW_BASE_KEYS = [
-  'player-walk',
   'elder-walk',
   'fisher-walk',
   'child-walk',
@@ -116,8 +157,32 @@ const OW_BASE_KEYS = [
   'map-hut'
 ]
 
+// Feed toasts can land on any screen: their verbs ride the critical set.
+const FEED_KEYS = [
+  'feed-entered',
+  'feed-found',
+  'feed-cleared',
+  'feed-raid-won',
+  'feed-defeated',
+  'feed-felled',
+  'feed-reached',
+  'feed-streak',
+  'feed-beat-ghost',
+  'feed-ghost-fell',
+  'feed-raided-with',
+  'feed-passed-you',
+  'feed-yours',
+  'ghost',
+  'legendary',
+  'mythic'
+]
+
 const EXTRA = [
   ...BOOT_SRCS,
+  // the customizable walker (map, seat plates, feed busts)
+  ...AVATAR_SRCS,
+  // every hero's small face, one texture (home party, benches, seats, feed)
+  FACE_ATLAS_SRC,
   'images/maps/home-b.png',
   'images/ads/koa-c.png',
   'images/ads/decentracraft-c.png',
@@ -134,18 +199,20 @@ export const CRITICAL_SRCS = uniq([
   ...BOOT_SRCS,
   ...INTRO_FIRST,
   ...INTRO_FIRST_LABELS,
-  ...labelSrcs([...CHROME_KEYS, ...START_KEYS, ...HOME_KEYS, ...OW_BASE_KEYS]),
+  ...labelSrcs([...CHROME_KEYS, ...START_KEYS, ...HOME_KEYS, ...OW_BASE_KEYS, ...FEED_KEYS]),
   ...HERO_IDS.map((id) => sheetSrcOf(id) ?? ''),
   ...HERO_IDS.map((id) => hallSrc(id)),
   ...EXTRA
 ])
 
-function realmSrcs(id: OwRealmId): string[] {
+/** `live`: we are on the map. A neighbor warm-up (home, the report) skips
+ * the talk strips: ~90 word textures nobody sees until an NPC is tapped,
+ * which was ~90 hidden tiles on every frame at home. */
+function realmSrcs(id: OwRealmId, live: boolean): string[] {
   const realm = OW_REALMS[id]
   const keys = [
     realm.map,
     realm.nameKey ?? '',
-    'player-walk',
     'ow-chest',
     'ow-sign',
     'ow-rock',
@@ -158,16 +225,19 @@ function realmSrcs(id: OwRealmId): string[] {
     realm.fog ? 'fog-a' : ''
   ]
   for (const npc of realm.npcs ?? []) keys.push(npc.sheet)
-  // Ledge landings puff the sparks sheet; decor reuses the fx flipbooks.
-  const fx = [SPARKS_SRC]
+  // Ledge landings puff the sparks sheet; the quest beacon is baked gold;
+  // decor reuses the fx flipbooks.
+  const fx = [SPARKS_SRC, BEACON_SRC, BEACON_SHAFT_SRC]
   for (const decor of realm.decor ?? []) {
     fx.push(decor.fx === 'brazier' ? campfireSheet() : decor.fx === 'wisp' ? SPARKS_SRC : RAY_SRC)
   }
-  return uniq([...labelSrcs(keys), ...fx, ...Object.values(OW_LABELS).map((info) => info.src)])
-}
-
-function ownedSheetSrcs(): string[] {
-  return uniq(game.collection.map((owned) => sheetSrcOf(owned.defId) ?? ''))
+  return uniq([
+    ...labelSrcs(keys),
+    ...fx,
+    ...AVATAR_SRCS,
+    ...avatarSrcs(myLook()),
+    ...(live ? Object.values(OW_LABELS).map((info) => info.src) : [])
+  ])
 }
 
 /** `live` is the screen we're on; a neighbor warm-up skips the skill FX
@@ -181,9 +251,25 @@ function battleSrcs(live: boolean): string[] {
   ]
   return uniq([
     ...ids.map((id) => sheetSrcOf(id) ?? ''),
-    ...ids.map((id) => hallSrc(id)),
+    // hall art only for the foes: one of them may drop its card (hero card)
+    ...(game.battle?.foe.map((unit) => hallSrc(unit.defId)) ?? []),
     ...(live ? allFxSrcs() : []),
     ...labelSrcs(['map-clash-q1', 'map-clash-q3', 'map-clash-q4', 'map-clash-q6', 'win', 'lose', 'xp'])
+  ])
+}
+
+/** The hero card: one hero's hall art and portrait, the card back, and the
+ * reveal swirl only for a legendary or mythic pull. */
+function heroCardSrcs(): string[] {
+  const owned = game.reveal ?? game.collection.find((entry) => entry.uid === game.inspectUid)
+  const id = owned?.defId ?? ''
+  const rarity = id ? getDef(id).rarity : 'common'
+  return uniq([
+    cardBackArt().src,
+    id ? hallSrc(id) : '',
+    id ? (charArt(id)?.src ?? '') : '',
+    game.reveal && (rarity === 'legendary' || rarity === 'mythic') ? BURST_SRC : '',
+    ...labelSrcs(['herocard-banner', 'oath', 'sel-arrow-left', 'sel-arrow-right', 'plaque-stats'])
   ])
 }
 
@@ -192,8 +278,8 @@ function phaseSrcs(phase: Phase | 'overworld-next', live: boolean): string[] {
     const here = owRealmId()
     const next = OW_REALMS[here].exits.map((exit) => exit.to)
     return uniq([
-      ...realmSrcs(here),
-      ...next.flatMap(realmSrcs),
+      ...realmSrcs(here, live),
+      ...next.flatMap((id) => realmSrcs(id, false)),
       ...labelSrcs(['need-item', 'sealed', 'recruit-first'])
     ])
   }
@@ -207,14 +293,19 @@ function phaseSrcs(phase: Phase | 'overworld-next', live: boolean): string[] {
         ...HERO_IDS.map((id) => hallSrc(id))
       ])
     case 'home':
-      return uniq([...labelSrcs(HOME_KEYS), campfireSheet(), ...ownedSheetSrcs()])
+      // The fireside figures bind the other travelers' sheets themselves the
+      // moment they are drawn; only my own walker is worth warming here.
+      return uniq([...labelSrcs(HOME_KEYS), campfireSheet(), FACE_ATLAS_SRC, ...avatarSrcs(myLook())])
     case 'party':
     case 'fuse':
     case 'allies':
+      // Bench faces come off the atlas. The hero card's 1024x576 hall art
+      // (one per owned hero) is warmed only once we are on the bench itself,
+      // not from home: it grew with the collection, 2.4 MB a hero.
       return uniq([
-        ...ownedSheetSrcs(),
-        ...game.collection.map((owned) => hallSrc(owned.defId)),
-        hallSrc('inspect'),
+        FACE_ATLAS_SRC,
+        ...(live ? game.collection.map((owned) => hallSrc(owned.defId)) : []),
+        ...(live ? [hallSrc('inspect')] : []),
         ...labelSrcs(['fuse-none'])
       ])
     case 'shop':
@@ -243,7 +334,7 @@ function phaseSrcs(phase: Phase | 'overworld-next', live: boolean): string[] {
           'trade-none',
           'empty-seat'
         ]),
-        ...ownedSheetSrcs()
+        FACE_ATLAS_SRC
       ])
     case 'rift':
       return uniq([
@@ -299,9 +390,21 @@ function phaseSrcs(phase: Phase | 'overworld-next', live: boolean): string[] {
           'watching',
           'win',
           'lose',
-          'no-energy'
+          'no-energy',
+          // ghosts + free social
+          'ghost',
+          'fight-a-ghost',
+          'ghost-hint',
+          'ghost-allies',
+          'ghost-called',
+          'raid-free',
+          'spoils-left',
+          'spoils-spent',
+          'duel-free'
         ]),
-        ...ownedSheetSrcs()
+        ...AVATAR_SRCS,
+        ...avatarSrcs(myLook()),
+        FACE_ATLAS_SRC
       ])
     case 'festival':
       return labelSrcs([
@@ -353,17 +456,84 @@ function phaseSrcs(phase: Phase | 'overworld-next', live: boolean): string[] {
         'hall-first',
         'road-laurel',
         'lv',
-        'wins'
+        'wins',
+        'feed-title',
+        // the realm news page is a tab away once inside: not for the warm-up
+        ...(live
+          ? [
+              'feed-empty',
+              'feed-hint',
+              'feed-now',
+              'feed-ago-m',
+              'feed-ago-h',
+              'feed-ago-d',
+              'icon-coins',
+              ...FEED_KEYS
+            ]
+          : [])
+      ])
+    case 'boss':
+      // the lair: its word strips, the warlord's portrait and name, the
+      // clash floor behind it; a running attack binds the fight's sheets
+      // (battleSrcs) on top when it is live
+      return uniq([
+        ...labelSrcs([
+          ...(live ? BOSS_KEYS : BOSS_FIRST_KEYS),
+          bossView.pub.defId,
+          `map-clash-${ROADS.find((road) => road.boss === bossView.pub.defId)?.id ?? 'q1'}`,
+          'map-cave'
+        ]),
+        charArt(bossView.pub.defId)?.src ?? '',
+        // the fight is one tap away: keep the party's and the warlord's swing
+        // sheets bound in the lair so the first blow lands on time
+        ...(live ? [sheetSrcOf(bossView.pub.defId) ?? '', ...battleSrcs(!!bossView.fight)] : [])
       ])
     case 'settings':
+      return labelSrcs(['set-appearance'])
+    case 'wardrobe':
+      // the tailor's rack: its word strips, the walker as it is, and every
+      // tunic on the rack (the bust previews wear them all at once)
+      return [
+        ...labelSrcs([
+          'wardrobe-title',
+          'tab-colors',
+          'tab-clothes',
+          'fit-hint',
+          'look-skin',
+          'look-hair',
+          'look-short',
+          'look-long',
+          'look-avatar',
+          'look-hint',
+          'tab-armor',
+          'armor-hint',
+          'armor-none',
+          'armor-owned',
+          'armor-worn',
+          'armor-buy',
+          'armor-poor',
+          'icon-coins',
+          'shop-accept',
+          'shop-decline',
+          ...OUTFITS.map((fit) => fit.name),
+          ...ARMORS.map((suit) => suit.name)
+        ]),
+        ...AVATAR_SRCS,
+        ...avatarSrcs(myLook()),
+        ...OUTFITS.map((_, k) => `images/chars/player-walk-fit-${k}.png`),
+        ...ARMORS.map((_, k) => `images/chars/player-walk-arm-${k + 1}.png`)
+      ]
     case 'quest':
     case 'levels':
       return []
     case 'battle':
+      return battleSrcs(live)
     case 'banner':
     case 'report':
+      // after the fight: the units' sheets and the result labels, no skill FX
+      return battleSrcs(false)
     case 'heroCard':
-      return battleSrcs(live)
+      return heroCardSrcs()
     case 'credits':
       return []
     default:
@@ -377,7 +547,7 @@ const NEIGHBORS: Record<string, Phase[]> = {
   // The events hall and the friendzone are one tap away too, but their word
   // strips run to ~80 textures between them; PhaseFade hides their first
   // binds. Warming them from home was ~80 extra UI nodes every frame.
-  home: ['overworld', 'party', 'settings', 'shop', 'quest', 'trade', 'fuse', 'hall'],
+  home: ['overworld', 'party', 'settings', 'shop', 'quest', 'trade', 'fuse', 'hall', 'boss'],
   // The questing area only leads home or into a fight (and back via report).
   overworld: ['home', 'battle'],
   quest: ['levels', 'home'],
@@ -392,9 +562,11 @@ const NEIGHBORS: Record<string, Phase[]> = {
   heroCard: ['overworld', 'home', 'credits'],
   trade: ['home'],
   rift: ['home'],
-  settings: ['home'],
+  settings: ['home', 'wardrobe'],
+  wardrobe: ['settings'],
   festival: ['home'],
   hall: ['home'],
+  boss: ['home'],
   credits: ['home']
 }
 
@@ -411,7 +583,12 @@ export function bindSrcs(): string[] {
     game.party.join(','),
     game.battle ? game.battle.foe.map((unit) => unit.defId).join(',') : '',
     owRealmId(),
-    giftDayOf(Date.now())
+    giftDayOf(Date.now()),
+    game.reveal?.uid ?? game.inspectUid,
+    // what my walker wears
+    game.look
+      ? `${game.look.skin}${game.look.hair}${game.look.body ?? ''}${game.look.outfit ?? 0}${game.look.armor ?? 0}`
+      : ''
   ].join('|')
   if (key === bindKey) return bindCache
   const phase = game.phase

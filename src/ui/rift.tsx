@@ -14,12 +14,14 @@ import {
   DuelMode,
   DuelSeat,
   RIFT_ENERGY_COST,
+  RIFT_GHOST_FILL,
   RIFT_SEATS,
   RiftSeat
 } from '../mp/protocol'
 import {
   activeDuel,
   currentArena,
+  duelGhost,
   duelReady,
   duelRequeue,
   duelSit,
@@ -40,10 +42,12 @@ import {
   riftSit,
   riftView
 } from '../mp/session'
+import { AvatarBust, GHOST_CAST } from './avatar'
 import { BattleRank } from './battle'
 import { press, pressShrink, pressTint } from './fx/press'
 import { cardBackArt } from './halls'
 import './labels.duel.gen'
+import './labels.feed.gen'
 import { LABELS } from './labels.gen'
 import { HeroPickStrip, ModalScrim } from './panels'
 import { cream, danger, gold, good, muted, panelDim, PASS } from './theme'
@@ -187,13 +191,21 @@ function ArenaCard(props: { arena: Arena }) {
           <UiEntity
             key={i}
             uiTransform={{ width: 58, height: 58, margin: 3, alignItems: 'center', justifyContent: 'center' }}
-            uiBackground={{ color: seat ? Color4.create(0.32, 0.2, 0.07, 0.6) : Color4.create(0.08, 0.05, 0.06, 0.5) }}
+            uiBackground={{
+              color: seat
+                ? seat.ghost
+                  ? Color4.create(0.12, 0.2, 0.32, 0.55)
+                  : Color4.create(0.32, 0.2, 0.07, 0.6)
+                : Color4.create(0.08, 0.05, 0.06, 0.5)
+            }}
           >
             {seat ? (
               raid ? (
-                <Face id={(seat as RiftSeat).defId} w={52} h={52} />
+                <Face id={(seat as RiftSeat).defId} w={52} h={52} tint={seat.ghost ? GHOST_CAST : undefined} />
+              ) : seat.ghost ? (
+                <Img k="ghost" w={10} tint={GHOST_CAST} margin={0} />
               ) : (
-                <NameTag name={seat.name} w={12} tint={cream} />
+                <AvatarBust address={seat.address} w={48} margin={0} />
               )
             ) : (
               <Img k="empty-seat" w={9} tint={muted} margin={0} />
@@ -297,14 +309,22 @@ function InvitePicker() {
           >
             {ring ? (
               <UiEntity
-                uiTransform={{ width: 96, height: 96, margin: { bottom: 10 } }}
+                uiTransform={{
+                  width: 96,
+                  height: 96,
+                  margin: { bottom: 10 },
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}
                 uiBackground={{
                   textureMode: 'stretch',
                   texture: { src: ring.src },
                   uvs: ring.uvs,
                   color: Color4.White()
                 }}
-              />
+              >
+                <AvatarBust address={address} w={70} margin={0} />
+              </UiEntity>
             ) : null}
             <NameTag name={name} w={38} tint={cream} />
             <UiEntity uiTransform={{ width: 8 }} />
@@ -518,10 +538,10 @@ export function FzInviteToast() {
 }
 
 /** One lobby seat plate's contents: who sits there and which faces they field. */
-type SeatRow = { name: string; address: string; ready: boolean; defIds: string[] }
+type SeatRow = { name: string; address: string; ready: boolean; defIds: string[]; ghost?: boolean }
 
 function riftRow(seat: RiftSeat): SeatRow {
-  return { name: seat.name, address: seat.address, ready: seat.ready, defIds: [seat.defId] }
+  return { name: seat.name, address: seat.address, ready: seat.ready, defIds: [seat.defId], ghost: seat.ghost }
 }
 
 /** Duel picks arrive sealed (empty hands) while the ring is in the lobby: my
@@ -532,7 +552,7 @@ function duelRow(seat: DuelSeat, mode: DuelMode): SeatRow {
     const mine = seat.address === getMyAddress() ? myDuelPickFaces(mode) : []
     defIds = mine.length > 0 ? mine : new Array<string>(mode === '1v1' ? 1 : 4).fill('')
   }
-  return { name: seat.name, address: seat.address, ready: seat.ready, defIds }
+  return { name: seat.name, address: seat.address, ready: seat.ready, defIds, ghost: seat.ghost }
 }
 
 /** A face-down card: a rival's sealed pick, revealed when the fight starts. */
@@ -594,7 +614,12 @@ function SeatColumn(props: {
                       textureMode: 'stretch',
                       texture: { src: seatArt.src },
                       uvs: seatArt.uvs,
-                      color: seat || props.brightEmpty ? Color4.White() : Color4.create(1, 1, 1, 0.55)
+                      // A ghost's plate is moonlit and see-through.
+                      color: seat?.ghost
+                        ? GHOST_CAST
+                        : seat || props.brightEmpty
+                          ? Color4.White()
+                          : Color4.create(1, 1, 1, 0.55)
                     }
                   : { color: panelDim }
               }
@@ -605,11 +630,26 @@ function SeatColumn(props: {
                 // champion sits big, a full party lines up its four heroes.
                 <UiEntity uiTransform={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
                   {seat.defIds.map((id, f) => (
-                    <UiEntity key={f}>{id ? <Face id={id} w={faceW} h={faceW} /> : <MysteryCard w={faceW} />}</UiEntity>
+                    <UiEntity key={f}>
+                      {id ? (
+                        <Face id={id} w={faceW} h={faceW} tint={seat.ghost ? GHOST_CAST : undefined} />
+                      ) : (
+                        <MysteryCard w={faceW} />
+                      )}
+                    </UiEntity>
                   ))}
-                  <NameTag name={seat.name} w={props.nameW ?? 18} tint={cream} />
+                  <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', ...PASS }}>
+                    {seat.ghost ? null : (
+                      <AvatarBust address={seat.address} w={Math.round((props.nameW ?? 18) * 2.2)} margin={2} />
+                    )}
+                    <NameTag name={seat.name} w={props.nameW ?? 18} tint={seat.ghost ? GHOST_CAST : cream} />
+                  </UiEntity>
                   <UiEntity uiTransform={{ height: 6 }} />
-                  <LevelBadge level={levelOf(seat.address)} w={props.badgeW ?? 12} />
+                  {seat.ghost ? (
+                    <Img k="ghost" w={props.badgeW ?? 12} tint={GHOST_CAST} margin={1} />
+                  ) : (
+                    <LevelBadge level={levelOf(seat.address)} w={props.badgeW ?? 12} />
+                  )}
                 </UiEntity>
               ) : (
                 <Img
@@ -668,6 +708,20 @@ function RiftFloorTrack(props: { floor?: number }) {
   )
 }
 
+/** How many spoils-paying wins the seated player has left today: n pips in
+ * gold, or the spent line once they are gone. Nothing while unseated. */
+function SpoilsLeft(props: { left?: number }) {
+  if (props.left === undefined) return null
+  if (props.left <= 0) return <Img k="spoils-spent" w={12} tint={muted} margin={3} />
+  return (
+    <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 3 }}>
+      <Digits value={props.left} w={18} tint={gold} tight />
+      <UiEntity uiTransform={{ width: 6 }} />
+      <Img k="spoils-left" w={11} tint={muted} margin={2} />
+    </UiEntity>
+  )
+}
+
 function RiftLobby() {
   const pub = riftView.pub
   const seat = mySeat()
@@ -713,6 +767,10 @@ function RiftLobby() {
         {hintK ? <Img k={hintK} w={24} tint={gold} margin={6} /> : null}
         {seat && !full ? <InviteBtn /> : null}
         {seat && !full && fz.sentFlash <= 0 ? <Img k="invite-hint" w={12} tint={muted} margin={2} /> : null}
+        {/* short-handed: the raid still goes - ghost allies take the empty seats */}
+        {seat && pub.seats.length < RIFT_GHOST_FILL ? (
+          <Img k="ghost-allies" w={12} tint={GHOST_CAST} margin={2} />
+        ) : null}
       </UiEntity>
       <UiEntity uiTransform={{ width: 48, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
         <Img k="rift-ribbon" w={40} tint={Color4.White()} margin={0} />
@@ -765,7 +823,9 @@ function RiftLobby() {
             />
           </UiEntity>
         ) : null}
-        <Img k="rift-energy" w={56} tint={Color4.White()} margin={6} />
+        {/* raids are free; what is rationed is the spoils (RAID_SPOILS_PER_DAY) */}
+        <Img k="raid-free" w={20} tint={gold} margin={4} />
+        <SpoilsLeft left={seat?.spoils} />
       </UiEntity>
       {/* unseated with room: pick to sit; seated but not ready: pick to swap */}
       {(!seat && pub.seats.length < 4) || (seat && !seat.ready) ? (
@@ -778,7 +838,7 @@ function RiftLobby() {
               if (uid !== seat.uid) riftSit(uid)
               return
             }
-            if (!DEBUG.unlimitedEnergy && game.energy < RIFT_ENERGY_COST) {
+            if (RIFT_ENERGY_COST > 0 && !DEBUG.unlimitedEnergy && game.energy < RIFT_ENERGY_COST) {
               game.notice = 'no-energy'
               return
             }
@@ -872,6 +932,7 @@ function SpoilsRow(props: {
   xp: number
   dropDefId?: string
   mine?: boolean
+  ghost?: boolean
 }) {
   return (
     <UiEntity
@@ -885,15 +946,25 @@ function SpoilsRow(props: {
         margin: 4,
         padding: { top: 14, bottom: 14 }
       }}
-      uiBackground={{ color: props.mine ? Color4.create(0.32, 0.2, 0.07, 0.55) : Color4.create(0.1, 0.07, 0.08, 0.6) }}
+      uiBackground={{
+        color: props.mine
+          ? Color4.create(0.32, 0.2, 0.07, 0.55)
+          : props.ghost
+            ? Color4.create(0.1, 0.16, 0.26, 0.5)
+            : Color4.create(0.1, 0.07, 0.08, 0.6)
+      }}
     >
-      <NameTag name={props.name} w={18} tint={props.mine ? gold : cream} />
+      <NameTag name={props.name} w={18} tint={props.mine ? gold : props.ghost ? GHOST_CAST : cream} />
+      {props.ghost ? <Img k="ghost" w={9} tint={GHOST_CAST} margin={2} /> : null}
       <UiEntity uiTransform={{ flexGrow: 1 }} />
       {props.coins !== undefined && props.coins > 0 ? (
         <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 4 }}>
           <Img k="icon-coins" w={24} tint={Color4.White()} margin={1} />
           <Digits value={props.coins} w={18} tint={gold} tight />
         </UiEntity>
+      ) : props.mine && props.coins === 0 ? (
+        // won, but today's spoils are spent: no purse, xp still lands
+        <Img k="spoils-spent" w={9} tint={muted} margin={3} />
       ) : null}
       <UiEntity uiTransform={{ flexDirection: 'column-reverse', alignItems: 'center', margin: 4 }}>
         <Img k="xp" w={24} tint={cream} margin={1} />
@@ -955,6 +1026,7 @@ function RiftEnd() {
                 xp={reward.xp}
                 dropDefId={reward.dropDefId}
                 mine={reward.address === me}
+                ghost={seat?.ghost}
               />
             )
           })}
@@ -1078,24 +1150,42 @@ function DuelLobby() {
       game.notice = 'need-four'
       return
     }
-    if (!DEBUG.unlimitedEnergy && game.energy < cost) {
+    if (cost > 0 && !DEBUG.unlimitedEnergy && game.energy < cost) {
       game.notice = 'no-energy'
       return
     }
     duelSit('4v4')
   }
   // What the empty plate says and does: JOIN (4v4, unseated), INVITE (seated,
-  // someone to ask), the SENT flash, or just an empty seat.
+  // someone to ask), the SENT flash, FIGHT A GHOST (seated, nobody else in the
+  // realm, a ghost on file for this mode), or just an empty seat.
   const joinPlate = mode === '4v4' && !seat
   const invitePlate = !!seat && !full && presentPlayers.size > 0
-  const emptyK = joinPlate ? 'join-duel' : invitePlate ? (fz.sentFlash > 0 ? 'invite-sent' : 'invite') : 'empty-seat'
+  const ghostsOnFile = (pub.ghosts ?? 0) > 0
+  const ghostPlate = !!seat && !full && !invitePlate && ghostsOnFile
+  const emptyK = joinPlate
+    ? 'join-duel'
+    : invitePlate
+      ? fz.sentFlash > 0
+        ? 'invite-sent'
+        : 'invite'
+      : ghostPlate
+        ? 'fight-a-ghost'
+        : 'empty-seat'
+  const summonGhost = () => duelGhost(mode)
   const onEmptyTap = joinPlate
     ? sitParty
     : invitePlate && fz.sentFlash <= 0
       ? () => {
           fz.inviting = true
         }
-      : undefined
+      : ghostPlate
+        ? summonGhost
+        : undefined
+  // Someone is online but you would rather not wait: the ghost button sits in
+  // the action band next to ENTER.
+  const ghostBtn = !!seat && !full && ghostsOnFile && !ghostPlate
+  const ghostSeated = pub.seats.some((entry) => entry.ghost)
   const ENTER_W = 184
   return (
     <UiEntity
@@ -1186,7 +1276,21 @@ function DuelLobby() {
             />
           </UiEntity>
         ) : null}
-        <Img k={mode === '1v1' ? 'duel-cost' : 'duel-cost4'} w={40} tint={cream} margin={6} />
+        {ghostBtn ? (
+          <LabelBtn
+            k="fight-a-ghost"
+            id="duel:ghost"
+            w={44}
+            h={190}
+            labelW={30}
+            bg={Color4.create(0.12, 0.2, 0.34, 0.92)}
+            labelTint={GHOST_CAST}
+            margin={4}
+            onTap={summonGhost}
+          />
+        ) : null}
+        {ghostSeated ? <Img k="ghost-hint" w={14} tint={GHOST_CAST} margin={2} /> : null}
+        <Img k="duel-free" w={30} tint={gold} margin={6} />
       </UiEntity>
       {/* 1v1: unseated with room picks a champion; seated-not-ready swaps it */}
       {mode === '1v1' && ((!seat && pub.seats.length < DUEL_SEATS) || (seat && !seat.ready)) ? (
@@ -1199,7 +1303,7 @@ function DuelLobby() {
               if (uid !== myDuelPickUid('1v1')) duelSit('1v1', uid)
               return
             }
-            if (!DEBUG.unlimitedEnergy && game.energy < cost) {
+            if (cost > 0 && !DEBUG.unlimitedEnergy && game.energy < cost) {
               game.notice = 'no-energy'
               return
             }
@@ -1220,6 +1324,8 @@ function DuelBattle() {
   // Seat order is battle order: seats[0] fights on 'you', seats[1] on 'foe'.
   const nameYou = pub.seats[0]?.name ?? ''
   const nameFoe = pub.seats[1]?.name ?? ''
+  const ghostYou = !!pub.seats[0]?.ghost
+  const ghostFoe = !!pub.seats[1]?.ghost
   return (
     <UiEntity
       uiTransform={{
@@ -1231,7 +1337,8 @@ function DuelBattle() {
       }}
     >
       <UiEntity uiTransform={{ width: 60, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <NameTag name={nameFoe} w={20} tint={cream} />
+        <NameTag name={nameFoe} w={20} tint={ghostFoe ? GHOST_CAST : cream} />
+        {ghostFoe ? <Img k="ghost" w={10} tint={GHOST_CAST} margin={3} /> : null}
       </UiEntity>
       {b ? <BattleRank units={b.foe} actingUid={b.actingUid} hp={danger} /> : null}
       <UiEntity
@@ -1248,7 +1355,8 @@ function DuelBattle() {
       </UiEntity>
       {b ? <BattleRank units={b.you} actingUid={b.actingUid} hp={good} /> : null}
       <UiEntity uiTransform={{ width: 60, height: '100%', alignItems: 'center', justifyContent: 'center' }}>
-        <NameTag name={nameYou} w={20} tint={cream} />
+        <NameTag name={nameYou} w={20} tint={ghostYou ? GHOST_CAST : cream} />
+        {ghostYou ? <Img k="ghost" w={10} tint={GHOST_CAST} margin={3} /> : null}
       </UiEntity>
     </UiEntity>
   )

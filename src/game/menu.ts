@@ -1,3 +1,5 @@
+import { feedPull } from '../mp/feedClient'
+import { getDef } from './familiars'
 import { seatInParty } from './party'
 import { clampCleared } from './progress'
 import { grantAccountXp, XP } from './level'
@@ -67,6 +69,9 @@ export function revealAcquisition(owned: OwnedFamiliar, back: Phase, opts?: { se
   if (!findOwned(owned.uid)) {
     game.collection.push(owned)
     grantAccountXp(XP.newHero)
+    // A legendary or better is realm news (the server checks the rarity).
+    const rarity = getDef(owned.defId).rarity
+    if (rarity === 'legendary' || rarity === 'mythic') feedPull(owned.defId)
   }
   if (opts?.seat) seatInParty(owned.uid)
   game.reveal = owned

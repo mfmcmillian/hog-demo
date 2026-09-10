@@ -6,6 +6,7 @@ import {
   emptyDaily,
   giftDayOf
 } from '../mp/protocol'
+import { feedStreak } from '../mp/feedClient'
 import { makeOwned } from './familiars'
 import { grantAccountXp, XP } from './level'
 import { revealAcquisition } from './menu'
@@ -117,6 +118,7 @@ export function claimLogin(): void {
   d.claimDay = today()
   grant(STREAK_REWARDS[day - 1])
   grantAccountXp(XP.streak)
+  if (day === DAILY_STREAK_LEN) feedStreak() // a full week: realm news
 }
 
 // --- Task board ----------------------------------------------------------------------

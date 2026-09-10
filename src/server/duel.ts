@@ -20,19 +20,29 @@ import {
   DuelRank,
   DuelSeat,
   ENERGY_MAX,
+  GHOST_DUEL_COIN_FRAC,
+  GHOST_PREFIX,
   LOBBY_COUNTDOWN_S,
   PlayerSave,
   RiftReward,
-  emptyDuel
+  emptyDuel,
+  isGhostAddress
 } from '../mp/protocol'
 import { DUEL_SYNC_IDS, MpDuelState, room } from '../mp/transport'
 import { ServerCtx } from './ctx'
+import { FeedApi } from './feed'
 import { relayFzInvite } from './fz'
+import { GhostsApi } from './ghosts'
 
 // The friendzone duel rings: two players face off, 1v1 (champion vs champion)
 // or 4v4 (full party vs full party) - same trust model as the rift, no shared
 // spoils. The victor takes the purse and a rung on the mode's win ladder,
 // which persists in world storage across server restarts.
+//
+// A duelist alone in the ring can call a ghost: the server seats a snapshot
+// of an absent player's picks (see ghosts.ts) and fights it exactly like a
+// live opponent. Ghost wins pay a reduced purse and still climb the ladder;
+// the ghost's owner loses nothing and hears about it in their feed.
 
 export type DuelRoom = { duel: DuelPub; publishDuel: () => void; duelReset: () => void }
 
@@ -40,7 +50,7 @@ type Ring = DuelRoom & { onMsg: (sender: string, msg: DuelMsg) => void }
 
 export function setupDuels(
   ctx: ServerCtx,
-  deps: { onWin: (address: string) => void }
+  deps: { onWin: (address: string) => void; feed: FeedApi; ghosts: GhostsApi }
 ): { rooms: DuelRoom[]; allWins: () => Record<string, { name: string; wins: number }> } {
   // --- The win ladders (persisted) -------------------------------------------------
   const LADDER_KEY = 'hog-duel-ladder-v1'
@@ -131,8 +141,10 @@ export function setupDuels(
      * the rosters are the surprise when the fight starts - so the broadcast
      * snapshot carries empty hands until then. The server keeps the real ones. */
     function pubView(): DuelPub {
-      if (duel.phase !== 'lobby') return duel
-      return { ...duel, seats: duel.seats.map((seat) => ({ ...seat, heroes: [] })) }
+      const humans = duel.seats.filter((seat) => !seat.ghost)
+      const ghosts = deps.ghosts.countDuel(mode, humans[0]?.address ?? '')
+      if (duel.phase !== 'lobby') return { ...duel, ghosts }
+      return { ...duel, ghosts, seats: duel.seats.map((seat) => ({ ...seat, heroes: [] })) }
     }
 
     function publishDuel(): void {
@@ -192,13 +204,17 @@ export function setupDuels(
 
     function duelStart(): void {
       for (const seat of duel.seats) {
-        const save = ctx.saves.get(seat.address)
+        const save = seat.ghost ? undefined : ctx.saves.get(seat.address)
         if (save) {
           // Mirrors the client's spendEnergy: the playtest flag refills instead
           // of draining, so the server copy never silently starves out sits.
-          save.energy = DEBUG.unlimitedEnergy ? ENERGY_MAX : Math.max(0, save.energy - DUEL_ENERGY_COST[mode])
-          ctx.persistSave(seat.address)
-          ctx.pushSave(seat.address)
+          if (DUEL_ENERGY_COST[mode] > 0) {
+            save.energy = DEBUG.unlimitedEnergy ? ENERGY_MAX : Math.max(0, save.energy - DUEL_ENERGY_COST[mode])
+            ctx.persistSave(seat.address)
+            ctx.pushSave(seat.address)
+          }
+          // Their picks become a ghost other duelists can call across the ring.
+          deps.ghosts.snapDuelist(seat.address, mode, seat.heroes)
         }
         seat.ready = false
       }
@@ -213,13 +229,20 @@ export function setupDuels(
 
     function duelFinish(winnerSide: 'you' | 'foe'): void {
       const winnerSeat = winnerSide === 'you' ? duel.seats[0] : duel.seats[1]
+      const loserSeat = winnerSide === 'you' ? duel.seats[1] : duel.seats[0]
+      const ghostFight = duel.seats.some((seat) => seat.ghost)
       const rewards: RiftReward[] = []
       for (const seat of duel.seats) {
         const won = seat === winnerSeat
         const reward: RiftReward = {
           address: seat.address,
-          coins: won ? DUEL_WIN_COINS[mode] : 0,
+          coins: won ? Math.round(DUEL_WIN_COINS[mode] * (ghostFight ? GHOST_DUEL_COIN_FRAC : 1)) : 0,
           xp: won ? DUEL_WIN_XP[mode] : DUEL_LOSS_XP[mode]
+        }
+        if (seat.ghost) {
+          // Ghosts take nothing home; their owner is unaffected either way.
+          rewards.push({ address: seat.address, coins: 0, xp: 0 })
+          continue
         }
         const save = ctx.saves.get(seat.address)
         if (save) {
@@ -234,7 +257,16 @@ export function setupDuels(
         }
         rewards.push(reward)
       }
-      if (winnerSeat) bumpLadder(mode, winnerSeat.address, winnerSeat.name)
+      if (winnerSeat && !winnerSeat.ghost) {
+        bumpLadder(mode, winnerSeat.address, winnerSeat.name)
+        if (loserSeat?.ghost) {
+          deps.feed.post('ghostduel', winnerSeat.address, { arg: loserSeat.name })
+          const owner = deps.ghosts.ownerOf(loserSeat.address)
+          if (owner) deps.feed.postTo(owner, 'record', { name: winnerSeat.name, arg: mode })
+        } else if (loserSeat) {
+          deps.feed.post('duel', winnerSeat.address, { arg: loserSeat.name })
+        }
+      }
       duel.phase = 'done'
       duel.winner = winnerSeat?.address ?? ''
       duel.rewards = rewards
@@ -244,10 +276,18 @@ export function setupDuels(
       publishDuel()
     }
 
+    /** Drop any ghost from the lobby (a human sat down, or the caller stood up). */
+    function dismissGhost(): void {
+      duel.seats = duel.seats.filter((seat) => !seat.ghost)
+    }
+
     function onMsg(sender: string, msg: DuelMsg): void {
+      if (isGhostAddress(sender)) return
       if (msg.type === 'sit') {
         if (duel.phase !== 'lobby') return
         const mine = duel.seats.find((seat) => seat.address === sender)
+        // A live challenger displaces a waiting ghost.
+        if (!mine && duel.seats.length >= DUEL_SEATS && duel.seats.some((seat) => seat.ghost)) dismissGhost()
         if (!mine && duel.seats.length >= DUEL_SEATS) return
         const save = ctx.saves.get(sender)
         if (!save) return
@@ -263,15 +303,40 @@ export function setupDuels(
           return
         }
         // Not enough energy: refuse the seat (clients also gate this).
-        if (!DEBUG.unlimitedEnergy && save.energy < DUEL_ENERGY_COST[mode]) return
+        if (DUEL_ENERGY_COST[mode] > 0 && !DEBUG.unlimitedEnergy && save.energy < DUEL_ENERGY_COST[mode]) return
         const seat: DuelSeat = { address: sender, name: ctx.nameFor(sender), ready: false, heroes }
         duel.seats.push(seat)
+        syncCountdown()
         publishDuel()
         return
       }
       if (msg.type === 'leave') {
         if (duel.phase !== 'lobby') return
         duel.seats = duel.seats.filter((seat) => seat.address !== sender)
+        // A ghost waits for nobody.
+        if (!duel.seats.some((seat) => !seat.ghost)) dismissGhost()
+        syncCountdown()
+        publishDuel()
+        return
+      }
+      if (msg.type === 'ghost') {
+        if (duel.phase !== 'lobby') return
+        const mine = duel.seats.find((seat) => seat.address === sender)
+        if (!mine || duel.seats.length >= DUEL_SEATS) return
+        const ghost = deps.ghosts.pickDuel(mode, sender)
+        if (!ghost) return
+        const heroes = mode === '1v1' ? (ghost.champion ? [ghost.champion] : []) : (ghost.party ?? []).slice(0, 4)
+        if (mode === '1v1' ? heroes.length !== 1 : heroes.length < 4) return
+        const address = `${GHOST_PREFIX}${ghost.address.startsWith(GHOST_PREFIX) ? ghost.address.slice(GHOST_PREFIX.length) : ghost.address}`
+        // Ghost uids get a suffix so a duelist can never share a uid with their own ghost.
+        const seat: DuelSeat = {
+          address,
+          name: ghost.name,
+          ready: true,
+          ghost: true,
+          heroes: heroes.map((hero) => ({ ...hero, uid: `${hero.uid}@ghost` }))
+        }
+        duel.seats.push(seat)
         syncCountdown()
         publishDuel()
         return

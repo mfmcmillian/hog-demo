@@ -1,6 +1,6 @@
 import { playSkill } from '../../game/audio'
 import { game } from '../../game/store'
-import { BattleFx } from '../../game/types'
+import { BattleFx, Phase } from '../../game/types'
 import {
   attackTravel,
   cellUvs,
@@ -26,6 +26,10 @@ const FX_FPS = 20
 const FX_LIFE = FX_FRAMES / FX_FPS
 
 let lastActing = ''
+/** Turn number of the action last animated: the same unit can act on two
+ * consecutive turns once the order thins out, and the server's snapshots
+ * carry no other edge to catch it on. */
+let lastTurn = -1
 let hitUids: string[] = []
 let hit = 0
 let pendingHitUids: string[] = []
@@ -208,14 +212,21 @@ export function tickCombatEarly(dt: number) {
     pops[i].age += dt
     if (pops[i].age >= POP_LIFE) pops.splice(i, 1)
   }
-  if (game.phase !== 'battle' && pops.length) pops.length = 0
+  // Raids, duels and the world boss fight on the same rank widgets in their
+  // own phases; their pops must live too (this used to clear them, so PvP
+  // showed no numbers).
+  if (!FIGHT_PHASES.includes(game.phase) && pops.length) pops.length = 0
 }
 
+/** The phases whose screens show a live battle on BattleRank widgets. */
+const FIGHT_PHASES: Phase[] = ['battle', 'rift', 'boss']
+
 export function tickCombatLate() {
-  if ((game.phase === 'battle' || game.phase === 'rift') && game.battle) {
+  if (FIGHT_PHASES.includes(game.phase) && game.battle) {
     if (!game.battle.actingUid && isPlaying()) stopAttack()
-    if (game.battle.actingUid && game.battle.actingUid !== lastActing) {
+    if (game.battle.actingUid && (game.battle.actingUid !== lastActing || game.battle.turn !== lastTurn)) {
       lastActing = game.battle.actingUid
+      lastTurn = game.battle.turn
       const actor = [...game.battle.you, ...game.battle.foe].find((unit) => unit.uid === lastActing)
       const marked = game.battle.hitUids.length
         ? game.battle.hitUids
@@ -260,6 +271,7 @@ export function tickCombatLate() {
   }
 
   lastActing = ''
+  lastTurn = -1
   clearTimedDash()
   if (isPlaying()) stopAttack()
 }

@@ -9,9 +9,11 @@ import { BootFade, LoadingBackdrop, LoadingScreen } from './boot'
 import { startCanvasWatch } from './canvas'
 import { AdBanner, CanvasReadout, OverworldHud, PhaseFade, PlayHud, PreloadTiles, ScreenChrome } from './chrome'
 import { CreditsScreen } from './credits'
+import { FeedToast } from './feed'
 import { FestivalScreen, GiftCeremony } from './festival'
 import { FuseScreen } from './fuse'
 import { landscape } from './grip'
+import { BossScreen } from './boss'
 import { HallScreen } from './hall'
 import { HeroCardScreen } from './heroCard'
 import { HomeScreen } from './home'
@@ -31,6 +33,7 @@ import { StartScreen } from './start'
 import { PASS, STAGE_H, STAGE_W } from './theme'
 import { TradeInviteToast, TradeScreen } from './trade'
 import { TutorialOverlay } from './tutorial'
+import { WardrobeScreen } from './wardrobe'
 
 // 2D UI built from pre-rotated label images (see tools/gen-labels.ps1).
 // Native E/F are hidden; ACTION/BACK plaques call primary()/back().
@@ -131,6 +134,9 @@ function Root() {
             {game.phase === 'credits' ? <CreditsScreen /> : null}
             {game.phase === 'overworld' ? <OverworldScreen /> : null}
             {game.phase === 'hall' ? <HallScreen /> : null}
+            {game.phase === 'wardrobe' ? <WardrobeScreen /> : null}
+            {game.phase === 'boss' ? <BossScreen /> : null}
+            <FeedToast />
             <TradeInviteToast />
             <FzInviteToast />
             <GiftCeremony />

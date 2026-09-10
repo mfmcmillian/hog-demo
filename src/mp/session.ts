@@ -1,8 +1,11 @@
 import { engine } from '@dcl/sdk/ecs'
+import { setupBossClient, tickBossMirror } from './bossClient'
 import { tickDuelMirror } from './duelClient'
+import { setupFeedClient, tickFeedMirror } from './feedClient'
 import { setupFzClient, tickFzTimers } from './fzClient'
 import { setupGiftClient, tickGiftDropReveal, tickGiftTimers } from './giftClient'
 import { setupPresence, tickIdentity } from './identity'
+import { tickLooks } from './looks'
 import { tickOwMirror } from './owClient'
 import { BoardsPub, FestPub } from './protocol'
 import { tickRiftDropReveal, tickRiftMirror } from './riftClient'
@@ -19,6 +22,7 @@ export { getMyAddress, getMyName, presentPlayers } from './identity'
 export { canGiftToday, giftSend } from './giftClient'
 export { mySeat, riftLeave, riftReady, riftRequeue, riftSit } from './riftClient'
 export {
+  duelGhost,
   duelLeave,
   duelReady,
   duelRequeue,
@@ -29,6 +33,9 @@ export {
   myDuelSeat
 } from './duelClient'
 export { fzDecline, fzInvite, fzInviteLeft } from './fzClient'
+export { feedToast, feedView, myFeed } from './feedClient'
+export { lookOf, myLook } from './looks'
+export { bossAttack, bossFighting, bossSecondsLeft, myBoss } from './bossClient'
 export { isHydrated, pushAccountReset } from './saveSync'
 export {
   trade,
@@ -47,6 +54,7 @@ export {
 export {
   activeDuel,
   boardsView,
+  bossView,
   currentArena,
   duelViews,
   festView,
@@ -71,14 +79,19 @@ export function initMultiplayerSession(): void {
   setupTradeClient()
   setupGiftClient()
   setupFzClient()
+  setupFeedClient()
+  setupBossClient()
 
   engine.addSystem((dt) => {
     if (!tickIdentity()) return
     tickRiftMirror()
     tickDuelMirror()
+    tickBossMirror(dt)
     tickFestMirror()
     tickLevelsMirror()
     tickBoardsMirror()
+    tickFeedMirror(dt)
+    tickLooks(dt)
     tickOwMirror(dt)
     tickGiftTimers(dt)
     tickFzTimers(dt)

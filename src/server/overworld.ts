@@ -4,6 +4,7 @@ import { OW_DX, OW_DY, OW_REALMS, OwDir, OwRealmId, owExitAt, owWalkable } from 
 import { OW_MONSTER_RESPAWN_S, OwMonsterPub, OwMsg, OwPlayerPub, OwPub, OwSlayPub } from '../mp/protocol'
 import { MpOwState, OW_SYNC_ID, room } from '../mp/transport'
 import { ServerCtx } from './ctx'
+import { FeedApi } from './feed'
 
 // The shared overworld: where every player stands (realm + tile) and where
 // the wilds monsters roam. The server owns all of it - clients send tile
@@ -26,7 +27,7 @@ type SrvMonster = OwMonsterPub & {
   guard: boolean
 }
 
-export function setupOverworld(ctx: ServerCtx): { dropOwPlayer: (address: string) => void } {
+export function setupOverworld(ctx: ServerCtx, deps: { feed: FeedApi }): { dropOwPlayer: (address: string) => void } {
   const entity = engine.addEntity()
   let revision = 0
   let dirty = false
@@ -59,7 +60,9 @@ export function setupOverworld(ctx: ServerCtx): { dropOwPlayer: (address: string
   function snapshot(): OwPub {
     return {
       players: [...players.values()],
-      monsters: monsters.filter((monster) => monster.alive).map(({ key, id, realm, gx, gy }) => ({ key, id, realm, gx, gy })),
+      monsters: monsters
+        .filter((monster) => monster.alive)
+        .map(({ key, id, realm, gx, gy }) => ({ key, id, realm, gx, gy })),
       slay: lastSlay
     }
   }
@@ -111,6 +114,8 @@ export function setupOverworld(ctx: ServerCtx): { dropOwPlayer: (address: string
       const prev = players.get(sender)
       if (prev && prev.realm === realm && prev.gx === msg.gx && prev.gy === msg.gy && prev.facing === facing) return
       players.set(sender, { address: sender, name: ctx.nameFor(sender), realm, gx: msg.gx, gy: msg.gy, facing })
+      // A new realm under their feet: the feed says so (rate-limited there).
+      if (!prev || prev.realm !== realm) deps.feed.entered(sender, realm)
       // Batched by the system (PLAYER_PUBLISH_S), not published per message.
       playerDirty = true
       dirty = true
@@ -127,7 +132,13 @@ export function setupOverworld(ctx: ServerCtx): { dropOwPlayer: (address: string
       if (!monster || !monster.alive) return
       monster.alive = false
       monster.wait = OW_MONSTER_RESPAWN_S
-      lastSlay = { seq: (lastSlay?.seq ?? 0) + 1, address: sender, name: ctx.nameFor(sender), id: monster.id, key: monster.key }
+      lastSlay = {
+        seq: (lastSlay?.seq ?? 0) + 1,
+        address: sender,
+        name: ctx.nameFor(sender),
+        id: monster.id,
+        key: monster.key
+      }
       monsterDirty = true
       dirty = true
       publish()
@@ -167,7 +178,13 @@ export function setupOverworld(ctx: ServerCtx): { dropOwPlayer: (address: string
       if (OW_REALMS[realm].monsters.some((spawn) => spawn.boss && spawn.gx === nx && spawn.gy === ny)) continue
       if (OW_REALMS[realm].chests?.some((chest) => chest.gx === nx && chest.gy === ny)) continue
       if (OW_REALMS[realm].npcs?.some((npc) => npc.gx === nx && npc.gy === ny)) continue
-      if (monsters.some((other) => other !== monster && other.alive && other.realm === monster.realm && other.gx === nx && other.gy === ny)) continue
+      if (
+        monsters.some(
+          (other) =>
+            other !== monster && other.alive && other.realm === monster.realm && other.gx === nx && other.gy === ny
+        )
+      )
+        continue
       monster.gx = nx
       monster.gy = ny
       monsterDirty = true

@@ -1,12 +1,15 @@
+import type { BattleState } from '../game/types'
 import {
   Arena,
   BoardId,
   BoardsPub,
+  BossPub,
   DuelMode,
   DuelPub,
   FestPub,
   RiftPub,
   emptyBoards,
+  emptyBoss,
   emptyDuel,
   emptyFest,
   emptyRift
@@ -63,18 +66,39 @@ export const festView: { pub: FestPub; revision: number } = { pub: emptyFest(), 
 /** The Hall of Heroes leaderboards (server-published). */
 export const boardsView: { pub: BoardsPub; revision: number } = { pub: emptyBoards(), revision: -1 }
 
-/** Which board the hall's wall is showing. */
-export const hall = { tab: 'level' as BoardId }
+/** Which page the hall's wall is showing: a board, or the realm news feed. */
+export type HallTab = BoardId | 'news'
+export const hall = { tab: 'level' as HallTab }
+
+/** The tailor's rack (ui/wardrobe.tsx): which page is open. */
+export type WardrobeTab = 'colors' | 'clothes' | 'armor'
+export const wardrobe = { tab: 'colors' as WardrobeTab, fromSettings: false }
 
 /** My 1-based rank on `board` as the server last published it; 0 = unranked. */
 export function myBoardRank(address: string, board: BoardId): number {
   return boardsView.pub.ranks[address.toLowerCase()]?.[board] ?? 0
 }
 
+/** The world boss lair (server-published), plus my private fight and its verdict. */
+export const bossView: {
+  pub: BossPub
+  revision: number
+  /** My attack in progress: the server's snapshot, refreshed every step. */
+  fight?: { battle: BattleState; left: number; dealt: number; at: number }
+  /** The verdict of my last attack, until the lair is left or the next attack starts. */
+  result?: { dealt: number; best: number; rank: number; kill: boolean; wiped: boolean }
+  /** The server said no; shown briefly on the lair. */
+  blocked: '' | 'none' | 'busy' | 'party'
+  blockedAge: number
+  /** The lair's pages: the warlord and your attacks, or the week's damage board. */
+  tab: 'lair' | 'board'
+} = { pub: emptyBoss(), revision: -1, blocked: '', blockedAge: 0, tab: 'lair' }
+
 export const gift = {
   /** Incoming gift: drives the full chest-opening ceremony overlay. `goal`:
-   * the realm goal's crown chest rather than a traveler's daily gift. */
-  received: undefined as { name: string; coins: number; dropDefId?: string; goal?: boolean } | undefined,
+   * the realm goal's crown chest rather than a traveler's daily gift; `boss`:
+   * world boss spoils (the rank paid, 0 = a kill bonus). */
+  received: undefined as { name: string; coins: number; dropDefId?: string; goal?: boolean; boss?: number } | undefined,
   /** Blessing coins granted for sending; >0 shows the sender toast. */
   blessing: 0,
   blessAge: 0,

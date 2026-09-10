@@ -41,6 +41,13 @@ export function setupGiftClient(): void {
       giftDropUid = update.dropUid
       return
     }
+    if (update.type === 'boss') {
+      // World boss spoils: the chest again, plaqued with the rank it paid
+      // (or the kill bonus), then the card reveal if one came with it.
+      gift.received = { name: '', coins: update.coins, dropDefId: update.dropDefId, boss: update.rank }
+      if (update.dropUid) giftDropUid = update.dropUid
+      return
+    }
     if (update.type === 'sent') {
       gift.blessing = update.coins
       gift.blessAge = 0

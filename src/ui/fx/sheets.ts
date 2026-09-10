@@ -1,3 +1,5 @@
+import { FACE_ATLAS_SRC, FACE_GRID, FACE_SLOT } from '../faces.gen'
+
 // Heroes of Genesis sprite sheets. Animation only shifts UVs on the same
 // bound texture, so there is no per-frame texture swap.
 const SHEETS: Record<string, string> = {
@@ -174,6 +176,22 @@ export function idlePoster(id: string): { src: string; uvs: number[] } | null {
   const src = SHEETS[id]
   if (!src) return null
   return { src, uvs: cellUvs(IDLE_CELL) }
+}
+
+/** The same idle poster off the shared 1024px face atlas (128px per hero,
+ * tools/build-face-atlas.py): one texture for every small face on every
+ * screen, instead of one 4 MB combat sheet per hero shown. Falls back to the
+ * sheet for a hero the atlas was built without. */
+export function facePoster(id: string): { src: string; uvs: number[] } | null {
+  const slot = FACE_SLOT[id]
+  if (slot === undefined) return idlePoster(id)
+  const col = slot % FACE_GRID
+  const row = Math.floor(slot / FACE_GRID)
+  const u0 = col / FACE_GRID
+  const u1 = (col + 1) / FACE_GRID
+  const vTop = 1 - row / FACE_GRID
+  const vBottom = 1 - (row + 1) / FACE_GRID
+  return { src: FACE_ATLAS_SRC, uvs: [u0, vBottom, u0, vTop, u1, vTop, u1, vBottom] }
 }
 
 /**

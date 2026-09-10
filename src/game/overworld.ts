@@ -1,4 +1,5 @@
 import { InputAction, inputSystem } from '@dcl/sdk/ecs'
+import { feedWarlord } from '../mp/feedClient'
 import { owMonsterOn, owRemoteMonsters, owRemotePlayers, sendOwMove, sendOwSlay } from '../mp/owClient'
 import { bossSlain, bossSlainFlag, questRewarded } from './owQuests'
 import { playBump, playChest } from './audio'
@@ -307,6 +308,7 @@ export function returnFromWildBattle(won: boolean): boolean {
       setOwFlag(bossSlainFlag(stash.id))
       // Roamers pay their XP through sendOwSlay; a warlord is worth a raid.
       grantAccountXp(XP.raid)
+      feedWarlord(stash.id) // realm news: a warlord fell
     } else sendOwSlay(stash.key)
     realmId = stash.realm
     placePlayer(stash.gx, stash.gy, stash.facing)
@@ -774,13 +776,20 @@ export function owMonsterRects(
 
 /** Everyone else standing in this realm: placed quads + walk-sheet cells +
  * display names, for the UI. Mid-lerp remotes get a simple two-frame walk. */
-export function owRemoteRects(size: number): { name: string; left: number; top: number; cell: number }[] {
+export function owRemoteRects(
+  size: number
+): { name: string; address: string; left: number; top: number; cell: number }[] {
   return owRemotePlayers(realmId).map((remote) => {
     const px = remote.fx + (remote.gx - remote.fx) * remote.t
     const py = remote.fy + (remote.gy - remote.fy) * remote.t
     // Stateless stride: which foot leads alternates with the tile parity.
     const col = remote.t < 1 ? ((remote.gx + remote.gy) % 2 === 0 ? 1 : 3) : 0
-    return { name: remote.name, cell: FACING_ROW[remote.facing] * 4 + col, ...tileRect(px, py, size) }
+    return {
+      name: remote.name,
+      address: remote.address,
+      cell: FACING_ROW[remote.facing] * 4 + col,
+      ...tileRect(px, py, size)
+    }
   })
 }
 

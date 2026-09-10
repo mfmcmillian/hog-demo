@@ -52,6 +52,11 @@ export function duelInvite(mode: DuelMode, to: string): void {
   sendDuel({ type: 'invite', mode, to })
 }
 
+/** FIGHT A GHOST: seated and alone, ask the server to seat an absent rival's picks. */
+export function duelGhost(mode: DuelMode): void {
+  sendDuel({ type: 'ghost', mode })
+}
+
 /** PLAY AGAIN on the verdict screen: sit back down in this ring (same
  * champion in 1v1, current party in 4v4) the moment it reopens. */
 export function duelRequeue(mode: DuelMode): void {

@@ -5,21 +5,27 @@ import { game } from './store'
 // keys) so ElderTalk can render it. Talks are local: other players do not
 // see your dialog.
 
-export type OwTalkPage = { lines: string[] }
 /** `face`: 'elder' = the painted talking portrait; any other value is a
  * labels.gen walk-sheet key whose standing cell fills the frame; omitted =
  * portrait-less band (signs, coin finds). */
 /** `then`: what happens when the talk closes. 'reward:<quest>' hands out a
  * side-quest prize; 'shop' / 'party' open that home screen with back
  * returning to the map (merchant, innkeeper). Handled in nav.ts. */
+/** A page may override the talk's face: 'light' puts the quest beacon itself
+ * in the portrait frame (the guide's first page names the thing to follow). */
+export type OwTalkPage = { lines: string[]; face?: string }
 export type OwTalk = { face?: string; pages: OwTalkPage[]; then?: string }
 
 export const OW_TALKS: Record<string, OwTalk> = {
-  // Stepping onto the map before the elder is met: follow the light to him
-  // to start the quest, then how to walk and how to leave.
+  // Stepping onto the map before the elder is met: show the beacon and name
+  // it, say it is on the elder right now, then how to walk and how to leave.
   'guide-village': {
     face: 'elder',
-    pages: [{ lines: ['ow-guide-1a', 'ow-guide-1b'] }, { lines: ['ow-guide-2a', 'ow-guide-2b', 'ow-guide-2c'] }]
+    pages: [
+      { face: 'light', lines: ['ow-guide-1a', 'ow-guide-1b'] },
+      { lines: ['ow-guide-2a', 'ow-guide-2b'] },
+      { lines: ['ow-guide-3a', 'ow-guide-3b', 'ow-guide-3c'] }
+    ]
   },
   'elder-hint': {
     face: 'elder',
@@ -100,6 +106,8 @@ export const OW_TALKS: Record<string, OwTalk> = {
   boy: { face: 'child-walk', pages: [{ lines: ['ow-boy-1a', 'ow-boy-1b'] }] },
   // Cottage hosts: one hint page each.
   weaver: { face: 'woman-walk', pages: [{ lines: ['ow-weaver-1a', 'ow-weaver-1b'] }] },
+  // The tailor at her loom keeps the wardrobe (skin, hair, tunic dyes).
+  tailor: { face: 'man-walk', pages: [{ lines: ['ow-tailor-1a', 'ow-tailor-1b'] }], then: 'wardrobe' },
   hunter: { face: 'man-walk', pages: [{ lines: ['ow-hunter-1a', 'ow-hunter-1b'] }] },
   // The merchant is the pack shop; the innkeeper keeps the bench (party screen).
   merchant: { face: 'man-walk', pages: [{ lines: ['ow-merchant-1a', 'ow-merchant-1b'] }], then: 'shop' },
@@ -224,11 +232,11 @@ export function owTalkActive(): boolean {
   return talkId !== ''
 }
 
-export function owTalkView(): { face?: string; lines: string[]; at: number; of: number } | undefined {
+export function owTalkView(): { id: string; face?: string; lines: string[]; at: number; of: number } | undefined {
   const talk = OW_TALKS[talkId]
   if (!talk) return undefined
   const page = talk.pages[Math.min(talkPage, talk.pages.length - 1)]
-  return { face: talk.face, lines: page.lines, at: talkPage + 1, of: talk.pages.length }
+  return { id: talkId, face: page.face ?? talk.face, lines: page.lines, at: talkPage + 1, of: talk.pages.length }
 }
 
 /** Advance one page. Returns the closed talk's `then` action ('' when the

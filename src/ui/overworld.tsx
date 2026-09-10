@@ -31,9 +31,13 @@ import {
   owSwitchRects,
   owToast
 } from '../game/overworld'
+import { hasOwFlag } from '../game/owTalk'
 import { Rarity } from '../game/types'
+import { lookOf, myLook } from '../mp/looks'
 import { owSlayToast } from '../mp/owClient'
+import { avatarQuads } from './avatar'
 import { campfireSheet, campfireUvs, dropRaySheet, loopSparksUvs, sparksSheet } from './flipbook'
+import { BeaconLight } from './fx/beacon'
 import { cellUvs, getIdleTime, idlePoster } from './fx/sheets'
 import { LABELS } from './labels.gen'
 import { cream } from './theme'
@@ -68,7 +72,6 @@ export function OverworldScreen() {
   const map = LABELS[owMapKey()]
   const tint = owMapTint()
   const mapColor = tint ? Color4.create(tint.r, tint.g, tint.b, 1) : Color4.White()
-  const sheet = LABELS['player-walk']
   const chestSheet = LABELS['ow-chest']
   const signSheet = LABELS['ow-sign']
   const rockSheet = LABELS['ow-rock']
@@ -249,27 +252,19 @@ export function OverworldScreen() {
         })}
         {/* Remotes render as DIRECT absolute children of the map (same as the
             monsters): a zero-sized wrapper clips its children on some
-            explorers, which hid fellow travelers entirely. */}
-        {sheet
-          ? remotes.map((remote, i) => (
-              <UiEntity
-                key={`r${i}`}
-                uiTransform={{
-                  positionType: 'absolute',
-                  position: { left: remote.left, top: remote.top },
-                  width: AVATAR,
-                  height: AVATAR,
-                  pointerFilter: 'none'
-                }}
-                uiBackground={{
-                  textureMode: 'stretch',
-                  texture: { src: sheet.src },
-                  uvs: cellUvs(remote.cell),
-                  color: REMOTE_TINT
-                }}
-              />
-            ))
-          : null}
+            explorers, which hid fellow travelers entirely. Each is the layered
+            walker in their own avatar's skin, hair and body shape. */}
+        {remotes.flatMap((remote, i) =>
+          avatarQuads({
+            look: lookOf(remote.address),
+            cell: remote.cell,
+            size: AVATAR,
+            left: remote.left,
+            top: remote.top,
+            cast: REMOTE_TINT,
+            keyPrefix: `r${i}-`
+          })
+        )}
         {/* name tags physically above the heads: stage -x of the quad */}
         {remotes.map((remote, i) => (
           <UiEntity
@@ -288,23 +283,15 @@ export function OverworldScreen() {
           </UiEntity>
         ))}
         <Dust />
-        {sheet ? (
-          <UiEntity
-            uiTransform={{
-              positionType: 'absolute',
-              position: { left: av.left, top: av.top },
-              width: AVATAR,
-              height: AVATAR,
-              pointerFilter: 'none'
-            }}
-            uiBackground={{
-              textureMode: 'stretch',
-              texture: { src: sheet.src },
-              uvs: cellUvs(owAvatarCell()),
-              color: Color4.White()
-            }}
-          />
-        ) : null}
+        {/* me: the same layered walker, in my own avatar's colors */}
+        {avatarQuads({
+          look: myLook(),
+          cell: owAvatarCell(),
+          size: AVATAR,
+          left: av.left,
+          top: av.top,
+          keyPrefix: 'me'
+        })}
         <Fog />
         <Overhead />
         {/* gate/recruit notices float over the map (cleared on the next step) */}
@@ -409,7 +396,13 @@ function Fog() {
     const v = 0.2 + 0.2 * Math.cos(t * speed * 0.7 + phase)
     return (
       <UiEntity
-        uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: MAP_W, height: MAP_H, pointerFilter: 'none' }}
+        uiTransform={{
+          positionType: 'absolute',
+          position: { left: 0, top: 0 },
+          width: MAP_W,
+          height: MAP_H,
+          pointerFilter: 'none'
+        }}
         uiBackground={{
           textureMode: 'stretch',
           texture: { src: fog.src },
@@ -436,7 +429,13 @@ function Overhead() {
   const tint = owMapTint()
   return (
     <UiEntity
-      uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: MAP_W, height: MAP_H, pointerFilter: 'none' }}
+      uiTransform={{
+        positionType: 'absolute',
+        position: { left: 0, top: 0 },
+        width: MAP_W,
+        height: MAP_H,
+        pointerFilter: 'none'
+      }}
       uiBackground={{
         textureMode: 'stretch',
         texture: { src: over.src },
@@ -468,37 +467,21 @@ function QuestMarker() {
   )
 }
 
-/** The guiding light: a gold wisp (the sparks flipbook) bobbing over the
- * next story tile — chest, exit, switch, gate, or the person to talk to. */
+/** How big the guiding light draws, and whether it is in beacon mode. First
+ * steps (elder not yet met): a big burst with a shaft of light, so "follow
+ * the light" has one obvious referent. Afterwards a quieter burst over the
+ * next story tile - chest, exit, switch, gate, or the person to talk to. */
+export function pathLightSpec(): { size: number; beacon: boolean } {
+  const beacon = !hasOwFlag('elder-met')
+  return { size: beacon ? 84 : 60, beacon }
+}
+
+/** The guiding light over the next story tile (see fx/beacon). */
 function PathLight() {
-  const glow = owHintRect(56)
+  const spec = pathLightSpec()
+  const glow = owHintRect(spec.size)
   if (!glow) return null
-  const t = getIdleTime()
-  const bob = Math.sin(t * 2.2) * 5 // physically up/down = landscape left/right
-  const pulse = 0.75 + 0.25 * Math.sin(t * 5)
-  const uvs = loopSparksUvs()
-  const src = sparksSheet()
-  return (
-    <UiEntity
-      uiTransform={{
-        positionType: 'absolute',
-        position: { left: glow.left - bob, top: glow.top },
-        width: 56,
-        height: 56,
-        pointerFilter: 'none'
-      }}
-    >
-      {/* halo: the same sprite, bigger and faint */}
-      <UiEntity
-        uiTransform={{ positionType: 'absolute', position: { left: -16, top: -16 }, width: 88, height: 88, pointerFilter: 'none' }}
-        uiBackground={{ textureMode: 'stretch', texture: { src }, uvs, color: Color4.create(1, 0.75, 0.3, 0.35 * pulse) }}
-      />
-      <UiEntity
-        uiTransform={{ positionType: 'absolute', position: { left: 0, top: 0 }, width: 56, height: 56, pointerFilter: 'none' }}
-        uiBackground={{ textureMode: 'stretch', texture: { src }, uvs, color: Color4.create(1, 0.92, 0.6, pulse) }}
-      />
-    </UiEntity>
-  )
+  return <BeaconLight size={spec.size} beacon={spec.beacon} left={glow.left} top={glow.top} />
 }
 
 /** Gen-3-style area badge: the realm's name strip on a dark plate by the

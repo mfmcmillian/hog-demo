@@ -14,14 +14,17 @@ $tsPath = Join-Path $root 'src\ui\labels.ow.gen.ts'
 $font = New-LabelFont 26
 
 $lines = [ordered]@{
-  # Stepping onto the map before the elder is met: where the light leads
-  # and why, then how to walk and leave. Repeats each fresh entry until
-  # the elder has been reached (see overworld.enterOverworld).
-  'ow-guide-1a'       = 'SEE THE LIGHT ON THE PATH? FOLLOW IT.'
-  'ow-guide-1b'       = 'IT LEADS TO THE ELDER. HE HAS YOUR QUEST.'
-  'ow-guide-2a'       = 'HOLD THE PAD TO WALK.'
-  'ow-guide-2b'       = 'FIGHT WHAT YOU MEET ON THE ROAD SOUTH.'
-  'ow-guide-2c'       = 'THE BACK BUTTON TAKES YOU HOME.'
+  # Stepping onto the map before the elder is met. Page 1 shows the beacon
+  # itself in the portrait frame and names it; page 2 says where it is now;
+  # page 3 is how to walk and leave. Repeats each fresh entry until the
+  # elder has been reached (see overworld.enterOverworld).
+  'ow-guide-1a'       = 'THIS GOLDEN LIGHT IS YOUR SIGNAL.'
+  'ow-guide-1b'       = 'WHEREVER IT SHINES IS WHERE TO GO.'
+  'ow-guide-2a'       = 'RIGHT NOW IT SHINES ON ME, THE ELDER.'
+  'ow-guide-2b'       = 'WALK TO IT. I HAVE YOUR QUEST.'
+  'ow-guide-3a'       = 'HOLD THE PAD TO WALK.'
+  'ow-guide-3b'       = 'FIGHT WHAT YOU MEET ON THE ROAD SOUTH.'
+  'ow-guide-3c'       = 'THE BACK BUTTON TAKES YOU HOME.'
   'ow-elder-hint-1a'  = 'THE REED LAMP SLEEPS'
   'ow-elder-hint-1b'  = 'IN THE BONE GLADE.'
   'ow-elder-hint-1c'  = 'BRING IT BACK AND THE FEN WILL OPEN.'

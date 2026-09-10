@@ -1,4 +1,5 @@
-import type { PlayerSave } from '../mp/protocol'
+import { FEED_LEVELS, type PlayerSave } from '../mp/protocol'
+import { feedLevel } from '../mp/feedClient'
 import { makeOwned } from './familiars'
 import { PackId, PACKS, rollPack } from './packs'
 import { game } from './store'
@@ -29,7 +30,8 @@ export const XP = {
   newHero: 15,
   fuse: 30,
   gift: 10,
-  trade: 25
+  trade: 25,
+  boss: 35
 }
 
 /** Levels that hand out a free hero card on top of coins and the refill. */
@@ -129,6 +131,7 @@ export function grantAccountXp(amount: number): void {
   for (let level = before + 1; level <= after; level++) {
     coins += levelCoins(level)
     if (PACK_LEVELS.indexOf(level) >= 0) card = grantMilestoneCard(level) ?? card
+    if (FEED_LEVELS.indexOf(level) >= 0) feedLevel(level) // realm news
   }
   game.coins += coins
   game.energyMax = energyCapFor(after)

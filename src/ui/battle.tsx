@@ -16,7 +16,6 @@ import {
   posterPunch,
   shownHp,
   skillFxUvs,
-  SKILL_FX_KINDS,
   SKILL_FX_SRC,
   unitHit,
   unitSkillFx
@@ -82,8 +81,13 @@ function ArenaHp(props: { unit: BattleUnit; fill: Color4; h?: number; w?: number
   )
 }
 
+/** The skill flipbook over a unit while its skill fires. Only the firing kind
+ * is mounted: five full-size quads per unit (one per sheet, four of them
+ * invisible) was forty textured nodes a frame in a 4v4. The preload tiles
+ * keep every skill sheet bound for the fight, so mounting late costs nothing. */
 function SkillFlash(props: { uid: string; size: number }) {
   const kind = unitSkillFx(props.uid)
+  if (!kind) return null
   return (
     <UiEntity
       uiTransform={{
@@ -93,22 +97,20 @@ function SkillFlash(props: { uid: string; size: number }) {
         height: props.size
       }}
     >
-      {SKILL_FX_KINDS.map((k) => (
-        <UiEntity
-          key={k}
-          uiTransform={{
-            positionType: 'absolute',
-            width: '100%',
-            height: '100%'
-          }}
-          uiBackground={{
-            textureMode: 'stretch',
-            texture: { src: SKILL_FX_SRC[k] },
-            uvs: skillFxUvs(),
-            color: kind === k ? Color4.White() : Color4.create(1, 1, 1, 0)
-          }}
-        />
-      ))}
+      <UiEntity
+        key={kind}
+        uiTransform={{
+          positionType: 'absolute',
+          width: '100%',
+          height: '100%'
+        }}
+        uiBackground={{
+          textureMode: 'stretch',
+          texture: { src: SKILL_FX_SRC[kind] },
+          uvs: skillFxUvs(),
+          color: Color4.White()
+        }}
+      />
     </UiEntity>
   )
 }

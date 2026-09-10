@@ -3,14 +3,16 @@ import ReactEcs from '@dcl/sdk/react-ecs'
 import { UiEntity } from './ui'
 import { resetAccount } from '../game/account'
 import { playClick } from '../game/audio'
-import { lockNav } from '../game/nav'
+import { lockNav, open } from '../game/nav'
 import { game } from '../game/store'
 import { pushAccountReset } from '../mp/session'
+import { wardrobe } from '../mp/views'
 import { press, pressShrink, pressTint } from './fx/press'
+import './labels.feed.gen'
 import { LABELS } from './labels.gen'
 import { AcceptDecline } from './panels'
 import { danger } from './theme'
-import { Img, MenuTitle, MpBackdrop } from './widgets'
+import { btnDark, Img, LabelBtn, MenuTitle, MpBackdrop } from './widgets'
 
 // ---- settings ------------------------------------------------------------------
 
@@ -69,6 +71,30 @@ export function disarmRestart() {
   armRestart = false
 }
 
+// ---- appearance ------------------------------------------------------------------
+//
+// Skin, hair and tunic live on the tailor's rack (ui/wardrobe.tsx), reached
+// from the weaver's cottage on the map or from this button.
+
+function AppearanceButton() {
+  return (
+    <LabelBtn
+      k="set-appearance"
+      id="set:appearance"
+      w={64}
+      h={360}
+      labelW={24}
+      bg={btnDark}
+      margin={5}
+      onTap={() => {
+        wardrobe.tab = 'colors'
+        wardrobe.fromSettings = true
+        open('wardrobe')
+      }}
+    />
+  )
+}
+
 export function SettingsScreen() {
   const restart = LABELS['set-row-restart']
   const rw = 128
@@ -98,6 +124,7 @@ export function SettingsScreen() {
           game.musicOn = !game.musicOn
         }}
       />
+      <AppearanceButton />
       {restart ? (
         <UiEntity
           uiTransform={{

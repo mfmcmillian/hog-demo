@@ -109,6 +109,37 @@ Locked teasers sit on the PARTY bench. Tap one to see which pieces you still nee
 
 The full game is in your pocket: same raids, trades, and festivals on phone or desktop, same account, same heroes — straight from the browser.
 
+## What's next
+
+Everything above is live and free to play today. It is also a demo: one developer, one contest window, and a design that stops short of the systems that make a mobile RPG a habit rather than a visit. With funding, here is what the next stretch buys, in the order we'd build it (the long-form version, with the code each item touches, is in [`ROADMAP.md`](ROADMAP.md)):
+
+1. **Alliances (guilds).** The single biggest missing piece: the games this is modeled on are unplayable solo past week one, by design. Create/join, alliance chat, an alliance board in the Hall of Heroes, and an alliance-scoped world boss (alliance damage total, alliance rank). Gifts and ghost allies scope naturally to your alliance. The plumbing — parties, ghost allies, trades, gifts, per-wallet server state — already exists.
+2. **Realm Race: rotating goals with milestone chests.** Today's dailies are a flat checklist. A scoring window that changes every few hours (fuse hour, raid hour, roads hour) with tiered chests gives people a reason to come back at specific times, not just once a day. Rides the existing feed, daily counters and spoils chest.
+3. **Combat stats on the results screen.** Per-hero damage dealt and taken, healing, knockouts, skills fired, turns survived — tallied where the hits happen (the sim already runs turn by turn) and shown on the report.
+4. **Multiple saved parties.** Four named lineups, a remembered party per mode (roads, raids, duels, boss), heroes free to sit in more than one.
+5. **Content.** More Roads and warlords, more hero cards and fusion lines, new overworld realms and dungeon puzzles, seasonal festivals — the art and layout pipelines below make each of these a matter of days, not weeks.
+6. **Live operation.** Scheduled events, balance passes driven by the server's own data (the boss and combat simulators in `tools/` already model this), and community-run tournaments through the duel rings.
+
+Funding turns a demo that proves the loop into a game that keeps a realm alive week after week — and keeps every one of those players inside Decentraland.
+
+## For Decentraland builders
+
+This repo is a complete, shipped SDK7 game and is meant to be read. If you are new to Decentraland, it shows one way to build something far beyond a static scene; if you have shipped scenes before, several of the harder problems are solved here in a form you can lift.
+
+**Server-authoritative multiplayer, end to end.** `src/server/` is a headless authoritative server that owns saves, trades, festivals, raids, duels, the world boss, leaderboards, the realm feed, ghosts and avatar looks. `src/mp/` is the matching client. The pattern is consistent everywhere: state the whole room sees is published as a JSON snapshot on a synced component guarded by `validateBeforeChange` so only the server can write it (`src/mp/transport.ts`); state one wallet should see arrives by targeted message (`room.send('xUpdate', { address, json })`); every player intent is a typed message the server validates before anything changes (`src/mp/protocol.ts` holds every type and constant, shared by both sides).
+
+**Saves you can trust.** `src/server/saves.ts` and `src/mp/saveSync.ts` show wallet-keyed persistence with retried reads, a verified first push, regression guards so a fresh client can never overwrite an established save with an emptier one, and a rolling backup key. Payouts earned while a player is offline are banked server-side and delivered on their next arrival.
+
+**A deterministic combat sim shared by client and server.** `src/game/combat.ts` runs the roads on the client and raids, duels and the world boss on the server, step for step, from the same code. `tools/combat-sim.ts` and `tools/sim-boss.ts` run it headless to tune numbers before they ship.
+
+**Phone-first UI in React-ECS.** The whole game is a screen-space UI over a minimal 3D shell. `src/ui/screens.tsx` shows a fixed virtual stage that stays pixel-identical across aspect ratios, a portrait "grip" that turns a landscape canvas into a phone column, and per-screen texture binding (`src/ui/preload.ts`) that keeps only the current screen and its neighbors resident — the difference between a scene that runs on a phone and one that doesn't.
+
+**An art pipeline that scales.** Every label is a pre-rendered strip generated from a one-line table (`tools/gen-*-labels.ps1` → `src/ui/labels.*.gen.ts`); character animation is sprite-sheet flipbooks (`src/ui/flipbook.ts`); overworld maps go from ASCII collision layouts to paintings to processed tiles (`tools/render-ow-layout.ps1`, `tools/process-ow-map.ps1`); everything is chroma-keyed, cropped, fitted and quantized by script (`tools/process-*-art.ps1`, `tools/quantize-images.py`). New content is a table row and an image, not a layout session.
+
+**Decentraland-native features, used for real.** Wearable-gated heroes read from the wallet (`src/game/nftHeroes.ts`), avatar-derived player sprites (`src/mp/looks.ts`, `src/ui/avatar.tsx`), presence-driven lobbies and invites, and deploy scripts for both a World (`npm run deploy:world`) and Genesis City LAND (`npm run deploy`, which handles the `worldConfiguration` conflict for you).
+
+Fork it, keep the server and the UI stage, swap the art and the sim, and you have a head start on your own multiplayer game in Decentraland. Questions and pull requests are welcome.
+
 ## Run it locally
 
 ```
